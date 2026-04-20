@@ -14,15 +14,15 @@ def test_index_returns_html(client):
 
 
 def test_annotate_returns_html_with_audio_id(client):
-    r = client.get("/annotate?audio_id=test-id&annotator=amber")
+    r = client.get("/annotate/test-id?annotator=amber")
     assert r.status_code == 200
-    assert "Phase 2" in r.text
+    assert "waveform" in r.text
 
 
 def test_static_list_js_served(client):
     r = client.get("/static/list.js")
     assert r.status_code == 200
-    assert "fetch('/api/audio')" in r.text
+    assert "/api/audio" in r.text
 
 
 def test_dimensions_endpoint_returns_ten(client):

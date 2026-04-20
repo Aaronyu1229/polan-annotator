@@ -3,28 +3,214 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>標註 — 珀瀾聲音標註工具</title>
+  <title>標註 — Pōlán Annotator</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <style>
+    /* 滑桿視覺 — light-base，橙色 thumb。深色模式跟系統 (prefers-color-scheme)。 */
+    input[type="range"].polan-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #cbd5e1; /* slate-300 */
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"].polan-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #f59e0b;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #f8fafc; /* slate-50 */
+    }
+    input[type="range"].polan-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: #f59e0b;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #f8fafc;
+    }
+    @media (prefers-color-scheme: dark) {
+      input[type="range"].polan-slider { background: #334155; } /* slate-700 */
+      input[type="range"].polan-slider::-webkit-slider-thumb { border-color: #1e293b; }
+      input[type="range"].polan-slider::-moz-range-thumb { border-color: #1e293b; }
+      #waveform { background: #0f172a; }
+    }
+    .chip {
+      user-select: none;
+      cursor: pointer;
+      background: #ffffff;
+      color: #334155; /* slate-700 */
+      border: 1px solid #cbd5e1; /* slate-300 */
+    }
+    .chip:hover { background: #f1f5f9; } /* slate-100 */
+    @media (prefers-color-scheme: dark) {
+      .chip { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+      .chip:hover { background: #334155; }
+    }
+    .chip.chip-active,
+    .chip.chip-active:hover {
+      background: #f59e0b;      /* amber-500 */
+      color: #0f172a;           /* slate-900 */
+      border-color: #fbbf24;    /* amber-400 */
+    }
+    #waveform {
+      min-height: 80px;
+      background: #f1f5f9; /* slate-100 */
+      border-radius: 6px;
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <main class="max-w-3xl mx-auto p-8">
-    <a href="/" class="text-sm text-slate-500 hover:underline">← 回音檔清單</a>
-
-    <h1 class="text-xl font-semibold mt-4">標註介面</h1>
-
-    <div class="mt-6 p-6 border border-dashed border-slate-300 rounded-md bg-white">
-      <p class="text-slate-600">Phase 2 將於此頁實作：滑桿、波形、autocomplete tag、localStorage 草稿等。</p>
-      <dl class="mt-4 text-sm text-slate-500 space-y-1">
-        <div><dt class="inline font-medium text-slate-600">音檔 ID：</dt><dd class="inline"><code id="audio-id"></code></dd></div>
-        <div><dt class="inline font-medium text-slate-600">標註者：</dt><dd class="inline"><code id="annotator-id"></code></dd></div>
-      </dl>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 pb-32">
+  <!-- 頂部進度列 (sticky) -->
+  <header class="sticky top-0 z-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between text-sm">
+      <a href="/" id="back-link" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white flex items-center gap-1">
+        <span>←</span><span>返回列表</span>
+      </a>
+      <div class="flex items-center gap-4">
+        <div class="text-slate-600 dark:text-slate-300">
+          第 <span id="current-index" class="font-semibold text-slate-900 dark:text-white">—</span>
+          / <span id="total-count">—</span>
+        </div>
+        <div class="w-48 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div id="progress-bar" class="h-full bg-amber-500" style="width: 0%"></div>
+        </div>
+        <div id="progress-percent" class="text-slate-500 dark:text-slate-400 w-10 text-right">0%</div>
+      </div>
+      <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+        <label for="annotator-select" class="text-xs">標註員</label>
+        <select id="annotator-select"
+          class="px-2 py-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded text-xs focus:outline-none focus:border-amber-500">
+        </select>
+      </div>
     </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-6">
+
+    <!-- 音檔資訊 -->
+    <section class="mb-4">
+      <h1 id="audio-title" class="text-2xl font-semibold">載入中…</h1>
+      <p id="audio-meta" class="text-sm text-slate-600 dark:text-slate-400 mt-1"></p>
+      <p id="audio-warning" class="hidden mt-2 text-xs px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 rounded inline-block"></p>
+    </section>
+
+    <!-- 波形播放器 -->
+    <section class="mb-8">
+      <div id="waveform"></div>
+      <audio id="native-audio-fallback" class="hidden w-full mt-2" controls></audio>
+      <div class="flex items-center justify-between mt-2 text-sm">
+        <div class="flex items-center gap-2">
+          <button id="play-toggle" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded font-medium">
+            ▶ 播放
+          </button>
+          <button id="loop-toggle" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded">
+            🔁 循環整首
+          </button>
+          <span class="text-slate-500 dark:text-slate-500 text-xs ml-2">Space 播放 · L 循環 · ←→ ±5s · Home 回頭</span>
+        </div>
+        <div class="font-mono text-xs text-slate-500 dark:text-slate-400">
+          <span id="play-time">0.0</span> / <span id="play-duration">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 個維度滑桿 (兩欄) -->
+    <section class="mb-8">
+      <h2 class="text-base font-semibold mb-3 text-slate-800 dark:text-slate-200">情感、功能、聲學維度</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        <div id="dims-left" class="space-y-3"></div>
+        <div id="dims-right" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- Layer 1 單選 -->
+    <section class="mb-6">
+      <h2 class="text-base font-semibold mb-3 text-slate-800 dark:text-slate-200">音源類型 <span class="text-slate-500 text-xs font-normal">（選一個）</span></h2>
+      <div id="source-types" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+    </section>
+
+    <!-- Layer 2 多選 -->
+    <section class="mb-6">
+      <h2 class="text-base font-semibold mb-3 text-slate-800 dark:text-slate-200">
+        功能角色 <span class="text-slate-500 text-xs font-normal">（可多選，至少選一項）</span>
+      </h2>
+      <div id="function-roles" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+    </section>
+
+    <!-- 離散標籤（可摺疊） -->
+    <section class="mb-6">
+      <button id="tags-toggle" class="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white flex items-center gap-1">
+        <span id="tags-caret">▸</span>
+        <span>更多標籤 (genre / worldview / style / notes)</span>
+      </button>
+      <div id="tags-panel" class="hidden mt-3 p-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-transparent rounded space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">遊戲類型 (genre)</label>
+            <input id="genre-input" list="genre-list" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="可下拉或自由輸入">
+            <datalist id="genre-list"></datalist>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">世界觀 (worldview)</label>
+            <input id="worldview-input" list="worldview-list" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="可下拉或自由輸入">
+            <datalist id="worldview-list"></datalist>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">風格 (style) — 多選</label>
+          <div id="style-chips" class="flex flex-wrap gap-2 mb-2"></div>
+          <div class="flex gap-2">
+            <input id="style-input" list="style-list" class="flex-1 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="選或輸入後按 Enter 加入">
+            <datalist id="style-list"></datalist>
+            <button id="style-add" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 rounded text-sm">加入</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">筆記 (notes)</label>
+          <textarea id="notes-input" rows="3" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="隨手記錄"></textarea>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <script type="module">
-    const params = new URLSearchParams(window.location.search)
-    document.getElementById('audio-id').textContent = params.get('audio_id') || '(未提供)'
-    document.getElementById('annotator-id').textContent = params.get('annotator') || 'amber'
-  </script>
+  <!-- 底部操作列 (sticky) -->
+  <footer class="fixed bottom-0 left-0 right-0 z-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur border-t border-slate-200 dark:border-slate-800">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div>
+        <button id="skip-btn" class="text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 text-sm">跳過 <span class="text-xs text-slate-500">[Esc]</span></button>
+      </div>
+      <div id="draft-status" class="text-xs text-slate-500 dark:text-slate-500">尚未儲存</div>
+      <div class="flex items-center gap-3">
+        <button id="save-stay-btn" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded text-sm">
+          儲存留在此頁 <span class="text-xs text-slate-500 dark:text-slate-400 ml-1">[⌘S]</span>
+        </button>
+        <button id="save-next-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded font-medium text-sm">
+          儲存並下一個 <span class="text-xs text-slate-700 ml-1">[Enter]</span>
+        </button>
+      </div>
+    </div>
+    <div id="save-error" class="hidden max-w-6xl mx-auto px-6 pb-3 text-sm text-red-600 dark:text-red-400"></div>
+  </footer>
+
+  <!-- Resume draft modal -->
+  <div id="draft-modal" class="hidden fixed inset-0 z-30 bg-black/60 flex items-center justify-center">
+    <div class="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
+      <h3 class="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">發現未儲存草稿</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4" id="draft-modal-meta">上次編輯時間：—</p>
+      <div class="flex justify-end gap-2">
+        <button id="draft-discard" class="px-3 py-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">重新開始</button>
+        <button id="draft-resume" class="px-3 py-2 bg-amber-500 text-slate-900 rounded font-medium">繼續草稿</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/annotate.js"></script>
 </body>
 </html>

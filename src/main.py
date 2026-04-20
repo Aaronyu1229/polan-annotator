@@ -19,7 +19,7 @@ from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
 from src.db import create_db, engine
-from src.routes import audio, dimensions
+from src.routes import annotations, audio, dimensions, tag_suggestions
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "static"
@@ -48,6 +48,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="珀瀾聲音標註工具", version="0.1.0", lifespan=lifespan)
 app.include_router(dimensions.router)
 app.include_router(audio.router)
+app.include_router(annotations.router)
+app.include_router(tag_suggestions.router)
 
 
 @app.get("/", include_in_schema=False)
@@ -56,7 +58,13 @@ def index() -> FileResponse:
 
 
 @app.get("/annotate", include_in_schema=False)
-def annotate() -> FileResponse:
+def annotate_legacy() -> FileResponse:
+    """向後相容 Phase 1 的 /annotate?audio_id=... 連結；Phase 2 主路由改 path param。"""
+    return FileResponse(STATIC_DIR / "annotate.html")
+
+
+@app.get("/annotate/{audio_id}", include_in_schema=False)
+def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參數由前端 JS 解析
     return FileResponse(STATIC_DIR / "annotate.html")
 
 

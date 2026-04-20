@@ -5,27 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>珀瀾聲音標註工具</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .status-dot { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
   <main class="max-w-5xl mx-auto p-8">
-    <header class="mb-8 flex items-baseline justify-between">
+    <header class="mb-6 flex items-baseline justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">珀瀾聲音標註工具</h1>
-        <p class="text-slate-500 text-sm mt-1">Phase 1 — 音檔清單</p>
+        <h1 class="text-2xl font-semibold">Pōlán Annotator</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">珀瀾聲音 — 音效情緒標註</p>
       </div>
-      <div id="meta" class="text-sm text-slate-500"></div>
+      <div class="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+        <label for="annotator-select" class="font-medium text-slate-900 dark:text-slate-100">標註員：</label>
+        <select id="annotator-select"
+          class="px-2 py-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded text-sm focus:outline-none focus:border-amber-500">
+        </select>
+      </div>
     </header>
 
-    <div id="status" class="text-slate-500 text-sm mb-4">載入中...</div>
+    <section class="mb-6">
+      <div class="flex items-baseline justify-between mb-2">
+        <div class="text-sm text-slate-700 dark:text-slate-300">
+          進度：<span id="progress-text" class="font-medium">— / —</span>
+        </div>
+        <div id="progress-percent" class="text-sm text-slate-500 dark:text-slate-400">0%</div>
+      </div>
+      <div class="h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div id="progress-bar" class="h-full bg-amber-500 transition-none" style="width: 0%"></div>
+      </div>
+    </section>
 
-    <div class="bg-white shadow-sm rounded-md overflow-hidden">
+    <div id="status" class="text-slate-500 dark:text-slate-400 text-sm mb-4">載入中…</div>
+
+    <div class="bg-white dark:bg-slate-800 shadow-sm rounded-md overflow-hidden">
       <table class="w-full text-sm">
-        <thead class="bg-slate-100 text-slate-600">
+        <thead class="bg-slate-100 text-slate-600 dark:bg-slate-900/70 dark:text-slate-400 text-xs uppercase tracking-wide">
           <tr>
-            <th class="text-left p-3 font-medium">遊戲</th>
-            <th class="text-left p-3 font-medium">時序段落</th>
+            <th class="text-left p-3 font-medium w-8"></th>
+            <th class="text-left p-3 font-medium">遊戲 / 段落</th>
             <th class="text-left p-3 font-medium">類型</th>
-            <th class="text-right p-3 font-medium">操作</th>
+            <th class="text-right p-3 font-medium w-24">時長</th>
           </tr>
         </thead>
         <tbody id="audio-list"></tbody>

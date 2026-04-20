@@ -3,7 +3,7 @@
 珀瀾聲音 Pōlán Sound 內部音效情緒標註工具。給創辦人 Amber 自己標 33 個 BGM 種子作品用，標完後成為招募外部標註員的「黃金校準範例」與賣給 AI 新創的訓練資料集雛形。
 
 > Phase 1：專案骨架 + 資料模型  ✅ 完成
-> Phase 2：標註介面核心  🚧 待實作
+> Phase 2：標註介面核心  ✅ 完成
 > Phase 3：校準模式 + ICC（第一輪不做）
 > Phase 4：資料匯出 + validation
 
@@ -61,11 +61,13 @@ pytest                         # 全部
 pytest tests/test_smoke.py -v  # 只跑 smoke
 ```
 
-目前 35 tests，分布：
+目前 50 tests，分布：
 - `test_filename_parser.py` — 7（兩段式 / 三段式品牌主題 / fallback）
 - `test_dimensions_loader.py` — 14（happy path + fail-fast）
 - `test_audio_scanner.py` — 7（idempotent + parse 整合）
 - `test_smoke.py` — 7（API + 靜態頁路由）
+- `test_annotations_api.py` — 12（完整度驗證 / upsert / next_audio_id / annotators 列表）
+- `test_audio_analysis.py` — 3（librosa 分析 + cache，需 data/audio 有檔）
 
 ## 目錄結構
 
@@ -79,12 +81,16 @@ polan-annotator/
 │   ├── dimensions_config.json  # 10 維度的單一資料來源（Amber 可直接編輯）
 │   ├── dimensions_loader.py    # JSON loader + 驗證
 │   ├── audio_scanner.py        # data/audio/ 掃描器
+│   ├── audio_analysis.py       # librosa 分析 + cache 到 AudioFile
 │   └── routes/
 │       ├── dimensions.py       # GET /api/dimensions
-│       └── audio.py            # GET /api/audio
+│       ├── audio.py            # GET /api/audio (列表 / 單筆 / stream)
+│       ├── annotations.py      # POST /api/annotations (upsert) + /annotators
+│       └── tag_suggestions.py  # GET /api/tag-suggestions?field=
 ├── static/
-│   ├── index.html              # 音檔清單頁
-│   ├── annotate.html           # Phase 2 placeholder
+│   ├── index.html              # 音檔清單頁（進度 / ✓✗）
+│   ├── annotate.html           # Phase 2 標註主介面
+│   ├── annotate.js             # 標註頁邏輯（滑桿 / 波形 / draft）
 │   └── list.js                 # 清單 fetch + render
 ├── scripts/
 │   └── rescan_audio.py         # CLI：手動重掃
@@ -117,14 +123,31 @@ Parser 在 `src/constants.py` 的 `parse_audio_filename()`，處理三種：
 
 合法 stage 集合在 `KNOWN_STAGES`：`Base Game / Free Game / Bonus Game / Main Game / Winning Panel`。
 
+## POST `/api/annotations` validation 層級
+
+後端驗證分為**硬性錯誤（400）**和**軟性不完整（接受但 `is_complete=False`）**兩層：
+
+| 情境 | 回應 | `is_complete` |
+|------|------|---------------|
+| 任一維度值超出 `[0, 1]`（例如 `valence=1.5`） | **400** — `"維度 valence 值 1.5 超出範圍 [0, 1]"` | — |
+| `source_type` 不在 `SOURCE_TYPES` 白名單 | **400** — `"source_type 'xxx' 不在合法清單"` | — |
+| `function_roles=[]`（空陣列） | **400** — `"function_roles 必須至少選一項"` | — |
+| `function_roles` 含不合法 key | **400** — `"function_roles 包含非法值：xxx"` | — |
+| 任一維度值為 `null` / `source_type=null` | **200** — 儲存並回 `next_audio_id` | **False** |
+| 上述全部通過 + 10 維度齊全 + `source_type` 已填 + `function_roles` ≥ 1 | **200** | **True** |
+
+**設計意圖：**
+- 硬性錯誤 = 資料髒（不可能是合理狀態）→ 前端要把錯訊顯給使用者，不要寫 DB
+- 軟性不完整 = 使用者還沒標完，但想先存 → 允許，但 Phase 4 `export_dataset.py` 只撈 `is_complete=True`
+- Draft（自動暫存）完全在前端 `localStorage`，**不會** POST 到後端
+- 同一 `(audio_id, annotator_id)` 對重複 POST 會 upsert（保留 `created_at`、更新 `updated_at`）
+
 ## 後續 Phase
 
-Phase 2 預期改/加：
-- `src/routes/annotations.py` — POST/GET annotations
-- `src/audio_analysis.py` — librosa 跑 duration/bpm/sample_rate + auto-compute 兩個 acoustic 維度
-- `static/annotate.html` — 滑桿、波形（WaveSurfer）、autocomplete
-- `static/draft-save.js` — localStorage 草稿（3 秒 debounce）
+Phase 3 預期加：
+- 第二位標註員加入後的 ICC / consensus aggregation
+- 標註員之間的歧見熱點 UI
 
 Phase 4 預期加：
-- `scripts/export_dataset.py` — 匯出 is_complete=True 的 annotations
-- consensus aggregation（要等第二位標註員加入）
+- `scripts/export_dataset.py` — 匯出 `is_complete=True` 的 annotations
+- training set / validation split 邏輯
