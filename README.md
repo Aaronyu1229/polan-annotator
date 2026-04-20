@@ -46,6 +46,24 @@ uvicorn src.main:app --reload --port 8000
 2. 掃描 `data/audio/` 並 upsert 新 `.wav` 到 DB
 3. 把掃描摘要 log 出來
 
+## 給 Amber 的一鍵啟動
+
+做了一個雙擊即可啟動的腳本，免打指令。安裝方式（Aaron 做一次即可）：
+
+```bash
+bash scripts/install_desktop_shortcut.sh
+```
+
+跑完後桌面會出現「啟動珀瀾標註工具」檔案（實際是 symlink 指向 `scripts/start_annotator.command`），雙擊就會：
+
+1. 終端機視窗跳出 + 顯示啟動訊息
+2. 3 秒後瀏覽器自動打開 <http://localhost:8000/?annotator=amber>
+3. 結束工作時 Ctrl+C 停 server、再關視窗
+
+**第一次雙擊**會被 macOS 安全機制擋下，需到 `系統設定 → 隱私權與安全性` 最下方點「強制打開」。之後不會再擋。
+
+**搬 project 位置後**（例如 iCloud Drive、不同硬碟）重跑一次 `install_desktop_shortcut.sh` 即可更新桌面 symlink。腳本自己會用 `python3 os.path.realpath` 解 symlink 定位真正 project dir，不會因為路徑不同壞掉。
+
 ## 手動 rescan
 
 新增音檔後不想重啟 server：
