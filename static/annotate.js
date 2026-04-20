@@ -13,6 +13,23 @@ const ANNOTATOR = qs.get('annotator') || 'guest'
 const DRAFT_KEY = `draft:${ANNOTATOR}:${AUDIO_ID}`
 const DRAFT_DEBOUNCE_MS = 3000
 
+// Phase 5 #2：session count 由 list.js 與此頁共同維護。連續儲存時中間的 annotate 頁
+// 仍會收到 ?just_saved=1 flag — 各頁各自 +1，才能讓最終回首頁時 count 正確。
+const SESSION_COUNT_KEY = `session_completed_count:${ANNOTATOR}`
+
+function consumeJustSavedFlag() {
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('just_saved') === '1') {
+    const prev = parseInt(sessionStorage.getItem(SESSION_COUNT_KEY) || '0', 10)
+    sessionStorage.setItem(SESSION_COUNT_KEY, String(prev + 1))
+    url.searchParams.delete('just_saved')
+    const newUrl = url.pathname + (url.search ? url.search : '')
+    window.history.replaceState({}, '', newUrl)
+  }
+}
+
+consumeJustSavedFlag()
+
 const DIM_ORDER_LEFT = ['valence', 'arousal', 'emotional_warmth', 'tension_direction']
 const DIM_ORDER_RIGHT = [
   'temporal_position', 'event_significance', 'loop_capability',
@@ -632,11 +649,12 @@ async function submitAnnotation({ goNext }) {
     draftStatus.textContent = data.is_complete ? '已提交 ✓' : '已儲存（半成品）'
     localStorage.removeItem(DRAFT_KEY)
     if (goNext) {
+      // ?just_saved=1 讓下一頁（無論是下一個 audio 還是首頁）sessionStorage count +1
       if (data.next_audio_id) {
-        window.location.href = `/annotate/${encodeURIComponent(data.next_audio_id)}?annotator=${encodeURIComponent(ANNOTATOR)}`
+        window.location.href = `/annotate/${encodeURIComponent(data.next_audio_id)}?annotator=${encodeURIComponent(ANNOTATOR)}&just_saved=1`
       } else {
         alert('全部標完了 🎉')
-        window.location.href = `/?annotator=${encodeURIComponent(ANNOTATOR)}`
+        window.location.href = `/?annotator=${encodeURIComponent(ANNOTATOR)}&just_saved=1`
       }
     }
   } catch (err) {
