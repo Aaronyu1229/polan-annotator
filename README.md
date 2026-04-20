@@ -142,12 +142,84 @@ Parser 在 `src/constants.py` 的 `parse_audio_filename()`，處理三種：
 - Draft（自動暫存）完全在前端 `localStorage`，**不會** POST 到後端
 - 同一 `(audio_id, annotator_id)` 對重複 POST 會 upsert（保留 `created_at`、更新 `updated_at`）
 
+## Phase 4 — 資料集匯出
+
+Phase 4 負責把 DB 內 `is_complete=True` 的 annotation 轉成可交付 AI 買方的 JSON。
+
+### 端點
+
+| Endpoint | 用途 |
+|---|---|
+| `GET /api/export/dataset.json` | 主要交付物。多人標註時合併為共識值 |
+| `GET /api/export/calibration_set.json` | 只含 amber 的標註（校準新標註員） |
+| `GET /api/export/individual.json?annotator=<id>` | 特定標註員全部標註；未知 or 無完成標註 → 404 |
+
+所有端點一次回整份 JSON，無分頁（MVP dataset < 1000 筆）。
+
+### Aggregation 規則
+
+只從 DB 取 `is_complete=1` 的 annotation。若一檔所有 annotation 都 incomplete，整檔從 `items` 排除，但仍計入 `total_audio_files`。
+
+| 欄位類型 | 規則 |
+|---|---|
+| 9 個連續維度 | mean，round 到 **3 位小數**（滑桿 step=0.05，更多位是假精確；浮點 `0.700` 在 JSON 顯示為 `0.7` 是 Python float 正常行為）|
+| `loop_capability`（離散 0/0.5/1） | mode；三方各一票 fallback **0.5** |
+| `source_type`（單選 enum） | mode；平手 → `null` + `warnings: ["source_type_conflict"]` |
+| `function_roles` / `style_tag`（多選）| **union**，dedupe 保留首現順序 |
+| `genre_tag` / `worldview_tag`（單選）| mode；平手 → `null`（不加 warning）|
+| `notes` | 不合併，只留在 `individual_annotations[].notes` |
+
+### `consensus_method` 的語意
+
+- `"single_annotator"`：只有 1 位標註員，consensus 就是該人的值
+- `"mixed"`：≥ 2 位標註員，混合用上述規則（**不**叫 `"mean"`，因為 loop_capability 是 mode、多選是 union — `mixed` 比較誠實）
+
+### `annotated_at` 的語意
+
+值來自 `Annotation.updated_at`，代表「最近一次確認這筆標註的時間」。若 Amber 之後重新調整舊檔的標記，買方看到的是最新時間戳。
+
+### `schema_version` 政策
+
+當前 `"0.1.0"`。0.x 代表 MVP 試水溫；任何 breaking change（欄位改名、刪除、enum 變動）→ bump major。買方應該 pin major version。
+
+### Schema 驗證
+
+```bash
+uv run python scripts/validate_export.py /path/to/dataset.json
+# exit 0 = valid，exit 1 = 有錯誤（逐條列在 stdout）
+```
+
+Validator 刻意**獨立於 FastAPI / SQLModel**，enum 硬編碼在檔案內。買方拿到 JSON 後能自己跑這支 script 驗，不需要我們的 repo。若 `src/constants.py` 的 enum 變動，必須同步更新 `scripts/validate_export.py` 的 `EXPECTED_*` 常數。
+
+### 預熱 librosa cache
+
+`audio_metadata` 的 `duration_sec` / `bpm` / `sample_rate` / `auto_computed.*` 是 librosa 算出來的，原本只在使用者開啟標註頁時 lazy 計算。匯出前跑一次這個 script 讓 33 個檔案都有 metadata：
+
+```bash
+uv run python scripts/warm_audio_cache.py
+```
+
+預計 20 秒~幾分鐘（依 CPU）。單檔失敗不會中斷整批，結尾印 summary。
+
+### 完整驗證流程（copy-paste）
+
+```bash
+# 1. warm cache（可選，讓 audio_metadata 齊全）
+uv run python scripts/warm_audio_cache.py
+
+# 2. 啟 server
+uv run uvicorn src.main:app --reload &
+
+# 3. export + validate
+curl -s http://localhost:8000/api/export/dataset.json > /tmp/dataset.json
+uv run python scripts/validate_export.py /tmp/dataset.json
+
+# 4. 跑測試
+uv run pytest tests/test_export.py -v
+```
+
 ## 後續 Phase
 
 Phase 3 預期加：
-- 第二位標註員加入後的 ICC / consensus aggregation
+- 第二位標註員加入後的 ICC / consensus aggregation（aggregation 邏輯本身在 Phase 4 已實作，Phase 3 會加 UI 顯示歧見熱點）
 - 標註員之間的歧見熱點 UI
-
-Phase 4 預期加：
-- `scripts/export_dataset.py` — 匯出 `is_complete=True` 的 annotations
-- training set / validation split 邏輯

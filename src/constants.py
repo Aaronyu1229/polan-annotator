@@ -2,6 +2,10 @@
 
 這些 list 被 Phase 2 的 UI / Phase 4 的 validator 共用，統一在這裡定義。
 不要把它們搬進 dimensions_config.json — 這些是「UI 選項」不是「維度定義」，本質不同。
+
+⚠️ Schema contract：SOURCE_TYPES / FUNCTION_ROLES 的 key 若變動，必須**同步**更新
+    scripts/validate_export.py 的 EXPECTED_SOURCE_TYPES / EXPECTED_FUNCTION_ROLES。
+    該 validator 刻意獨立於本 module，讓買方能不依賴本 repo 自行驗 JSON。
 """
 from pathlib import Path
 

@@ -19,7 +19,7 @@ from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
 from src.db import create_db, engine
-from src.routes import annotations, audio, dimensions, tag_suggestions
+from src.routes import annotations, audio, dimensions, export, tag_suggestions
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "static"
@@ -50,6 +50,7 @@ app.include_router(dimensions.router)
 app.include_router(audio.router)
 app.include_router(annotations.router)
 app.include_router(tag_suggestions.router)
+app.include_router(export.router)
 
 
 @app.get("/", include_in_schema=False)
