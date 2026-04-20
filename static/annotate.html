@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>標註 — 珀瀾聲音標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-3xl mx-auto p-8">
+    <a href="/" class="text-sm text-slate-500 hover:underline">← 回音檔清單</a>
+
+    <h1 class="text-xl font-semibold mt-4">標註介面</h1>
+
+    <div class="mt-6 p-6 border border-dashed border-slate-300 rounded-md bg-white">
+      <p class="text-slate-600">Phase 2 將於此頁實作：滑桿、波形、autocomplete tag、localStorage 草稿等。</p>
+      <dl class="mt-4 text-sm text-slate-500 space-y-1">
+        <div><dt class="inline font-medium text-slate-600">音檔 ID：</dt><dd class="inline"><code id="audio-id"></code></dd></div>
+        <div><dt class="inline font-medium text-slate-600">標註者：</dt><dd class="inline"><code id="annotator-id"></code></dd></div>
+      </dl>
+    </div>
+  </main>
+
+  <script type="module">
+    const params = new URLSearchParams(window.location.search)
+    document.getElementById('audio-id').textContent = params.get('audio_id') || '(未提供)'
+    document.getElementById('annotator-id').textContent = params.get('annotator') || 'amber'
+  </script>
+</body>
+</html>

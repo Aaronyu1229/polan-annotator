@@ -1,0 +1,32 @@
+[project]
+name = "polan-annotator"
+version = "0.1.0"
+description = "珀瀾聲音 Pōlán Sound — 內部音效情緒標註工具"
+requires-python = ">=3.11"
+readme = "README.md"
+
+dependencies = [
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.32,<0.33",
+    "sqlmodel>=0.0.22,<0.1",
+    "pydantic>=2.9,<3",
+    "librosa>=0.10,<0.11",
+    "scipy>=1.14,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "httpx>=0.27,<0.28",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,0 +1,118 @@
+{
+  "valence": {
+    "label_zh": "Valence 情緒正負向",
+    "category": "emotion",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "讓玩家感覺「好」還是「壞」。0=負面失落，1=正向愉悅。博弈音效大多落在 0.5 以上 — 設計原則是即使沒中獎也不要讓玩家感到挫折。",
+    "low_anchor": "0.3-0.4: Base Game 連續沒中獎時的 reel stop 聲（刻意做得平淡，讓後面中獎對比更強）",
+    "high_anchor": "0.95: Jackpot 中獎的慶祝短樂",
+    "amber_confirmed": true
+  },
+  "arousal": {
+    "label_zh": "Arousal 喚醒強度",
+    "category": "emotion",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "玩家的生理喚醒程度 — 心跳、注意力、身體緊繃度。和 Valence 是獨立兩軸（心理學 Circumplex Model 的核心概念）。",
+    "low_anchor": "0.1-0.2: UI 確認聲、簡單按鈕回饋",
+    "high_anchor": "0.9-0.95: Free Game 觸發前的 riser 拉升到最高點",
+    "amber_confirmed": true
+  },
+  "emotional_warmth": {
+    "label_zh": "Emotional Warmth 情緒溫度",
+    "category": "emotion",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "情緒的「溫度」質感 — 音色給人的親密度與人性化程度。0=冷峻、疏離、機械化的情感底色；1=溫暖、親密、人性化的情感底色。此維度與 Valence 獨立：一個音效可以正向但冷峻（如電子 Jackpot 爆發），也可以中性但溫暖（如民謠弦樂背景）。",
+    "low_anchor": "0.1-0.2: 純電子合成音、機械故障警示、金屬摩擦聲、科技感冰冷 UI",
+    "high_anchor": "0.85-0.95: 童聲哼唱、溫暖木質樂器（木吉他、直笛、烏克麗麗）、充滿人情味的民謠配器",
+    "amber_confirmed": false,
+    "todo_amber": "此維度定義與錨定範例為 Aaron 依你的設計脈絡推敲，請於 Phase 2 試標時確認是否符合你的設計意圖（特別是與 Valence 的獨立性）"
+  },
+  "tension_direction": {
+    "label_zh": "Tension Direction 張力方向",
+    "category": "emotion",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "音效的張力指向，合併舊版 Anticipation（期待／懸念）與 Resolution（解決／釋放）為單一方向軸。0=以釋放感主導（張力已消散、情緒已完結）；1=以累積感主導（指向未來尚未揭曉的結果）；中段 0.5=穩定狀態（不累積也不釋放）。好的博弈音效會讓這兩極在時間軸上交替出現。",
+    "low_anchor": "0.05-0.1: Total Win 結算的最後和弦、關卡通關的收尾樂句",
+    "high_anchor": "0.9-0.95: 瞇牌時的長 riser、Free Game 觸發前的拉升段、Boss 登場前的鋪墊",
+    "amber_confirmed": false,
+    "todo_amber": "舊版 Anticipation 和 Resolution 是分開兩軸，最終版合併為單軸方向。請確認合併方式與 0/1 兩極對應是否正確"
+  },
+  "temporal_position": {
+    "label_zh": "Temporal Position 時序位置",
+    "category": "function",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "此音效在一次完整玩家互動循環中的相對位置。0=循環開始（按下 spin），1=循環結束（結算完畢）。這讓 AI 學到音效的時序邏輯。",
+    "low_anchor": "0.0-0.1: spin 啟動聲",
+    "high_anchor": "0.95: Total Win 結算小短樂",
+    "amber_confirmed": true,
+    "auto_suggest_from_filename": true,
+    "filename_mapping": {
+      "Base Game": 0.25,
+      "Free Game": 0.5,
+      "Bonus Game": 0.65,
+      "Main Game": 0.5,
+      "Winning Panel": 0.9
+    }
+  },
+  "event_significance": {
+    "label_zh": "Event Significance 事件重要性",
+    "category": "function",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "此音效服務的遊戲事件在整體體驗中的重要性程度。涵蓋獎勵事件、劇情轉折、環境變化、系統通知等 — 不限於獎勵類，讓所有音效都能標，不再產生 N/A。0=日常瑣碎事件的背景音；1=戲劇性高峰時刻的標誌音。",
+    "low_anchor": "0.1-0.2: 一般 UI 點擊、hover 提示、小額中獎 pip 聲",
+    "high_anchor": "0.9-0.95: Jackpot / Mega Win 慶祝音樂、Boss 戰勝利樂、關鍵劇情揭曉樂句",
+    "amber_confirmed": false,
+    "todo_amber": "此維度從舊版 Reward Magnitude 演進而來（P0 #3），範圍從獎勵類擴大到全事件類。請確認範圍擴大後的定義是否完整"
+  },
+  "loop_capability": {
+    "label_zh": "Loop Capability 可循環性",
+    "category": "function",
+    "type": "discrete",
+    "options": [0.0, 0.5, 1.0],
+    "definition": "適合循環的程度。0=純 one-shot，0.5=可循環但有明顯起伏（不完全無縫），1=完全無縫循環。",
+    "low_anchor": "0.0: 中獎短樂 stinger",
+    "high_anchor": "1.0: Base Game BGM 主循環段",
+    "amber_confirmed": true
+  },
+  "tonal_noise_ratio": {
+    "label_zh": "Tonal-Noise Ratio 樂音/噪音比",
+    "category": "acoustic",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "0=純噪音（白噪、機械摩擦），1=純樂音（清晰旋律或和聲）。此維度可自動驗證。",
+    "low_anchor": "0.15: reel 停輪機械喀噠聲",
+    "high_anchor": "0.9: Free Game BGM 主旋律段",
+    "amber_confirmed": true,
+    "auto_compute": true,
+    "auto_compute_method": "1 - librosa.feature.spectral_flatness().mean()"
+  },
+  "spectral_density": {
+    "label_zh": "Spectral Density 聲音密度",
+    "category": "acoustic",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "單位時間內的資訊量、樂器層數、頻譜填充度。0=極簡（單一音色、大量留白），1=極密（多層堆疊、滿頻譜、快速事件）。此維度可自動驗證。",
+    "low_anchor": "0.1: 簡單的 UI 確認 tick 聲",
+    "high_anchor": "0.95: Jackpot 中獎時的全樂團爆發加音效疊層",
+    "amber_confirmed": true,
+    "auto_compute": true,
+    "auto_compute_method": "綜合 spectral centroid + zero-crossing rate + onset density 並 normalize"
+  },
+  "world_immersion": {
+    "label_zh": "World Immersion 世界沉浸感",
+    "category": "acoustic",
+    "type": "continuous",
+    "range": [0.0, 1.0],
+    "definition": "音效引發玩家聯想遊戲世界觀、讓人沉浸於虛構設定的程度。0=抽象、去脈絡、無世界觀暗示的功能性音效；1=深度融入特定世界觀（文化、時代、場景氛圍）的音效，能立即喚起該世界的意象。對應 Amber 的設計準則：「能引發遊戲世界觀的聯想」與「不會讓玩家出戲」。",
+    "low_anchor": "0.1-0.2: 通用 UI 嗶聲、無風格 tick 音、純抽象合成短音",
+    "high_anchor": "0.85-0.95: 中國神話主題的五聲音階＋中國樂器配器（如 Treasure Dragon Bonus Game）、恐怖片式環境氛圍（如 Haunted Spirit）、太空歌劇的宏大管弦樂",
+    "amber_confirmed": false,
+    "todo_amber": "此維度可能與 Emotional Warmth、Style Tag 有重疊風險（P1 #5 提到要跑 correlation matrix）。請確認定義方向與獨立性"
+  }
+}

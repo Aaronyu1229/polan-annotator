@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>珀瀾聲音標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-5xl mx-auto p-8">
+    <header class="mb-8 flex items-baseline justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold">珀瀾聲音標註工具</h1>
+        <p class="text-slate-500 text-sm mt-1">Phase 1 — 音檔清單</p>
+      </div>
+      <div id="meta" class="text-sm text-slate-500"></div>
+    </header>
+
+    <div id="status" class="text-slate-500 text-sm mb-4">載入中...</div>
+
+    <div class="bg-white shadow-sm rounded-md overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600">
+          <tr>
+            <th class="text-left p-3 font-medium">遊戲</th>
+            <th class="text-left p-3 font-medium">時序段落</th>
+            <th class="text-left p-3 font-medium">類型</th>
+            <th class="text-right p-3 font-medium">操作</th>
+          </tr>
+        </thead>
+        <tbody id="audio-list"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script type="module" src="/static/list.js"></script>
+</body>
+</html>
