@@ -1,0 +1,12 @@
+data/audio/*.wav
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.uv/
+*.db
+*.db-journal
+.vscode/
+.idea/
+.DS_Store
+.env
