@@ -199,7 +199,7 @@
     <div id="save-error" class="hidden max-w-6xl mx-auto px-6 pb-3 text-sm text-red-600 dark:text-red-400"></div>
   </footer>
 
-  <!-- Resume draft modal -->
+  <!-- Resume draft modal (Phase 2) — z-30 -->
   <div id="draft-modal" class="hidden fixed inset-0 z-30 bg-black/60 flex items-center justify-center">
     <div class="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
       <h3 class="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">發現未儲存草稿</h3>
@@ -207,6 +207,40 @@
       <div class="flex justify-end gap-2">
         <button id="draft-discard" class="px-3 py-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">重新開始</button>
         <button id="draft-resume" class="px-3 py-2 bg-amber-500 text-slate-900 rounded font-medium">繼續草稿</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dimension feedback modal (Phase 5 #3) — z-40 蓋過 draft modal，若兩個同時開 feedback 優先 -->
+  <div id="feedback-modal" class="hidden fixed inset-0 z-40 bg-black/60 flex items-center justify-center">
+    <div class="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
+      <h3 id="feedback-dim-title" class="text-lg font-semibold mb-1 text-slate-900 dark:text-slate-100">—</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">對這個維度定義的感受？</p>
+      <div class="space-y-2 mb-3">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="feedback-type" value="clear" class="mt-1">
+          <span class="text-sm">👍 定義清楚，我標得很有信心</span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="feedback-type" value="vague" class="mt-1">
+          <span class="text-sm">🤔 定義模糊，我是憑感覺標的</span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="feedback-type" value="misaligned" class="mt-1">
+          <span class="text-sm">❌ 定義跟我想標的東西不符</span>
+        </label>
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="radio" name="feedback-type" value="note" class="mt-1">
+          <span class="text-sm">✏️ 我要加一段筆記給 Aaron</span>
+        </label>
+      </div>
+      <textarea id="feedback-note-text" rows="3"
+        class="hidden w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500 mb-3"
+        placeholder="寫給 Aaron 看的筆記…"></textarea>
+      <div id="feedback-error" class="hidden text-sm text-red-600 dark:text-red-400 mb-2"></div>
+      <div class="flex justify-end gap-2">
+        <button id="feedback-cancel" class="px-3 py-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">取消</button>
+        <button id="feedback-submit" class="px-3 py-2 bg-amber-500 text-slate-900 rounded font-medium">送出</button>
       </div>
     </div>
   </div>

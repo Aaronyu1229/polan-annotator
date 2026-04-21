@@ -88,3 +88,26 @@ class TagSuggestion(SQLModel, table=True):
     __table_args__ = (
         sa.UniqueConstraint("field", "value", name="uq_field_value"),
     )
+
+
+class DimensionFeedback(SQLModel, table=True):
+    """Phase 5 #3：Amber 對每個維度定義的結構化回饋。
+
+    與 Annotation 無 FK 關聯（軟關聯 audio+annotator）— 兩個獨立生命週期。
+    Aaron 看 summary 後決定改哪個維度的定義文字。
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    audio_file_id: str = Field(foreign_key="audiofile.id", index=True)
+    annotator_id: str = Field(index=True)
+    dimension_key: str = Field(index=True)  # e.g. "emotional_warmth"
+    feedback_type: str                       # "clear" / "vague" / "misaligned" / "note"
+    note_text: Optional[str] = None          # 僅 feedback_type="note" 時填
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "audio_file_id", "annotator_id", "dimension_key",
+            name="uq_feedback_audio_annotator_dim",
+        ),
+    )

@@ -51,6 +51,7 @@ const state = {
   notes: '',
   draftTimer: null,
   allAudioIds: [],       // 排序後所有 id，用於計算 position
+  feedbacks: {},         // Phase 5 #3：dim_key -> { feedback_type, note_text }
 }
 
 // ========== DOM refs ==========
@@ -90,6 +91,14 @@ const draftModalMeta = $('draft-modal-meta')
 const draftResume = $('draft-resume')
 const draftDiscard = $('draft-discard')
 const backLink = $('back-link')
+// Phase 5 #3：feedback modal refs
+const feedbackModal = $('feedback-modal')
+const feedbackDimTitle = $('feedback-dim-title')
+const feedbackNoteText = $('feedback-note-text')
+const feedbackError = $('feedback-error')
+const feedbackCancelBtn = $('feedback-cancel')
+const feedbackSubmitBtn = $('feedback-submit')
+let currentFeedbackDim = null  // 目前 popup 開給哪個維度
 
 backLink.href = `/?annotator=${encodeURIComponent(ANNOTATOR)}`
 
@@ -122,6 +131,8 @@ annotatorSelect.addEventListener('change', () => {
     next = name.trim()
   }
   if (next !== ANNOTATOR) {
+    // Phase 5 #3 invariant #6：切換 annotator 顯式清空 feedback state，防呆未來 SPA 化
+    resetFeedbackState()
     const url = new URL(window.location.href)
     url.searchParams.set('annotator', next)
     window.location.href = url.toString()
@@ -181,7 +192,9 @@ async function loadInitial() {
     renderDimensions()
     renderSourceTypes()
     renderFunctionRoles()
-    await loadTagSuggestions()
+    await Promise.all([loadTagSuggestions(), loadFeedbacks()])
+    // loadFeedbacks 回來後 state.feedbacks 已填；重新 render 維度把 💬 換成 ✅
+    refreshAllFeedbackIcons()
 
     // baseline：先套 DB 既有值（若無）則套預設 / auto_compute 建議。
     // 這樣 draft modal「重新開始」時 baseline 已存在，不會留空滑桿。
@@ -251,6 +264,9 @@ function renderDimensionHtml(key) {
   const info = `<span class="text-slate-400 dark:text-slate-500 cursor-help" title="${escapeAttr(buildTooltip(d))}">ⓘ</span>`
   const valueDisplay = `<span class="font-mono text-xs text-amber-600 dark:text-amber-300" data-value="${key}">—</span>`
 
+  // 💬/✅ slot 的 container；初始渲染先空，loadFeedbacks 回來再 fill
+  const feedbackSlot = `<span class="dim-feedback-slot inline-flex" data-feedback-slot="${key}"></span>`
+
   if (d.type === 'discrete') {
     const opts = (d.options || [0.0, 0.5, 1.0]).map(v => {
       const label = LOOP_CAP_LABELS[v] || v
@@ -267,6 +283,7 @@ function renderDimensionHtml(key) {
           <div class="text-sm font-medium flex items-center gap-1">
             ${escapeHtml(d.label_zh)} ${warning} ${info}
           </div>
+          ${feedbackSlot}
         </div>
         <div class="flex items-center gap-4 text-slate-800 dark:text-slate-200">${opts}</div>
       </div>
@@ -283,7 +300,10 @@ function renderDimensionHtml(key) {
         <div class="text-sm font-medium flex items-center gap-1">
           ${escapeHtml(d.label_zh)} ${warning} ${info}
         </div>
-        ${valueDisplay}
+        <div class="flex items-center gap-2">
+          ${valueDisplay}
+          ${feedbackSlot}
+        </div>
       </div>
       <input type="range" min="0" max="1" step="0.05" value="0.5"
         class="polan-slider" data-dim="${key}">
@@ -403,6 +423,154 @@ function refreshFunctionRoleChips() {
   functionRolesEl.querySelectorAll('[data-role]').forEach(b => {
     b.classList.toggle('chip-active', state.functionRoles.has(b.dataset.role))
   })
+}
+
+// ========== Phase 5 #3：維度 feedback ==========
+// state.feedbacks: dim_key -> { feedback_type, note_text }
+// 權威源是 DB（/api/feedback/dimension）— 不存 localStorage。
+// 切換音檔 / 切換 annotator 時一律清空後重抓（invariant #6）。
+
+function resetFeedbackState() {
+  state.feedbacks = {}
+}
+
+async function loadFeedbacks() {
+  // 切入此頁時先清空（Aaron invariant #6 的 loadAudio 等效位置），再 fetch 新音檔的 feedbacks
+  resetFeedbackState()
+  if (!AUDIO_ID || !ANNOTATOR) return
+  try {
+    const url = `/api/feedback/dimension?annotator=${encodeURIComponent(ANNOTATOR)}&audio_file_id=${encodeURIComponent(AUDIO_ID)}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    ;(data.feedbacks || []).forEach(f => {
+      state.feedbacks[f.dimension_key] = {
+        feedback_type: f.feedback_type,
+        note_text: f.note_text,
+      }
+    })
+  } catch (err) {
+    console.warn('[feedback] 載入失敗，fallback 空狀態:', err)
+  }
+}
+
+function feedbackIconHtml(dimKey) {
+  const f = state.feedbacks[dimKey]
+  if (f) {
+    const title = f.feedback_type === 'note'
+      ? `筆記：${f.note_text || '(空)'}`
+      : `上次選擇：${f.feedback_type}`
+    return `<button type="button" class="dim-feedback-btn text-emerald-600 dark:text-emerald-400 text-base cursor-pointer" data-feedback-dim="${dimKey}" title="${escapeAttr(title)}">✅</button>`
+  }
+  return `<button type="button" class="dim-feedback-btn text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-base cursor-pointer" data-feedback-dim="${dimKey}" title="對此維度定義給回饋">💬</button>`
+}
+
+function refreshAllFeedbackIcons() {
+  document.querySelectorAll('[data-feedback-slot]').forEach(slot => {
+    const dimKey = slot.getAttribute('data-feedback-slot')
+    slot.innerHTML = feedbackIconHtml(dimKey)
+  })
+  wireAllFeedbackButtons()
+}
+
+function refreshFeedbackIcon(dimKey) {
+  const slot = document.querySelector(`[data-feedback-slot="${dimKey}"]`)
+  if (slot) slot.innerHTML = feedbackIconHtml(dimKey)
+  wireAllFeedbackButtons()
+}
+
+function wireAllFeedbackButtons() {
+  document.querySelectorAll('[data-feedback-dim]').forEach(btn => {
+    // 先移除舊 listener 再綁新的（re-render 時避免重複觸發）
+    const clone = btn.cloneNode(true)
+    btn.parentNode.replaceChild(clone, btn)
+    clone.addEventListener('click', (e) => {
+      e.preventDefault()
+      openFeedbackPopup(clone.getAttribute('data-feedback-dim'))
+    })
+  })
+}
+
+function openFeedbackPopup(dimKey) {
+  currentFeedbackDim = dimKey
+  const dimDef = state.dimensions[dimKey]
+  feedbackDimTitle.textContent = dimDef?.label_zh || dimKey
+  const existing = state.feedbacks[dimKey]
+  feedbackModal.querySelectorAll('input[name="feedback-type"]').forEach(r => {
+    r.checked = existing?.feedback_type === r.value
+  })
+  feedbackNoteText.value = existing?.note_text || ''
+  syncNoteTextVisibility()
+  feedbackError.classList.add('hidden')
+  feedbackError.textContent = ''
+  feedbackModal.classList.remove('hidden')
+}
+
+function closeFeedbackPopup() {
+  feedbackModal.classList.add('hidden')
+  currentFeedbackDim = null
+}
+
+function syncNoteTextVisibility() {
+  const selected = feedbackModal.querySelector('input[name="feedback-type"]:checked')
+  if (selected?.value === 'note') {
+    feedbackNoteText.classList.remove('hidden')
+  } else {
+    feedbackNoteText.classList.add('hidden')
+  }
+}
+
+feedbackModal.querySelectorAll('input[name="feedback-type"]').forEach(r => {
+  r.addEventListener('change', syncNoteTextVisibility)
+})
+feedbackCancelBtn.addEventListener('click', closeFeedbackPopup)
+
+feedbackSubmitBtn.addEventListener('click', async () => {
+  if (!currentFeedbackDim) return
+  const selected = feedbackModal.querySelector('input[name="feedback-type"]:checked')
+  if (!selected) {
+    showFeedbackError('請選擇一個選項')
+    return
+  }
+  const ftype = selected.value
+  const note = feedbackNoteText.value.trim()
+  if (ftype === 'note' && !note) {
+    showFeedbackError('選「加筆記」時 note 內容不能空白')
+    return
+  }
+  try {
+    const body = {
+      audio_file_id: AUDIO_ID,
+      annotator_id: ANNOTATOR,
+      dimension_key: currentFeedbackDim,
+      feedback_type: ftype,
+      note_text: ftype === 'note' ? note : null,
+    }
+    const res = await fetch('/api/feedback/dimension', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+      showFeedbackError(`送出失敗：${errBody.detail || '未知錯誤'}`)
+      return
+    }
+    // 成功 — 更新 state + 重畫 icon 為 ✅ + 關 popup
+    state.feedbacks[currentFeedbackDim] = {
+      feedback_type: ftype,
+      note_text: ftype === 'note' ? note : null,
+    }
+    refreshFeedbackIcon(currentFeedbackDim)
+    closeFeedbackPopup()
+  } catch (err) {
+    showFeedbackError(`網路錯誤：${err.message}`)
+  }
+})
+
+function showFeedbackError(msg) {
+  feedbackError.textContent = msg
+  feedbackError.classList.remove('hidden')
 }
 
 // ========== Tags 區塊 ==========
