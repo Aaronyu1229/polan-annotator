@@ -42,10 +42,10 @@ const LOOP_CAP_LABELS = { 0.0: 'one-shot', 0.5: '可循環', 1.0: '完整循環'
 const state = {
   dimensions: {},        // from /api/dimensions
   audio: null,           // from /api/audio/:id
-  values: {},            // 維度當前值 dim_key -> number
+  values: {},            // 維度當前值 dim_key -> number 或 list[number]（multi_discrete）
   sourceType: null,      // string
   functionRoles: new Set(),
-  genre: '',
+  genres: [],
   worldview: '',
   styles: [],
   notes: '',
@@ -71,6 +71,8 @@ const tagsToggle = $('tags-toggle')
 const tagsPanel = $('tags-panel')
 const tagsCaret = $('tags-caret')
 const genreInput = $('genre-input')
+const genreAdd = $('genre-add')
+const genreChips = $('genre-chips')
 const worldviewInput = $('worldview-input')
 const styleInput = $('style-input')
 const styleAdd = $('style-add')
@@ -267,21 +269,25 @@ function renderDimensionHtml(key) {
   // 💬/✅ slot 的 container；初始渲染先空，loadFeedbacks 回來再 fill
   const feedbackSlot = `<span class="dim-feedback-slot inline-flex" data-feedback-slot="${key}"></span>`
 
-  if (d.type === 'discrete') {
+  if (d.type === 'discrete' || d.type === 'multi_discrete') {
+    const inputType = d.type === 'multi_discrete' ? 'checkbox' : 'radio'
     const opts = (d.options || [0.0, 0.5, 1.0]).map(v => {
       const label = LOOP_CAP_LABELS[v] || v
       return `
         <label class="flex items-center gap-1 text-sm cursor-pointer">
-          <input type="radio" name="dim-${key}" value="${v}" class="dim-radio" data-dim="${key}">
+          <input type="${inputType}" name="dim-${key}" value="${v}" data-dim="${key}">
           <span>${label}</span>
         </label>
       `
     }).join('')
+    const hint = d.type === 'multi_discrete'
+      ? '<span class="text-xs text-slate-500 ml-2">（可複選）</span>'
+      : ''
     return `
       <div class="bg-white border border-slate-200 dark:bg-slate-800/60 dark:border-transparent p-3 rounded" data-dim-box="${key}">
         <div class="flex items-center justify-between mb-2">
           <div class="text-sm font-medium flex items-center gap-1">
-            ${escapeHtml(d.label_zh)} ${warning} ${info}
+            ${escapeHtml(d.label_zh)} ${warning} ${info}${hint}
           </div>
           ${feedbackSlot}
         </div>
@@ -335,6 +341,18 @@ function wireDimension(key) {
     })
     return
   }
+  if (d.type === 'multi_discrete') {
+    document.querySelectorAll(`input[type="checkbox"][data-dim="${key}"]`).forEach(el => {
+      el.addEventListener('change', () => {
+        const checked = document.querySelectorAll(
+          `input[type="checkbox"][data-dim="${key}"]:checked`
+        )
+        state.values[key] = Array.from(checked).map(c => parseFloat(c.value))
+        scheduleDraftSave()
+      })
+    })
+    return
+  }
   const slider = document.querySelector(`input[type="range"][data-dim="${key}"]`)
   const valueEl = document.querySelector(`[data-value="${key}"]`)
   slider.addEventListener('input', () => {
@@ -363,6 +381,17 @@ function wireDimension(key) {
 
 function applyDimensionValue(key, value) {
   const d = state.dimensions[key]
+  if (d?.type === 'multi_discrete') {
+    // value 應為 list[number]；非 list 時容錯轉成 list
+    const list = Array.isArray(value)
+      ? value.map(v => parseFloat(v))
+      : (value == null ? [] : [parseFloat(value)])
+    state.values[key] = list
+    document.querySelectorAll(`input[type="checkbox"][data-dim="${key}"]`).forEach(el => {
+      el.checked = list.some(v => Math.abs(parseFloat(el.value) - v) < 1e-6)
+    })
+    return
+  }
   state.values[key] = value
   if (d?.type === 'discrete') {
     document.querySelectorAll(`input[type="radio"][data-dim="${key}"]`).forEach(el => {
@@ -593,9 +622,44 @@ async function loadTagSuggestions() {
   }
 }
 
-genreInput.addEventListener('input', () => { state.genre = genreInput.value; scheduleDraftSave() })
 worldviewInput.addEventListener('input', () => { state.worldview = worldviewInput.value; scheduleDraftSave() })
 notesInput.addEventListener('input', () => { state.notes = notesInput.value; scheduleDraftSave() })
+
+genreAdd.addEventListener('click', addGenreFromInput)
+genreInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    addGenreFromInput()
+  }
+})
+
+function addGenreFromInput() {
+  const v = genreInput.value.trim()
+  if (!v) return
+  if (!state.genres.includes(v)) {
+    state.genres.push(v)
+    renderGenreChips()
+    scheduleDraftSave()
+  }
+  genreInput.value = ''
+}
+
+function renderGenreChips() {
+  genreChips.innerHTML = state.genres.map((s, i) => `
+    <span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 rounded text-xs">
+      ${escapeHtml(s)}
+      <button data-genre-remove="${i}" class="text-amber-700 hover:text-red-600 dark:text-amber-300 dark:hover:text-white">×</button>
+    </span>
+  `).join('')
+  genreChips.querySelectorAll('[data-genre-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.genreRemove, 10)
+      state.genres.splice(idx, 1)
+      renderGenreChips()
+      scheduleDraftSave()
+    })
+  })
+}
 
 styleAdd.addEventListener('click', addStyleFromInput)
 styleInput.addEventListener('keydown', (e) => {
@@ -635,10 +699,15 @@ function renderStyleChips() {
 
 // ========== 初始值 / prefill / draft ==========
 function applyDefaults() {
-  // 連續維度預設 0.5；loop_capability 離散預設 0.5；auto_compute 採用建議值
+  // 連續維度預設 0.5；multi_discrete 預設空 list（強迫使用者選）；
+  // auto_compute 採用建議值
   ALL_DIMS.forEach(key => {
     const d = state.dimensions[key]
     if (!d) return
+    if (d.type === 'multi_discrete') {
+      applyDimensionValue(key, [])
+      return
+    }
     let v = 0.5
     if (d.auto_compute) {
       const suggested = state.audio?.auto_computed?.[key]
@@ -662,40 +731,47 @@ function applyPrefillFromExisting() {
   const ea = state.audio?.existing_annotation
   if (!ea) return false
   ALL_DIMS.forEach(key => {
-    if (ea[key] != null) applyDimensionValue(key, ea[key])
-    else {
-      // 既有 annotation 沒填此維度 → 走 default 邏輯
-      const d = state.dimensions[key]
-      let v = 0.5
-      if (d?.auto_compute) {
-        const s = state.audio?.auto_computed?.[key]
-        if (s != null) v = s
-      }
-      applyDimensionValue(key, v)
+    const d = state.dimensions[key]
+    if (d?.type === 'multi_discrete') {
+      // ea[key] 是 list[number]（API 已 decode）；缺/空都當空 list
+      applyDimensionValue(key, Array.isArray(ea[key]) ? ea[key] : [])
+      return
     }
+    if (ea[key] != null) {
+      applyDimensionValue(key, ea[key])
+      return
+    }
+    // 既有 annotation 沒填此維度 → 走 default 邏輯
+    let v = 0.5
+    if (d?.auto_compute) {
+      const s = state.audio?.auto_computed?.[key]
+      if (s != null) v = s
+    }
+    applyDimensionValue(key, v)
   })
   if (ea.source_type) setSourceType(ea.source_type)
   if (Array.isArray(ea.function_roles)) {
     ea.function_roles.forEach(r => state.functionRoles.add(r))
     refreshFunctionRoleChips()
   }
-  state.genre = ea.genre_tag || ''
+  state.genres = Array.isArray(ea.genre_tag) ? [...ea.genre_tag] : []
   state.worldview = ea.worldview_tag || ''
   state.styles = Array.isArray(ea.style_tag) ? [...ea.style_tag] : []
   state.notes = ea.notes || ''
-  genreInput.value = state.genre
   worldviewInput.value = state.worldview
   notesInput.value = state.notes
+  renderGenreChips()
   renderStyleChips()
   return true
 }
 
 function currentSnapshot() {
+  // values 內 multi_discrete dim 的值是 list — 用 JSON round-trip 確保深拷貝
   return {
-    values: { ...state.values },
+    values: JSON.parse(JSON.stringify(state.values)),
     sourceType: state.sourceType,
     functionRoles: [...state.functionRoles],
-    genre: state.genre,
+    genres: [...state.genres],
     worldview: state.worldview,
     styles: [...state.styles],
     notes: state.notes,
@@ -761,13 +837,16 @@ function applyDraft(s) {
   if (s.sourceType) setSourceType(s.sourceType)
   state.functionRoles = new Set(s.functionRoles || [])
   refreshFunctionRoleChips()
-  state.genre = s.genre || ''
+  // 向後相容：舊版 draft 用 s.genre（單字串），新版用 s.genres（list）
+  if (Array.isArray(s.genres)) state.genres = [...s.genres]
+  else if (typeof s.genre === 'string' && s.genre) state.genres = [s.genre]
+  else state.genres = []
   state.worldview = s.worldview || ''
   state.styles = Array.isArray(s.styles) ? [...s.styles] : []
   state.notes = s.notes || ''
-  genreInput.value = state.genre
   worldviewInput.value = state.worldview
   notesInput.value = state.notes
+  renderGenreChips()
   renderStyleChips()
 }
 
@@ -790,13 +869,15 @@ async function submitAnnotation({ goNext }) {
     tension_direction: state.values.tension_direction ?? null,
     temporal_position: state.values.temporal_position ?? null,
     event_significance: state.values.event_significance ?? null,
-    loop_capability: state.values.loop_capability ?? null,
+    loop_capability: Array.isArray(state.values.loop_capability)
+      ? state.values.loop_capability
+      : [],
     tonal_noise_ratio: state.values.tonal_noise_ratio ?? null,
     spectral_density: state.values.spectral_density ?? null,
     world_immersion: state.values.world_immersion ?? null,
     source_type: state.sourceType,
     function_roles: [...state.functionRoles],
-    genre_tag: state.genre || null,
+    genre_tag: state.genres,
     worldview_tag: state.worldview || null,
     style_tag: state.styles,
     notes: state.notes || null,

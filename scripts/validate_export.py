@@ -24,11 +24,18 @@ from pathlib import Path
 
 SCHEMA_VERSION = "0.1.0"
 
-EXPECTED_DIMENSIONS: list[str] = [
+EXPECTED_CONTINUOUS_DIMENSIONS: list[str] = [
     "valence", "arousal", "emotional_warmth", "tension_direction",
-    "temporal_position", "event_significance", "loop_capability",
+    "temporal_position", "event_significance",
     "tonal_noise_ratio", "spectral_density", "world_immersion",
 ]
+
+# loop_capability 是 multi_discrete：值為 list[float]，元素限於 {0, 0.5, 1}
+EXPECTED_MULTI_DISCRETE_DIMENSIONS: list[str] = ["loop_capability"]
+
+EXPECTED_DIMENSIONS: list[str] = (
+    EXPECTED_CONTINUOUS_DIMENSIONS + EXPECTED_MULTI_DISCRETE_DIMENSIONS
+)
 
 EXPECTED_SOURCE_TYPES: set[str] = {
     "weapon", "explosion", "impact", "character_vocal", "dialogue_vo",
@@ -43,7 +50,7 @@ EXPECTED_FUNCTION_ROLES: set[str] = {
 
 EXPECTED_CONSENSUS_METHODS: set[str] = {"single_annotator", "mixed"}
 
-# loop_capability 的合法離散值（consensus 是 mode，結果必為 0/0.5/1）
+# loop_capability 的合法離散值
 LOOP_CAPABILITY_VALUES: set[float] = {0.0, 0.5, 1.0}
 
 
@@ -51,31 +58,43 @@ def _validate_dimensions(
     dims: dict,
     prefix: str,
     errors: list[str],
-    *,
-    loop_must_be_discrete: bool,
 ) -> None:
-    """檢查 10 個維度 key 齊全、都是 numeric、在 [0, 1]。
-
-    loop_must_be_discrete=True 時，loop_capability 值限制在 {0, 0.5, 1}
-    （consensus 層用；individual 層也適用，滑桿 step=discrete 不會吐其他值）。
+    """檢查 10 個維度 key 齊全：
+    - 9 個連續維度：numeric，[0,1]
+    - loop_capability：list[float]，每個值在 {0, 0.5, 1}，至少 1 個
     """
-    for dim in EXPECTED_DIMENSIONS:
+    for dim in EXPECTED_CONTINUOUS_DIMENSIONS:
         if dim not in dims:
             errors.append(f"{prefix}.{dim} missing")
             continue
         v = dims[dim]
         if v is None:
-            errors.append(f"{prefix}.{dim} is null (completed annotation should have all 10 dims)")
+            errors.append(f"{prefix}.{dim} is null (completed annotation should have all 9 continuous dims)")
             continue
         if not isinstance(v, (int, float)) or isinstance(v, bool):
             errors.append(f"{prefix}.{dim} not numeric: {v!r}")
             continue
         if not (0 <= v <= 1):
             errors.append(f"{prefix}.{dim} out of [0,1]: {v}")
-        if dim == "loop_capability" and loop_must_be_discrete and v not in LOOP_CAPABILITY_VALUES:
-            errors.append(
-                f"{prefix}.loop_capability must be in {{0.0, 0.5, 1.0}}, got {v}"
-            )
+
+    for dim in EXPECTED_MULTI_DISCRETE_DIMENSIONS:
+        if dim not in dims:
+            errors.append(f"{prefix}.{dim} missing")
+            continue
+        v = dims[dim]
+        if not isinstance(v, list):
+            errors.append(f"{prefix}.{dim} must be list, got {type(v).__name__}")
+            continue
+        if len(v) == 0:
+            errors.append(f"{prefix}.{dim} empty (completed annotation needs >=1 selection)")
+            continue
+        for item in v:
+            if isinstance(item, bool) or not isinstance(item, (int, float)):
+                errors.append(f"{prefix}.{dim} contains non-numeric: {item!r}")
+            elif item not in LOOP_CAPABILITY_VALUES:
+                errors.append(
+                    f"{prefix}.{dim} value {item} not in {{0.0, 0.5, 1.0}}"
+                )
 
 
 def _validate_function_roles(roles, prefix: str, errors: list[str]) -> None:
@@ -112,7 +131,6 @@ def _validate_item(item: dict, i: int, errors: list[str]) -> None:
         consensus.get("dimensions", {}),
         f"{prefix}.consensus.dimensions",
         errors,
-        loop_must_be_discrete=True,
     )
     _validate_source_type(consensus.get("source_type"), f"{prefix}.consensus", errors)
     _validate_function_roles(consensus.get("function_roles"), f"{prefix}.consensus", errors)
@@ -149,7 +167,6 @@ def _validate_item(item: dict, i: int, errors: list[str]) -> None:
             ind.get("dimensions", {}),
             f"{ind_prefix}.dimensions",
             errors,
-            loop_must_be_discrete=True,
         )
         _validate_source_type(ind.get("source_type"), ind_prefix, errors)
         _validate_function_roles(ind.get("function_roles"), ind_prefix, errors)

@@ -73,9 +73,9 @@
   "loop_capability": {
     "label_zh": "Loop Capability 可循環性",
     "category": "function",
-    "type": "discrete",
+    "type": "multi_discrete",
     "options": [0.0, 0.5, 1.0],
-    "definition": "適合循環的程度。0=純 one-shot，0.5=可循環但有明顯起伏（不完全無縫），1=完全無縫循環。",
+    "definition": "適合循環的程度（複選）。0=純 one-shot，0.5=可循環但有明顯起伏（不完全無縫），1=完全無縫循環。同一段 BGM 可同時具備多個性質（例如 one-shot stinger + loopable body 段）。",
     "low_anchor": "0.0: 中獎短樂 stinger",
     "high_anchor": "1.0: Base Game BGM 主循環段",
     "amber_confirmed": true

@@ -27,7 +27,7 @@ log = logging.getLogger("polan.routes.audio")
 
 def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
     """把 Annotation row 轉成前端 prefill 用的 dict。多選欄位 JSON-decode。"""
-    def _decode_list(s: Optional[str]) -> list[str]:
+    def _decode_list(s: Optional[str]) -> list:
         if not s:
             return []
         try:
@@ -45,13 +45,13 @@ def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
         "tension_direction": ann.tension_direction,
         "temporal_position": ann.temporal_position,
         "event_significance": ann.event_significance,
-        "loop_capability": ann.loop_capability,
+        "loop_capability": _decode_list(ann.loop_capability),
         "tonal_noise_ratio": ann.tonal_noise_ratio,
         "spectral_density": ann.spectral_density,
         "world_immersion": ann.world_immersion,
         "source_type": ann.source_type,
         "function_roles": _decode_list(ann.function_roles),
-        "genre_tag": ann.genre_tag,
+        "genre_tag": _decode_list(ann.genre_tag),
         "worldview_tag": ann.worldview_tag,
         "style_tag": _decode_list(ann.style_tag),
         "notes": ann.notes,

@@ -25,21 +25,24 @@ from src.models import AudioFile, Annotation, TagSuggestion
 router = APIRouter(prefix="/api", tags=["annotations"])
 log = logging.getLogger("polan.routes.annotations")
 
-DIMENSION_FIELDS: tuple[str, ...] = (
+CONTINUOUS_DIMENSION_FIELDS: tuple[str, ...] = (
     "valence",
     "arousal",
     "emotional_warmth",
     "tension_direction",
     "temporal_position",
     "event_significance",
-    "loop_capability",
     "tonal_noise_ratio",
     "spectral_density",
     "world_immersion",
 )
 
+# loop_capability 是 multi_discrete，存 list[float]，與其他連續維度分開驗證。
+DIMENSION_FIELDS: tuple[str, ...] = CONTINUOUS_DIMENSION_FIELDS + ("loop_capability",)
+
 _SOURCE_TYPE_KEYS: set[str] = {key for key, _ in SOURCE_TYPES}
 _FUNCTION_ROLE_KEYS: set[str] = {key for key, _ in FUNCTION_ROLES}
+_LOOP_CAPABILITY_VALUES: set[float] = {0.0, 0.5, 1.0}
 
 
 class AnnotationPayload(BaseModel):
@@ -55,13 +58,15 @@ class AnnotationPayload(BaseModel):
     tension_direction: Optional[float] = None
     temporal_position: Optional[float] = None
     event_significance: Optional[float] = None
-    loop_capability: Optional[float] = None
+    # loop_capability 從單值 float 改成多選 list[float]（值限於 {0.0, 0.5, 1.0}）
+    loop_capability: list[float] = Field(default_factory=list)
     tonal_noise_ratio: Optional[float] = None
     spectral_density: Optional[float] = None
     world_immersion: Optional[float] = None
     source_type: Optional[str] = None
     function_roles: list[str] = Field(default_factory=list)
-    genre_tag: Optional[str] = None
+    # genre_tag 從單字串改成多選 list[str]
+    genre_tag: list[str] = Field(default_factory=list)
     worldview_tag: Optional[str] = None
     style_tag: list[str] = Field(default_factory=list)
     notes: Optional[str] = None
@@ -79,10 +84,17 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
     - 任一維度為 None
     - source_type 為 None
     """
-    for field in DIMENSION_FIELDS:
+    for field in CONTINUOUS_DIMENSION_FIELDS:
         value = getattr(payload, field)
         if value is not None and not (0.0 <= value <= 1.0):
             return False, f"維度 {field} 值 {value} 超出範圍 [0, 1]"
+
+    # loop_capability 多選：每個值必須在合法 {0, 0.5, 1} 集合內
+    invalid_loop = [v for v in payload.loop_capability if v not in _LOOP_CAPABILITY_VALUES]
+    if invalid_loop:
+        return False, (
+            f"loop_capability 包含非法值：{invalid_loop}（合法：0.0 / 0.5 / 1.0）"
+        )
 
     if payload.source_type is not None and payload.source_type not in _SOURCE_TYPE_KEYS:
         return False, f"source_type '{payload.source_type}' 不在合法清單"
@@ -94,11 +106,12 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
     if invalid_roles:
         return False, f"function_roles 包含非法值：{', '.join(invalid_roles)}"
 
-    all_dims_filled = all(
-        getattr(payload, f) is not None for f in DIMENSION_FIELDS
+    continuous_filled = all(
+        getattr(payload, f) is not None for f in CONTINUOUS_DIMENSION_FIELDS
     )
+    loop_filled = len(payload.loop_capability) >= 1
     has_source = payload.source_type is not None
-    is_complete = all_dims_filled and has_source
+    is_complete = continuous_filled and loop_filled and has_source
     return is_complete, None
 
 
@@ -121,8 +134,8 @@ def _touch_tag_suggestion(session: Session, field: str, value: str) -> None:
 
 
 def _record_tag_suggestions(session: Session, payload: AnnotationPayload) -> None:
-    if payload.genre_tag:
-        _touch_tag_suggestion(session, "genre", payload.genre_tag)
+    for genre in payload.genre_tag:
+        _touch_tag_suggestion(session, "genre", genre)
     if payload.worldview_tag:
         _touch_tag_suggestion(session, "worldview", payload.worldview_tag)
     for style in payload.style_tag:
@@ -200,11 +213,12 @@ def upsert_annotation(
     now = _utcnow()
 
     if existing:
-        for field in DIMENSION_FIELDS:
+        for field in CONTINUOUS_DIMENSION_FIELDS:
             setattr(existing, field, getattr(payload, field))
+        existing.loop_capability = json.dumps(payload.loop_capability)
         existing.source_type = payload.source_type
         existing.function_roles = json.dumps(payload.function_roles)
-        existing.genre_tag = payload.genre_tag
+        existing.genre_tag = json.dumps(payload.genre_tag)
         existing.worldview_tag = payload.worldview_tag
         existing.style_tag = json.dumps(payload.style_tag)
         existing.notes = payload.notes
@@ -222,13 +236,13 @@ def upsert_annotation(
             tension_direction=payload.tension_direction,
             temporal_position=payload.temporal_position,
             event_significance=payload.event_significance,
-            loop_capability=payload.loop_capability,
+            loop_capability=json.dumps(payload.loop_capability),
             tonal_noise_ratio=payload.tonal_noise_ratio,
             spectral_density=payload.spectral_density,
             world_immersion=payload.world_immersion,
             source_type=payload.source_type,
             function_roles=json.dumps(payload.function_roles),
-            genre_tag=payload.genre_tag,
+            genre_tag=json.dumps(payload.genre_tag),
             worldview_tag=payload.worldview_tag,
             style_tag=json.dumps(payload.style_tag),
             notes=payload.notes,

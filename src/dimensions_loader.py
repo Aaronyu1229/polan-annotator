@@ -16,7 +16,7 @@ _REQUIRED_FIELDS = frozenset({
     "low_anchor", "high_anchor", "amber_confirmed",
 })
 _VALID_CATEGORIES = frozenset({"emotion", "function", "acoustic"})
-_VALID_TYPES = frozenset({"continuous", "discrete"})
+_VALID_TYPES = frozenset({"continuous", "discrete", "multi_discrete"})
 
 
 class DimensionsConfigError(ValueError):
@@ -55,11 +55,11 @@ def _validate(config: dict[str, Any]) -> None:
                 raise DimensionsConfigError(
                     f"維度 {dim_id!r} (continuous) 需要 range=[low, high] 且 low < high"
                 )
-        else:  # discrete
+        else:  # discrete / multi_discrete
             options = spec.get("options")
             if not isinstance(options, list) or not options:
                 raise DimensionsConfigError(
-                    f"維度 {dim_id!r} (discrete) 需要 options 非空陣列"
+                    f"維度 {dim_id!r} ({spec['type']}) 需要 options 非空陣列"
                 )
 
 

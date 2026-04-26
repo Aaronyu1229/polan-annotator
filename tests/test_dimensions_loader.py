@@ -56,9 +56,9 @@ def test_continuous_dimensions_have_valid_range():
             assert low < high, f"{dim_id}: range {spec['range']} not low<high"
 
 
-def test_loop_capability_is_discrete_three_options():
+def test_loop_capability_is_multi_discrete_three_options():
     spec = get_dimension("loop_capability")
-    assert spec["type"] == "discrete"
+    assert spec["type"] == "multi_discrete"
     assert spec["options"] == [0.0, 0.5, 1.0]
 
 

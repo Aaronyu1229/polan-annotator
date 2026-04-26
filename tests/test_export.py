@@ -27,18 +27,19 @@ from src.models import Annotation, AudioFile
 # helpers
 # ---------------------------------------------------------------------------
 
-_COMPLETE_DIMS = {
+# 9 個連續維度 + 1 個 multi_discrete loop_capability（list[float]）
+_COMPLETE_CONTINUOUS_DIMS = {
     "valence": 0.7,
     "arousal": 0.6,
     "emotional_warmth": 0.5,
     "tension_direction": 0.3,
     "temporal_position": 0.25,
     "event_significance": 0.6,
-    "loop_capability": 1.0,
     "tonal_noise_ratio": 0.8,
     "spectral_density": 0.5,
     "world_immersion": 0.7,
 }
+_DEFAULT_LOOP_CAPABILITY: list[float] = [1.0]
 
 
 def _make_audio(session: Session, filename: str = "Foo_Base Game.wav") -> AudioFile:
@@ -60,25 +61,36 @@ def _make_annotation(
     *,
     is_complete: bool = True,
     dims: dict | None = None,
+    loop_capability: list[float] | None = None,
     source_type: str = "ambience",
     function_roles: list | None = None,
     style_tag: list | None = None,
-    genre_tag: str | None = "博弈",
+    genre_tag: list[str] | None = None,
     worldview_tag: str | None = "asian_mythology",
     notes: str | None = None,
 ) -> Annotation:
-    d = {**_COMPLETE_DIMS, **(dims or {})}
+    """fixture：注意 dims 只接連續維度；multi_discrete 走專屬 loop_capability 參數。"""
+    overrides = dict(dims or {})
+    # 向後相容：若呼叫端在 dims 裡塞 loop_capability，將其抽出
+    if "loop_capability" in overrides:
+        loop_capability = overrides.pop("loop_capability")
+        if not isinstance(loop_capability, list):
+            loop_capability = [loop_capability]
+    continuous = {**_COMPLETE_CONTINUOUS_DIMS, **overrides}
     ann = Annotation(
         audio_file_id=audio_id,
         annotator_id=annotator_id,
+        loop_capability=json.dumps(
+            loop_capability if loop_capability is not None else _DEFAULT_LOOP_CAPABILITY
+        ),
         source_type=source_type,
         function_roles=json.dumps(function_roles or ["atmosphere"]),
         style_tag=json.dumps(style_tag or ["chinese_traditional"]),
-        genre_tag=genre_tag,
+        genre_tag=json.dumps(genre_tag if genre_tag is not None else ["博弈"]),
         worldview_tag=worldview_tag,
         notes=notes,
         is_complete=is_complete,
-        **d,
+        **continuous,
     )
     session.add(ann)
     session.commit()
@@ -191,18 +203,41 @@ def test_incomplete_annotation_excluded(in_memory_engine):
 
 
 # ---------------------------------------------------------------------------
-# 6. loop_capability 三方平手 → 0.5
+# 6. loop_capability multi_discrete：三方各選不同 → consensus 取 union
 # ---------------------------------------------------------------------------
 
-def test_loop_capability_three_way_tie_returns_middle(in_memory_engine):
+def test_loop_capability_union_across_annotators(in_memory_engine):
     with Session(in_memory_engine) as s:
         audio = _make_audio(s)
-        _make_annotation(s, audio.id, "amber", dims={"loop_capability": 0.0})
-        _make_annotation(s, audio.id, "bob",   dims={"loop_capability": 0.5})
-        _make_annotation(s, audio.id, "carol", dims={"loop_capability": 1.0})
+        _make_annotation(s, audio.id, "amber", loop_capability=[0.0])
+        _make_annotation(s, audio.id, "bob",   loop_capability=[0.5])
+        _make_annotation(s, audio.id, "carol", loop_capability=[1.0])
         data = build_dataset(s)
 
-    assert data["items"][0]["consensus"]["dimensions"]["loop_capability"] == 0.5
+    consensus_loop = data["items"][0]["consensus"]["dimensions"]["loop_capability"]
+    assert isinstance(consensus_loop, list)
+    assert sorted(consensus_loop) == [0.0, 0.5, 1.0]
+
+
+def test_loop_capability_single_annotator_passes_through_list(in_memory_engine):
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber", loop_capability=[0.5, 1.0])
+        data = build_dataset(s)
+
+    assert data["items"][0]["consensus"]["dimensions"]["loop_capability"] == [0.5, 1.0]
+
+
+def test_genre_tag_union_across_annotators(in_memory_engine):
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber", genre_tag=["博弈", "東方"])
+        _make_annotation(s, audio.id, "bob",   genre_tag=["博弈", "電子"])
+        data = build_dataset(s)
+
+    consensus_genre = data["items"][0]["consensus"]["genre_tag"]
+    assert set(consensus_genre) == {"博弈", "東方", "電子"}
+    assert len(consensus_genre) == 3  # dedupe
 
 
 # ---------------------------------------------------------------------------

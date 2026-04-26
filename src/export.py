@@ -4,13 +4,14 @@
     build_dataset(session, annotator_filter=None) -> dict
 
 歸約規則（aggregation rules）：
-    連續維度 9 個          → mean，round 到 3 位小數
-    loop_capability（離散）→ mode；三方各一票 fallback 0.5
-    source_type（單選）    → mode；平手 → None + warnings=["source_type_conflict"]
-    function_roles（多選） → union，dedupe 保留首現順序
-    genre_tag / worldview  → mode；平手 → None
-    style_tag（多選）      → union
-    notes                  → 不合併，只留在 individual_annotations
+    連續維度 9 個                → mean，round 到 3 位小數
+    loop_capability（multi_discrete）→ union，回 list[float]（值限於 0/0.5/1）
+    source_type（單選）          → mode；平手 → None + warnings=["source_type_conflict"]
+    function_roles（多選）       → union，dedupe 保留首現順序
+    genre_tag（多選）            → union
+    worldview_tag                → mode；平手 → None
+    style_tag（多選）            → union
+    notes                        → 不合併，只留在 individual_annotations
 
 過濾：只取 is_complete=1 的 annotation。一檔全 incomplete → 整檔不進 items。
 """
@@ -36,10 +37,9 @@ def _dimension_keys() -> list[str]:
     return list_dimension_ids()
 
 
-# loop_capability 被辨識為離散維度的判斷規則：dimensions_config.json 的 type=="discrete"
-# 目前只有 loop_capability 是 discrete。若未來新增，這段仍自動處理。
-def _discrete_dim_keys() -> set[str]:
-    return {k for k, spec in load_dimensions().items() if spec.get("type") == "discrete"}
+# 目前 multi_discrete 只有 loop_capability；若未來新增，這段仍自動處理。
+def _multi_discrete_dim_keys() -> set[str]:
+    return {k for k, spec in load_dimensions().items() if spec.get("type") == "multi_discrete"}
 
 
 class ExportError(ValueError):
@@ -84,23 +84,32 @@ def _mode_or_tie(
     return tie_value, True
 
 
-def _union_ordered(lists: list[list[str]]) -> list[str]:
+def _union_ordered(lists: list[list]) -> list:
     """多選欄位 union，dedupe 保留首現順序。
 
     OrderedDict.fromkeys 的 trick 比 set 穩定：同輸入 → 同輸出順序，方便 diff 和測試。
     """
-    seen: OrderedDict[str, None] = OrderedDict()
+    seen: OrderedDict = OrderedDict()
     for lst in lists:
         for item in lst:
             seen.setdefault(item, None)
     return list(seen.keys())
 
 
-def _decode_multi_field(raw: Optional[str], ann_id: str, field: str) -> list[str]:
-    """DB 裡 function_roles / style_tag 存 JSON string → decode 成 list[str]。
+def _decode_multi_field(
+    raw: Optional[str],
+    ann_id: str,
+    field: str,
+    *,
+    cast: type = str,
+) -> list:
+    """DB 裡多選欄位（function_roles / style_tag / loop_capability / genre_tag）
+    存 JSON string → decode 成 list。
 
     None / 空字串 → []。JSON decode 失敗 → raise ExportError，訊息包含 annotation.id
     和欄位名（fail loud，方便追到壞資料哪筆）。
+
+    cast：list 元素的型別（loop_capability 用 float，其他用 str）。
     """
     if raw is None or raw == "":
         return []
@@ -114,7 +123,7 @@ def _decode_multi_field(raw: Optional[str], ann_id: str, field: str) -> list[str
         raise ExportError(
             f"annotation {ann_id!r} 的 {field} 欄位 decode 後不是 list：{type(value).__name__}"
         )
-    return [str(v) for v in value]
+    return [cast(v) for v in value]
 
 
 # ---------------------------------------------------------------------------
@@ -122,15 +131,24 @@ def _decode_multi_field(raw: Optional[str], ann_id: str, field: str) -> list[str
 # ---------------------------------------------------------------------------
 
 def _annotation_to_individual(ann: Annotation, dim_keys: list[str]) -> dict[str, Any]:
-    """把單一 Annotation row 攤成 JSON 物件（放進 individual_annotations）。"""
+    """把單一 Annotation row 攤成 JSON 物件（放進 individual_annotations）。
+
+    multi_discrete 欄位（loop_capability）在 DB 是 JSON-string，decode 成 list[float]。
+    """
+    dimensions: dict[str, Any] = {}
+    for k in dim_keys:
+        if k == "loop_capability":
+            dimensions[k] = _decode_multi_field(ann.loop_capability, ann.id, k, cast=float)
+        else:
+            dimensions[k] = getattr(ann, k)
     return {
         "annotator_id": ann.annotator_id,
         # updated_at 語意：「最近一次確認這筆標註的時間」。見 README export 章節。
         "annotated_at": ann.updated_at.isoformat(),
-        "dimensions": {k: getattr(ann, k) for k in dim_keys},
+        "dimensions": dimensions,
         "source_type": ann.source_type,
         "function_roles": _decode_multi_field(ann.function_roles, ann.id, "function_roles"),
-        "genre_tag": ann.genre_tag,
+        "genre_tag": _decode_multi_field(ann.genre_tag, ann.id, "genre_tag"),
         "worldview_tag": ann.worldview_tag,
         "style_tag": _decode_multi_field(ann.style_tag, ann.id, "style_tag"),
         "notes": ann.notes,
@@ -140,7 +158,7 @@ def _annotation_to_individual(ann: Annotation, dim_keys: list[str]) -> dict[str,
 def _aggregate_consensus(
     inds: list[dict[str, Any]],
     dim_keys: list[str],
-    discrete_keys: set[str],
+    multi_discrete_keys: set[str],
 ) -> tuple[dict[str, Any], list[str], str]:
     """從 individual_annotations 推 consensus、warnings、consensus_method。
 
@@ -148,19 +166,18 @@ def _aggregate_consensus(
     """
     warnings: list[str] = []
 
-    # dimensions：連續取 mean、離散取 mode（tie fallback 0.5）
+    # dimensions：連續取 mean、multi_discrete 取 union
     dims: dict[str, Any] = {}
     for k in dim_keys:
+        if k in multi_discrete_keys:
+            # loop_capability：union 所有 annotator 的選項；空 list → []
+            dims[k] = _union_ordered([ind["dimensions"][k] for ind in inds])
+            continue
         vals = [ind["dimensions"][k] for ind in inds if ind["dimensions"][k] is not None]
         if not vals:
             dims[k] = None
             continue
-        if k in discrete_keys:
-            # loop_capability 的 tie fallback 是「中間值 0.5」，不是 None
-            mode, _tie = _mode_or_tie(vals, tie_value=0.5)
-            dims[k] = mode
-        else:
-            dims[k] = _mean_continuous(vals)
+        dims[k] = _mean_continuous(vals)
 
     # source_type：mode，tie → None + warning
     src_values = [ind["source_type"] for ind in inds if ind["source_type"] is not None]
@@ -168,14 +185,13 @@ def _aggregate_consensus(
     if source_tie:
         warnings.append("source_type_conflict")
 
-    # function_roles / style_tag：union
+    # function_roles / genre_tag / style_tag：union
     function_roles = _union_ordered([ind["function_roles"] for ind in inds])
+    genre_tag = _union_ordered([ind["genre_tag"] for ind in inds])
     style_tag = _union_ordered([ind["style_tag"] for ind in inds])
 
-    # genre_tag / worldview_tag：mode，tie → None
-    genre_values = [ind["genre_tag"] for ind in inds if ind["genre_tag"]]
+    # worldview_tag：mode，tie → None
     worldview_values = [ind["worldview_tag"] for ind in inds if ind["worldview_tag"]]
-    genre_tag, _ = _mode_or_tie(genre_values, tie_value=None)
     worldview_tag, _ = _mode_or_tie(worldview_values, tie_value=None)
 
     consensus = {
@@ -197,11 +213,11 @@ def _build_item(
     audio: AudioFile,
     anns: list[Annotation],
     dim_keys: list[str],
-    discrete_keys: set[str],
+    multi_discrete_keys: set[str],
 ) -> dict[str, Any]:
     """組裝 items[] 的單一元素。`anns` 必須已過濾 is_complete=1 且非空。"""
     inds = [_annotation_to_individual(a, dim_keys) for a in anns]
-    consensus, warnings, method = _aggregate_consensus(inds, dim_keys, discrete_keys)
+    consensus, warnings, method = _aggregate_consensus(inds, dim_keys, multi_discrete_keys)
 
     item: dict[str, Any] = {
         "audio_file": audio.filename,
@@ -243,7 +259,7 @@ def _build_dimension_schema() -> dict[str, Any]:
         }
         if spec["type"] == "continuous":
             entry["range"] = spec.get("range")
-        else:
+        else:  # discrete / multi_discrete
             entry["options"] = spec.get("options")
         out[dim_id] = entry
     return out
@@ -269,7 +285,7 @@ def build_dataset(
         /api/export/individual.json       → build_dataset(session, "<id>")（404 由 route 層判斷）
     """
     dim_keys = _dimension_keys()
-    discrete_keys = _discrete_dim_keys()
+    multi_discrete_keys = _multi_discrete_dim_keys()
 
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
@@ -291,7 +307,7 @@ def build_dataset(
         if not anns:
             # 整檔沒任何 is_complete=1 的 annotation → 不進 items，但仍計入 total_audio_files
             continue
-        items.append(_build_item(audio, anns, dim_keys, discrete_keys))
+        items.append(_build_item(audio, anns, dim_keys, multi_discrete_keys))
 
     annotators_in_export = sorted({a.annotator_id for a in annotations})
 

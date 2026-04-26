@@ -1,8 +1,9 @@
 """SQLModel 資料表定義。
 
 Phase 1 就把所有 Phase 2 需要的欄位都到位，避免後續 schema migration。
-連續維度存 Optional[float]，離散 loop_capability 也用 float 便於 aggregation。
-多選欄位（function_roles / style_tag）存 JSON-serialized 字串，由 application 層負責 (de)serialize。
+連續維度存 Optional[float]。
+多選欄位（function_roles / style_tag / loop_capability / genre_tag）存
+JSON-serialized 字串，由 application 層負責 (de)serialize。
 """
 from datetime import datetime, UTC
 from typing import Optional
@@ -46,8 +47,8 @@ class Annotation(SQLModel, table=True):
     tension_direction: Optional[float] = None
     temporal_position: Optional[float] = None
     event_significance: Optional[float] = None
-    # loop_capability 離散三選一 {0.0, 0.5, 1.0}，仍用 float 儲存
-    loop_capability: Optional[float] = None
+    # loop_capability 多選 → JSON-serialized list[float]（值限於 {0.0, 0.5, 1.0}）
+    loop_capability: Optional[str] = None
     tonal_noise_ratio: Optional[float] = None
     spectral_density: Optional[float] = None
     world_immersion: Optional[float] = None
@@ -58,6 +59,7 @@ class Annotation(SQLModel, table=True):
     function_roles: Optional[str] = None
 
     # 離散 tags
+    # genre_tag 多選 → JSON-serialized list[str]
     genre_tag: Optional[str] = None
     worldview_tag: Optional[str] = None
     # style_tag 多選 → JSON-serialized list[str]

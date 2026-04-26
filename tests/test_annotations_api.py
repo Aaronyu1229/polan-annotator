@@ -44,13 +44,13 @@ def _complete_payload(audio_id: str, annotator_id: str = "amber") -> dict:
         "tension_direction": 0.3,
         "temporal_position": 0.25,
         "event_significance": 0.6,
-        "loop_capability": 1.0,
+        "loop_capability": [1.0],
         "tonal_noise_ratio": 0.8,
         "spectral_density": 0.5,
         "world_immersion": 0.7,
         "source_type": "ambience",
         "function_roles": ["atmosphere", "gameplay_core"],
-        "genre_tag": "博弈",
+        "genre_tag": ["博弈"],
         "worldview_tag": "asian_mythology",
         "style_tag": ["chinese_traditional"],
         "notes": "測試用",
@@ -111,6 +111,51 @@ def test_post_partial_missing_dimension_marks_is_complete_false(client, in_memor
     r = client.post("/api/annotations", json=payload)
     assert r.status_code == 200
     assert r.json()["is_complete"] is False
+
+
+def test_post_empty_loop_capability_marks_is_complete_false(client, in_memory_engine):
+    """loop_capability=[] 是合法的草稿狀態，但 is_complete=False。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["loop_capability"] = []
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is False
+
+
+def test_post_invalid_loop_capability_value_returns_400(client, in_memory_engine):
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["loop_capability"] = [0.7]  # 0.7 不在 {0, 0.5, 1}
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 400
+    assert "loop_capability" in r.json()["detail"]
+
+
+def test_post_multi_loop_capability_accepted(client, in_memory_engine):
+    """同時選 0.5 + 1.0 → is_complete=True。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["loop_capability"] = [0.5, 1.0]
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
+        assert json.loads(ann.loop_capability) == [0.5, 1.0]
+
+
+def test_post_stores_genre_tag_as_json_array(client, in_memory_engine):
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["genre_tag"] = ["博弈", "東方"]
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
+        assert json.loads(ann.genre_tag) == ["博弈", "東方"]
 
 
 def test_post_upsert_updates_existing_row(client, in_memory_engine):

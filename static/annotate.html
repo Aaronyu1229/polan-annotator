@@ -151,17 +151,19 @@
         <span>更多標籤 (genre / worldview / style / notes)</span>
       </button>
       <div id="tags-panel" class="hidden mt-3 p-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-transparent rounded space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">遊戲類型 (genre)</label>
-            <input id="genre-input" list="genre-list" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="可下拉或自由輸入">
+        <div>
+          <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">遊戲類型 (genre) — 多選</label>
+          <div id="genre-chips" class="flex flex-wrap gap-2 mb-2"></div>
+          <div class="flex gap-2">
+            <input id="genre-input" list="genre-list" class="flex-1 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="選或輸入後按 Enter 加入">
             <datalist id="genre-list"></datalist>
+            <button id="genre-add" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 rounded text-sm">加入</button>
           </div>
-          <div>
-            <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">世界觀 (worldview)</label>
-            <input id="worldview-input" list="worldview-list" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="可下拉或自由輸入">
-            <datalist id="worldview-list"></datalist>
-          </div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">世界觀 (worldview)</label>
+          <input id="worldview-input" list="worldview-list" class="w-full px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-amber-500" placeholder="可下拉或自由輸入">
+          <datalist id="worldview-list"></datalist>
         </div>
         <div>
           <label class="text-xs text-slate-500 dark:text-slate-400 block mb-1">風格 (style) — 多選</label>
