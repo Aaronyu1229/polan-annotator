@@ -43,7 +43,7 @@ const state = {
   dimensions: {},        // from /api/dimensions
   audio: null,           // from /api/audio/:id
   values: {},            // 維度當前值 dim_key -> number 或 list[number]（multi_discrete）
-  sourceType: null,      // string
+  sourceTypes: new Set(),
   functionRoles: new Set(),
   genres: [],
   worldview: '',
@@ -415,16 +415,21 @@ function renderSourceTypes() {
   `).join('')
   sourceTypesEl.querySelectorAll('[data-source]').forEach(btn => {
     btn.addEventListener('click', () => {
-      setSourceType(btn.dataset.source)
+      toggleSourceType(btn.dataset.source)
       scheduleDraftSave()
     })
   })
 }
 
-function setSourceType(key) {
-  state.sourceType = key
+function toggleSourceType(key) {
+  if (state.sourceTypes.has(key)) state.sourceTypes.delete(key)
+  else state.sourceTypes.add(key)
+  refreshSourceTypeChips()
+}
+
+function refreshSourceTypeChips() {
   sourceTypesEl.querySelectorAll('[data-source]').forEach(b => {
-    b.classList.toggle('chip-active', b.dataset.source === key)
+    b.classList.toggle('chip-active', state.sourceTypes.has(b.dataset.source))
   })
 }
 
@@ -749,7 +754,11 @@ function applyPrefillFromExisting() {
     }
     applyDimensionValue(key, v)
   })
-  if (ea.source_type) setSourceType(ea.source_type)
+  // ea.source_type 在新版 API 已 decode 為 list[str]
+  if (Array.isArray(ea.source_type)) {
+    ea.source_type.forEach(s => state.sourceTypes.add(s))
+    refreshSourceTypeChips()
+  }
   if (Array.isArray(ea.function_roles)) {
     ea.function_roles.forEach(r => state.functionRoles.add(r))
     refreshFunctionRoleChips()
@@ -769,7 +778,7 @@ function currentSnapshot() {
   // values 內 multi_discrete dim 的值是 list — 用 JSON round-trip 確保深拷貝
   return {
     values: JSON.parse(JSON.stringify(state.values)),
-    sourceType: state.sourceType,
+    sourceTypes: [...state.sourceTypes],
     functionRoles: [...state.functionRoles],
     genres: [...state.genres],
     worldview: state.worldview,
@@ -834,7 +843,11 @@ async function maybeOfferDraft() {
 
 function applyDraft(s) {
   Object.entries(s.values || {}).forEach(([k, v]) => applyDimensionValue(k, v))
-  if (s.sourceType) setSourceType(s.sourceType)
+  // 向後相容：舊版 draft 用 s.sourceType（單值），新版用 s.sourceTypes（list）
+  if (Array.isArray(s.sourceTypes)) state.sourceTypes = new Set(s.sourceTypes)
+  else if (typeof s.sourceType === 'string' && s.sourceType) state.sourceTypes = new Set([s.sourceType])
+  else state.sourceTypes = new Set()
+  refreshSourceTypeChips()
   state.functionRoles = new Set(s.functionRoles || [])
   refreshFunctionRoleChips()
   // 向後相容：舊版 draft 用 s.genre（單字串），新版用 s.genres（list）
@@ -855,6 +868,10 @@ async function submitAnnotation({ goNext }) {
   saveError.classList.add('hidden')
   saveError.textContent = ''
 
+  if (state.sourceTypes.size < 1) {
+    showError('請至少選一個音源類型')
+    return
+  }
   if (state.functionRoles.size < 1) {
     showError('請至少選一個功能角色')
     return
@@ -875,7 +892,7 @@ async function submitAnnotation({ goNext }) {
     tonal_noise_ratio: state.values.tonal_noise_ratio ?? null,
     spectral_density: state.values.spectral_density ?? null,
     world_immersion: state.values.world_immersion ?? null,
-    source_type: state.sourceType,
+    source_type: [...state.sourceTypes],
     function_roles: [...state.functionRoles],
     genre_tag: state.genres,
     worldview_tag: state.worldview || null,

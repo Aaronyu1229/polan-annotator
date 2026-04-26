@@ -109,11 +109,15 @@ def _validate_function_roles(roles, prefix: str, errors: list[str]) -> None:
 
 
 def _validate_source_type(value, prefix: str, errors: list[str]) -> None:
-    # null 允許（conflict tie 或 single 未選）；非 null 必須在 enum 裡
-    if value is None:
+    """source_type 是 list[str]：completed annotation 至少 1 個值，每個值在 enum 裡。"""
+    if not isinstance(value, list):
+        errors.append(f"{prefix}.source_type not list: {type(value).__name__}")
         return
-    if value not in EXPECTED_SOURCE_TYPES:
-        errors.append(f"{prefix}.source_type invalid: {value!r}")
+    if len(value) == 0:
+        errors.append(f"{prefix}.source_type empty (must have >=1)")
+    for s in value:
+        if s not in EXPECTED_SOURCE_TYPES:
+            errors.append(f"{prefix}.source_type invalid value: {s!r}")
 
 
 def _validate_item(item: dict, i: int, errors: list[str]) -> None:

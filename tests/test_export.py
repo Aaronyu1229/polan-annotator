@@ -62,7 +62,7 @@ def _make_annotation(
     is_complete: bool = True,
     dims: dict | None = None,
     loop_capability: list[float] | None = None,
-    source_type: str = "ambience",
+    source_type: list[str] | None = None,
     function_roles: list | None = None,
     style_tag: list | None = None,
     genre_tag: list[str] | None = None,
@@ -83,7 +83,7 @@ def _make_annotation(
         loop_capability=json.dumps(
             loop_capability if loop_capability is not None else _DEFAULT_LOOP_CAPABILITY
         ),
-        source_type=source_type,
+        source_type=json.dumps(source_type if source_type is not None else ["ambience"]),
         function_roles=json.dumps(function_roles or ["atmosphere"]),
         style_tag=json.dumps(style_tag or ["chinese_traditional"]),
         genre_tag=json.dumps(genre_tag if genre_tag is not None else ["博弈"]),
@@ -113,7 +113,7 @@ def test_single_annotator_uses_single_annotator_method(in_memory_engine):
     assert item["consensus_method"] == "single_annotator"
     # single annotator 情境：dimensions 就是該人的值（單筆 mean == 自己，round 到 3）
     assert item["consensus"]["dimensions"]["valence"] == 0.77
-    assert item["consensus"]["source_type"] == "ambience"
+    assert item["consensus"]["source_type"] == ["ambience"]
     assert data["total_annotated"] == 1
     assert data["total_annotations"] == 1
     assert data["annotators"] == ["amber"]
@@ -154,20 +154,22 @@ def test_function_roles_union(in_memory_engine):
 
 
 # ---------------------------------------------------------------------------
-# 4. source_type 平手
+# 4. source_type union（兩人選不同 → consensus 取兩個 dedupe）
 # ---------------------------------------------------------------------------
 
-def test_source_type_tie_returns_null_with_warning(in_memory_engine):
+def test_source_type_union_across_annotators(in_memory_engine):
     with Session(in_memory_engine) as s:
         audio = _make_audio(s)
-        _make_annotation(s, audio.id, "amber", source_type="synthetic_designed")
-        _make_annotation(s, audio.id, "bob",   source_type="ambience")
+        _make_annotation(s, audio.id, "amber", source_type=["synthetic_designed"])
+        _make_annotation(s, audio.id, "bob",   source_type=["ambience", "synthetic_designed"])
         data = build_dataset(s)
 
     item = data["items"][0]
-    assert item["consensus"]["source_type"] is None
-    assert "warnings" in item
-    assert "source_type_conflict" in item["warnings"]
+    consensus_src = item["consensus"]["source_type"]
+    assert isinstance(consensus_src, list)
+    assert set(consensus_src) == {"synthetic_designed", "ambience"}
+    # 不再產生 source_type_conflict warning
+    assert "warnings" not in item or "source_type_conflict" not in item.get("warnings", [])
 
 
 # ---------------------------------------------------------------------------

@@ -48,7 +48,7 @@ def _complete_payload(audio_id: str, annotator_id: str = "amber") -> dict:
         "tonal_noise_ratio": 0.8,
         "spectral_density": 0.5,
         "world_immersion": 0.7,
-        "source_type": "ambience",
+        "source_type": ["ambience"],
         "function_roles": ["atmosphere", "gameplay_core"],
         "genre_tag": ["博弈"],
         "worldview_tag": "asian_mythology",
@@ -88,20 +88,34 @@ def test_post_out_of_range_dimension_returns_400(client, in_memory_engine):
 def test_post_invalid_source_type_returns_400(client, in_memory_engine):
     audio_id = _make_audio(in_memory_engine)
     payload = _complete_payload(audio_id)
-    payload["source_type"] = "not_a_real_type"
+    payload["source_type"] = ["not_a_real_type"]
     r = client.post("/api/annotations", json=payload)
     assert r.status_code == 400
     assert "source_type" in r.json()["detail"]
 
 
 def test_post_partial_payload_marks_is_complete_false(client, in_memory_engine):
-    """source_type=None 表示半成品；仍接受儲存，但 is_complete=False。"""
+    """source_type=[] 表示半成品；仍接受儲存，但 is_complete=False。"""
     audio_id = _make_audio(in_memory_engine)
     payload = _complete_payload(audio_id)
-    payload["source_type"] = None  # 還沒選音源類型
+    payload["source_type"] = []  # 還沒選音源類型
     r = client.post("/api/annotations", json=payload)
     assert r.status_code == 200
     assert r.json()["is_complete"] is False
+
+
+def test_post_multi_source_type_accepted(client, in_memory_engine):
+    """同時選 ambience + synthetic_designed → is_complete=True，DB 存 JSON list。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["source_type"] = ["ambience", "synthetic_designed"]
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
+        assert json.loads(ann.source_type) == ["ambience", "synthetic_designed"]
 
 
 def test_post_partial_missing_dimension_marks_is_complete_false(client, in_memory_engine):

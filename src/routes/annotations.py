@@ -1,10 +1,11 @@
 """Annotation 寫入 API：POST /api/annotations — upsert + 完整度驗證。
 
 完整度規則（is_complete=True 才進 Phase 4 export）：
-1. 10 個維度值全部在 [0, 1] 範圍內
-2. source_type 在 SOURCE_TYPES 白名單
-3. function_roles 是 list 且長度 >= 1
-4. 任一條件不滿足 → is_complete=False（草稿半成品仍接受儲存）
+1. 9 個連續維度值全部在 [0, 1] 範圍內
+2. loop_capability list[float] 至少 1 個值，值限於 {0, 0.5, 1}
+3. source_type 是 list 且長度 >= 1，每個值在 SOURCE_TYPES 白名單
+4. function_roles 是 list 且長度 >= 1
+5. 任一條件不滿足 → is_complete=False（草稿半成品仍接受儲存）
 
 回傳 next_audio_id（同 annotator 下一個未完成音檔的 id），方便前端自動導航。
 """
@@ -63,7 +64,8 @@ class AnnotationPayload(BaseModel):
     tonal_noise_ratio: Optional[float] = None
     spectral_density: Optional[float] = None
     world_immersion: Optional[float] = None
-    source_type: Optional[str] = None
+    # source_type 從單值 Optional[str] 改成多選 list[str]
+    source_type: list[str] = Field(default_factory=list)
     function_roles: list[str] = Field(default_factory=list)
     # genre_tag 從單字串改成多選 list[str]
     genre_tag: list[str] = Field(default_factory=list)
@@ -96,8 +98,9 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
             f"loop_capability 包含非法值：{invalid_loop}（合法：0.0 / 0.5 / 1.0）"
         )
 
-    if payload.source_type is not None and payload.source_type not in _SOURCE_TYPE_KEYS:
-        return False, f"source_type '{payload.source_type}' 不在合法清單"
+    invalid_sources = [s for s in payload.source_type if s not in _SOURCE_TYPE_KEYS]
+    if invalid_sources:
+        return False, f"source_type 包含非法值：{', '.join(invalid_sources)}"
 
     if len(payload.function_roles) < 1:
         return False, "function_roles 必須至少選一項"
@@ -110,8 +113,8 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
         getattr(payload, f) is not None for f in CONTINUOUS_DIMENSION_FIELDS
     )
     loop_filled = len(payload.loop_capability) >= 1
-    has_source = payload.source_type is not None
-    is_complete = continuous_filled and loop_filled and has_source
+    source_filled = len(payload.source_type) >= 1
+    is_complete = continuous_filled and loop_filled and source_filled
     return is_complete, None
 
 
@@ -216,7 +219,7 @@ def upsert_annotation(
         for field in CONTINUOUS_DIMENSION_FIELDS:
             setattr(existing, field, getattr(payload, field))
         existing.loop_capability = json.dumps(payload.loop_capability)
-        existing.source_type = payload.source_type
+        existing.source_type = json.dumps(payload.source_type)
         existing.function_roles = json.dumps(payload.function_roles)
         existing.genre_tag = json.dumps(payload.genre_tag)
         existing.worldview_tag = payload.worldview_tag
@@ -240,7 +243,7 @@ def upsert_annotation(
             tonal_noise_ratio=payload.tonal_noise_ratio,
             spectral_density=payload.spectral_density,
             world_immersion=payload.world_immersion,
-            source_type=payload.source_type,
+            source_type=json.dumps(payload.source_type),
             function_roles=json.dumps(payload.function_roles),
             genre_tag=json.dumps(payload.genre_tag),
             worldview_tag=payload.worldview_tag,

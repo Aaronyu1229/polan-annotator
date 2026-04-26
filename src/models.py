@@ -2,8 +2,8 @@
 
 Phase 1 就把所有 Phase 2 需要的欄位都到位，避免後續 schema migration。
 連續維度存 Optional[float]。
-多選欄位（function_roles / style_tag / loop_capability / genre_tag）存
-JSON-serialized 字串，由 application 層負責 (de)serialize。
+多選欄位（source_type / function_roles / style_tag / loop_capability / genre_tag）
+存 JSON-serialized 字串，由 application 層負責 (de)serialize。
 """
 from datetime import datetime, UTC
 from typing import Optional
@@ -53,9 +53,8 @@ class Annotation(SQLModel, table=True):
     spectral_density: Optional[float] = None
     world_immersion: Optional[float] = None
 
-    # Layer 1 / Layer 2
+    # Layer 1 / Layer 2 — 兩者都是多選 → JSON-serialized list[str]
     source_type: Optional[str] = None
-    # function_roles 多選 → JSON-serialized list[str]，SQLite 無原生陣列型別
     function_roles: Optional[str] = None
 
     # 離散 tags

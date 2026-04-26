@@ -49,7 +49,7 @@ def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
         "tonal_noise_ratio": ann.tonal_noise_ratio,
         "spectral_density": ann.spectral_density,
         "world_immersion": ann.world_immersion,
-        "source_type": ann.source_type,
+        "source_type": _decode_list(ann.source_type),
         "function_roles": _decode_list(ann.function_roles),
         "genre_tag": _decode_list(ann.genre_tag),
         "worldview_tag": ann.worldview_tag,

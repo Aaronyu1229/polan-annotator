@@ -6,7 +6,7 @@
 歸約規則（aggregation rules）：
     連續維度 9 個                → mean，round 到 3 位小數
     loop_capability（multi_discrete）→ union，回 list[float]（值限於 0/0.5/1）
-    source_type（單選）          → mode；平手 → None + warnings=["source_type_conflict"]
+    source_type（多選）          → union
     function_roles（多選）       → union，dedupe 保留首現順序
     genre_tag（多選）            → union
     worldview_tag                → mode；平手 → None
@@ -146,7 +146,7 @@ def _annotation_to_individual(ann: Annotation, dim_keys: list[str]) -> dict[str,
         # updated_at 語意：「最近一次確認這筆標註的時間」。見 README export 章節。
         "annotated_at": ann.updated_at.isoformat(),
         "dimensions": dimensions,
-        "source_type": ann.source_type,
+        "source_type": _decode_multi_field(ann.source_type, ann.id, "source_type"),
         "function_roles": _decode_multi_field(ann.function_roles, ann.id, "function_roles"),
         "genre_tag": _decode_multi_field(ann.genre_tag, ann.id, "genre_tag"),
         "worldview_tag": ann.worldview_tag,
@@ -179,13 +179,8 @@ def _aggregate_consensus(
             continue
         dims[k] = _mean_continuous(vals)
 
-    # source_type：mode，tie → None + warning
-    src_values = [ind["source_type"] for ind in inds if ind["source_type"] is not None]
-    source_type, source_tie = _mode_or_tie(src_values, tie_value=None)
-    if source_tie:
-        warnings.append("source_type_conflict")
-
-    # function_roles / genre_tag / style_tag：union
+    # source_type / function_roles / genre_tag / style_tag：union
+    source_type = _union_ordered([ind["source_type"] for ind in inds])
     function_roles = _union_ordered([ind["function_roles"] for ind in inds])
     genre_tag = _union_ordered([ind["genre_tag"] for ind in inds])
     style_tag = _union_ordered([ind["style_tag"] for ind in inds])
