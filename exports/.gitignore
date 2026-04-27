@@ -1,7 +1,6 @@
-# 預設不追 ad-hoc / live export
-*.json
-*.zip
-*.tar.gz
+# 預設不追 ad-hoc / live export — 只 ignore 本目錄頂層的檔案
+/*.json
+/*.zip
+/*.tar.gz
 
-# 但 snapshot-* 子資料夾（frozen milestone）要追
-!snapshot-*/
+# snapshot-*/ 子資料夾完整追（含內部所有 .json + README.md）
