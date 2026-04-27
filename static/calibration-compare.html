@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>校準比對 — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <header class="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center gap-4">
+    <a id="back-link" class="text-sm text-slate-600 hover:text-amber-500 dark:text-slate-400">← 回校準清單</a>
+    <h1 id="page-title" class="text-base font-semibold">校準比對</h1>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-6">
+    <div id="audio-info" class="mb-6">
+      <h2 id="audio-title" class="text-2xl font-semibold">載入中…</h2>
+      <p id="audio-meta" class="text-sm text-slate-500 dark:text-slate-400"></p>
+    </div>
+
+    <section class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-white dark:bg-slate-800 p-4 rounded border border-slate-200 dark:border-slate-700">
+        <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">MAE（平均絕對差距）</div>
+        <div id="mae-value" class="text-2xl font-mono font-semibold text-amber-600 dark:text-amber-400">—</div>
+        <div class="text-xs text-slate-500 mt-1">越接近 0 越像 amber</div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded border border-slate-200 dark:border-slate-700">
+        <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">最大歧見維度</div>
+        <div id="max-diff-dim" class="text-base font-medium">—</div>
+        <div id="max-diff-value" class="text-xs text-slate-500 mt-1"></div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded border border-slate-200 dark:border-slate-700">
+        <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">已比對維度數</div>
+        <div id="dim-count" class="text-2xl font-mono font-semibold">—</div>
+        <div class="text-xs text-slate-500 mt-1">9 個連續維度（loop_capability 多選略過）</div>
+      </div>
+    </section>
+
+    <section class="mb-6 bg-white dark:bg-slate-800 p-4 rounded border border-slate-200 dark:border-slate-700">
+      <canvas id="radar-chart" class="max-w-2xl mx-auto"></canvas>
+    </section>
+
+    <section class="mb-8 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <h3 class="text-base font-semibold p-4 border-b border-slate-200 dark:border-slate-700">維度差距表</h3>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 dark:bg-slate-900/70 dark:text-slate-400 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left p-3 font-medium">維度</th>
+            <th class="text-right p-3 font-medium">你的值</th>
+            <th class="text-right p-3 font-medium">Amber 的值</th>
+            <th class="text-right p-3 font-medium">差距</th>
+          </tr>
+        </thead>
+        <tbody id="diff-table"></tbody>
+      </table>
+    </section>
+
+    <div class="flex items-center justify-between">
+      <a id="back-to-queue" class="text-sm text-slate-600 hover:text-amber-500 dark:text-slate-400">← 回校準清單</a>
+      <button id="next-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded font-medium text-sm">
+        繼續下一個 →
+      </button>
+    </div>
+
+    <div id="error-msg" class="hidden mt-4 p-3 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 rounded text-sm"></div>
+  </main>
+
+  <script type="module" src="/static/calibration-compare.js"></script>
+</body>
+</html>

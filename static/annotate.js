@@ -5,7 +5,10 @@
 
 // ========== 基本狀態 ==========
 const pathParts = window.location.pathname.split('/').filter(Boolean)
-const audioIdFromPath = pathParts[0] === 'annotate' ? pathParts[1] : null
+const IS_CALIBRATION = pathParts[0] === 'calibration'
+const audioIdFromPath = (pathParts[0] === 'annotate' || pathParts[0] === 'calibration')
+  ? pathParts[1]
+  : null
 const qs = new URLSearchParams(window.location.search)
 const AUDIO_ID = audioIdFromPath || qs.get('audio_id')
 const ANNOTATOR = qs.get('annotator') || 'guest'
@@ -102,7 +105,19 @@ const feedbackCancelBtn = $('feedback-cancel')
 const feedbackSubmitBtn = $('feedback-submit')
 let currentFeedbackDim = null  // 目前 popup 開給哪個維度
 
-backLink.href = `/?annotator=${encodeURIComponent(ANNOTATOR)}`
+backLink.href = IS_CALIBRATION
+  ? `/calibration?annotator=${encodeURIComponent(ANNOTATOR)}`
+  : `/?annotator=${encodeURIComponent(ANNOTATOR)}`
+
+// Phase 3：校準模式 — 顯示紅色 banner，改儲存按鈕文字
+if (IS_CALIBRATION) {
+  const banner = $('calibration-banner')
+  if (banner) banner.classList.remove('hidden')
+  const saveNext = $('save-next-btn')
+  if (saveNext) {
+    saveNext.innerHTML = '提交並比對 <span class="text-xs text-slate-700 ml-1">[Enter]</span>'
+  }
+}
 
 const NEW_ANNOTATOR_OPTION = '__new__'
 
@@ -915,6 +930,11 @@ async function submitAnnotation({ goNext }) {
     draftStatus.textContent = data.is_complete ? '已提交 ✓' : '已儲存（半成品）'
     localStorage.removeItem(DRAFT_KEY)
     if (goNext) {
+      if (IS_CALIBRATION) {
+        // 校準模式：直接跳比對頁，不走 next_audio_id
+        window.location.href = `/calibration/compare/${encodeURIComponent(AUDIO_ID)}?annotator=${encodeURIComponent(ANNOTATOR)}`
+        return
+      }
       // ?just_saved=1 讓下一頁（無論是下一個 audio 還是首頁）sessionStorage count +1
       if (data.next_audio_id) {
         window.location.href = `/annotate/${encodeURIComponent(data.next_audio_id)}?annotator=${encodeURIComponent(ANNOTATOR)}&just_saved=1`
