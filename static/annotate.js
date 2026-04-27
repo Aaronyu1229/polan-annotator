@@ -891,6 +891,13 @@ async function submitAnnotation({ goNext }) {
     showError('請至少選一個功能角色')
     return
   }
+  // Phase 5 #4 改 multi_discrete 後新增的必填欄位 — 之前漏驗，導致 Bob 沒勾 Loop
+  // 也能 submit、queue 不消、「繼續下一個」跳同一檔
+  const loopCap = state.values.loop_capability
+  if (!Array.isArray(loopCap) || loopCap.length < 1) {
+    showError('Loop Capability 至少需勾選一個（one-shot / 可循環 / 完整循環）')
+    return
+  }
 
   const body = {
     audio_id: AUDIO_ID,
