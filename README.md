@@ -4,8 +4,9 @@
 
 > Phase 1：專案骨架 + 資料模型  ✅ 完成
 > Phase 2：標註介面核心  ✅ 完成
-> Phase 3：校準模式 + ICC（第一輪不做）
-> Phase 4：資料匯出 + validation
+> Phase 3：校準模式 + ICC + Dashboard  ✅ 完成
+> Phase 4：資料匯出 + validation  ✅ 完成
+> Phase 5：一鍵啟動 / 進度儀表板 / 維度反饋 / 多選改造  ✅ 完成
 
 ---
 
@@ -236,8 +237,64 @@ uv run python scripts/validate_export.py /tmp/dataset.json
 uv run pytest tests/test_export.py -v
 ```
 
-## 後續 Phase
+## Phase 3 — 校準模式 + ICC + Dashboard
 
-Phase 3 預期加：
-- 第二位標註員加入後的 ICC / consensus aggregation（aggregation 邏輯本身在 Phase 4 已實作，Phase 3 會加 UI 顯示歧見熱點）
-- 標註員之間的歧見熱點 UI
+Phase 3 在 Phase 1+2+4 之上加「品質保證層」：第二位標註員加入時能用 amber 已標的檔案
+做訓練、立即看到分數比對；Aaron 端有 dashboard 看跨人 ICC 紅綠燈。
+
+### 端點
+
+| Endpoint | 用途 |
+|---|---|
+| `GET /api/calibration/queue?annotator=` | reference (amber) 已標、self 未標的 audio 清單 |
+| `GET /api/calibration/reference/{audio_id}` | amber 對該 audio 的 is_complete annotation |
+| `GET /api/stats/icc?include_fixture=` | 跨標註員 ICC(2,1) per dimension |
+| `GET /api/stats/overlap?include_fixture=` | 被 ≥ 2 位標註者標過的 audio 清單 |
+| `GET /calibration` | 校準首頁 HTML |
+| `GET /calibration/{audio_id}` | 校準標註頁（重用 annotate.html） |
+| `GET /calibration/compare/{audio_id}` | 比對結果頁（雷達圖 + 差距表） |
+| `GET /dashboard` | Dashboard HTML |
+
+### ICC 演算法
+
+`src/statistics.py` 的 `icc_2_1()` — Two-way random effects, single rater, absolute agreement
+（Shrout & Fleiss 1979）。純 numpy 實作，不用 scipy ANOVA helper。
+
+**只算連續維度。** `loop_capability` 是 `multi_discrete`（list[float]），不在 ICC 計算內 —
+列在 dashboard 的 `skipped_dimensions` 區塊。未來如要量化 multi_discrete 一致性，建議用
+per-option Cohen's Kappa（不在 Phase 3 範圍）。
+
+**設計：intersection design** — 只計算「全部 K 個 annotator 都 is_complete-標過」的 audio
+子集。若 K=2 且兩人重疊 N 個檔，dashboard 顯示「基於 N 筆共同標註的檔案」。
+
+**門檻：**
+- emotion + function 類維度：0.7（主觀，較寬鬆）
+- acoustic 類維度：0.85（客觀，需嚴格一致）
+
+### Calibration 流程
+
+1. Bob 開 `/calibration?annotator=bob` → 看 amber 已 is_complete 標、bob 還沒標的清單
+2. 點任一檔案進 `/calibration/{audio_id}?annotator=bob` — 介面跟標註頁相同，多一條紅色
+   banner「校準模式 — 提交後會顯示跟 amber 的分數比對」
+3. 標完按「提交並比對」→ 跳到 `/calibration/compare/{audio_id}` 顯示雷達圖（Bob vs Amber）+ MAE + 維度差距表（按 abs 差距由大到小排序）
+4. 點「繼續下一個」自動跳下一個未校準音檔
+
+### Dashboard 預覽工具
+
+DB 還沒有第二位真實標註員時，dashboard 會顯示「尚無跨標註員資料」。要 preview UI 可跑：
+
+```bash
+uv run python scripts/seed_fixture.py            # 寫 fixture_bob + fixture_alice
+uv run python scripts/seed_fixture.py --remove   # 清除
+```
+
+Fixture annotator 永遠以 `fixture_` 前綴；dashboard 預設**排除**它們，要看必須勾右上
+「含 fixture（preview 用）」checkbox。
+
+### Phase 3 測試
+
+- `tests/test_statistics.py` — 8 cases（perfect / no agreement / 邊界 / 零變異）
+- `tests/test_stats_icc.py` — 12 cases（intersection / fixture filter / threshold / multi_discrete skip）
+- `tests/test_calibration_api.py` — 7 cases（queue 邏輯 / reference 404）
+
+跑 `pytest -q` 應 111+ 全綠。
