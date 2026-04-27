@@ -1,0 +1,7 @@
+# 預設不追 ad-hoc / live export
+*.json
+*.zip
+*.tar.gz
+
+# 但 snapshot-* 子資料夾（frozen milestone）要追
+!snapshot-*/
