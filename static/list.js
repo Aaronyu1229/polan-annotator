@@ -12,6 +12,12 @@ const DASHBOARD = document.getElementById('dashboard-card')
 const params = new URLSearchParams(window.location.search)
 const annotator = params.get('annotator') || 'guest'
 
+// Phase 3：校準連結帶上當前 annotator
+const navCalibration = document.getElementById('nav-calibration')
+if (navCalibration) {
+  navCalibration.href = `/calibration?annotator=${encodeURIComponent(annotator)}`
+}
+
 const NEW_ANNOTATOR_OPTION = '__new__'
 
 // sessionStorage key 以 annotator 隔離，避免切人後舊 session 干擾
