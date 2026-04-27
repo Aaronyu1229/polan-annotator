@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <header class="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a href="/" class="text-sm text-slate-600 hover:text-amber-500 dark:text-slate-400">← 主頁</a>
+      <h1 class="text-base font-semibold">📊 跨標註員 Dashboard</h1>
+    </div>
+    <label class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+      <input id="include-fixture" type="checkbox" class="accent-amber-500">
+      含 fixture（preview 用）
+    </label>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-6 space-y-6">
+
+    <!-- 1. 各標註員進度 -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
+      <h2 class="text-base font-semibold mb-3">各標註員進度</h2>
+      <div id="progress-list" class="space-y-2">
+        <div class="text-sm text-slate-500 dark:text-slate-400">載入中…</div>
+      </div>
+    </section>
+
+    <!-- 2. ICC 表 -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+        <h2 class="text-base font-semibold">跨標註員 ICC(2,1)</h2>
+        <p id="icc-meta" class="text-xs text-slate-500 dark:text-slate-400 mt-1">載入中…</p>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 dark:bg-slate-900/70 dark:text-slate-400 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left p-3 font-medium">維度</th>
+            <th class="text-left p-3 font-medium">類別</th>
+            <th class="text-right p-3 font-medium">ICC</th>
+            <th class="text-right p-3 font-medium">門檻</th>
+            <th class="text-center p-3 font-medium w-16">狀態</th>
+          </tr>
+        </thead>
+        <tbody id="icc-table"></tbody>
+      </table>
+      <div id="icc-skipped" class="p-3 text-xs text-slate-500 dark:text-slate-500 border-t border-slate-200 dark:border-slate-700"></div>
+    </section>
+
+    <!-- 3. Overlap 檔案清單 -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+        <h2 class="text-base font-semibold">被多人標過的檔案</h2>
+        <p id="overlap-meta" class="text-xs text-slate-500 dark:text-slate-400 mt-1">載入中…</p>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 dark:bg-slate-900/70 dark:text-slate-400 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left p-3 font-medium">遊戲 / 段落</th>
+            <th class="text-left p-3 font-medium">標註者</th>
+          </tr>
+        </thead>
+        <tbody id="overlap-table"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="/static/dashboard.js"></script>
+</body>
+</html>
