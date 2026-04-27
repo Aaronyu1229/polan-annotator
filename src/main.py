@@ -71,4 +71,10 @@ def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參�
     return FileResponse(STATIC_DIR / "annotate.html")
 
 
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_page() -> FileResponse:
+    """Phase 3：跨標註員 ICC 紅綠燈 + 重疊檔案清單。"""
+    return FileResponse(STATIC_DIR / "dashboard.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

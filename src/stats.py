@@ -1,10 +1,13 @@
-"""進度統計 pure functions — 給 /api/stats/progress 與未來的 endpoint 共用。
+"""進度統計 + Phase 3 ICC / overlap pure functions — 給 /api/stats/* endpoint 共用。
 
 設計原則：
 - 所有公開函式不直接碰 FastAPI Request / Response，只收 Session 與原始 args。
 - `current_streak_days` 的「日界」依賴使用者時區（由前端帶 ?tz=Asia/Taipei），
   不用 UTC — 避免台北凌晨標註被算成前一天。
 - `avg_duration_sec` 排除 >= 2 小時的 outlier（Amber 標到一半去吃飯的情境）。
+- ICC 用 intersection design — 只計算「全部 K 個 annotator 都 is_complete-標過」的
+  audio_id 子集。multi_discrete 維度（loop_capability）跳過，待後續 per-option Cohen's Kappa。
+- fixture_ 前綴 annotator 預設排除（dashboard 顯示真實資料）；?include_fixture=true 才納入。
 """
 from __future__ import annotations
 
@@ -184,3 +187,219 @@ def compute_progress(
         current_streak_days=streak,
         has_data=True,
     )
+
+
+# ─── Phase 3: ICC + overlap ───────────────────────────────────────────────
+
+# ICC 門檻：emotion + function 類為主觀，0.7；acoustic 類為客觀，0.85
+_ICC_THRESHOLD_BY_CATEGORY: dict[str, float] = {
+    "emotion": 0.7,
+    "function": 0.7,
+    "acoustic": 0.85,
+}
+
+FIXTURE_ANNOTATOR_PREFIX = "fixture_"
+
+
+def list_completed_annotators(
+    session: Session,
+    *,
+    include_fixture: bool = False,
+) -> list[str]:
+    """回 distinct annotator_id list（有 is_complete=True 紀錄者）。"""
+    rows = session.exec(
+        select(Annotation.annotator_id)
+        .where(Annotation.is_complete == True)  # noqa: E712
+        .distinct()
+    ).all()
+    annotators = sorted({r for r in rows if r})
+    if not include_fixture:
+        annotators = [a for a in annotators if not a.startswith(FIXTURE_ANNOTATOR_PREFIX)]
+    return annotators
+
+
+def find_overlap_audios(
+    session: Session,
+    annotators: list[str],
+) -> list[str]:
+    """回每位 annotator 都 is_complete-標過的 audio_file_id list（intersection，sorted）。
+
+    annotators 少於 2 → 空 list。
+    """
+    if len(annotators) < 2:
+        return []
+    audio_sets: list[set[str]] = []
+    for ann_id in annotators:
+        rows = session.exec(
+            select(Annotation.audio_file_id).where(
+                Annotation.annotator_id == ann_id,
+                Annotation.is_complete == True,  # noqa: E712
+            )
+        ).all()
+        audio_sets.append(set(rows))
+    if not audio_sets:
+        return []
+    common = audio_sets[0]
+    for s in audio_sets[1:]:
+        common = common & s
+    return sorted(common)
+
+
+def compute_icc_per_dimension(
+    session: Session,
+    *,
+    include_fixture: bool = False,
+) -> dict[str, Any]:
+    """跨標註員 ICC(2,1) per continuous dimension。
+
+    流程：
+    1. 列 distinct annotator（is_complete=True 的）
+    2. 找 audio_file_id 同時被「全部 K 個 annotator」標過的 intersection
+    3. 對每個連續維度建 (N x K) matrix → icc_2_1
+    4. 依 dimension category 套門檻（emotion/function 0.7、acoustic 0.85）
+
+    multi_discrete 維度（loop_capability）skip — 列入 skipped_dimensions。
+    """
+    import numpy as np  # noqa: PLC0415 — 延遲載入避免 import 順序問題
+
+    from src.dimensions_loader import load_dimensions
+    from src.statistics import icc_2_1
+
+    annotators = list_completed_annotators(session, include_fixture=include_fixture)
+    overlap_ids = find_overlap_audios(session, annotators)
+    n = len(overlap_ids)
+    k = len(annotators)
+
+    dims_config = load_dimensions()
+    eligible: list[tuple[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    for dim_key, spec in dims_config.items():
+        if spec.get("type") == "continuous":
+            eligible.append((dim_key, spec["category"]))
+        else:
+            skipped.append(
+                {
+                    "key": dim_key,
+                    "type": spec.get("type", "unknown"),
+                    "reason": "multi_discrete 維度，ICC 不適用（待後續 per-option Cohen's Kappa）",
+                }
+            )
+
+    dimensions_result: dict[str, Any] = {}
+
+    if k < 2 or n < 2:
+        for dim_key, category in eligible:
+            threshold = _ICC_THRESHOLD_BY_CATEGORY.get(category, 0.7)
+            dimensions_result[dim_key] = {
+                "icc": None,
+                "category": category,
+                "threshold": threshold,
+                "pass": None,
+                "note": "尚無足夠重疊資料（需 >= 2 位 annotator + >= 2 個共同檔案）",
+            }
+        return {
+            "annotators": annotators,
+            "sample_size": n,
+            "include_fixture": include_fixture,
+            "dimensions": dimensions_result,
+            "skipped_dimensions": skipped,
+        }
+
+    # 一次撈所有需要的 annotation
+    rows = session.exec(
+        select(Annotation).where(
+            Annotation.audio_file_id.in_(overlap_ids),  # type: ignore[attr-defined]
+            Annotation.annotator_id.in_(annotators),  # type: ignore[attr-defined]
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    by_pair: dict[tuple[str, str], Annotation] = {
+        (r.audio_file_id, r.annotator_id): r for r in rows
+    }
+
+    for dim_key, category in eligible:
+        threshold = _ICC_THRESHOLD_BY_CATEGORY.get(category, 0.7)
+        matrix = np.full((n, k), np.nan, dtype=float)
+        complete = True
+        for i, audio_id in enumerate(overlap_ids):
+            for j, ann_id in enumerate(annotators):
+                ann = by_pair.get((audio_id, ann_id))
+                value = getattr(ann, dim_key, None) if ann else None
+                if value is None:
+                    complete = False
+                    break
+                matrix[i, j] = float(value)
+            if not complete:
+                break
+
+        if not complete:
+            dimensions_result[dim_key] = {
+                "icc": None,
+                "category": category,
+                "threshold": threshold,
+                "pass": None,
+                "note": "intersection 內某筆 annotation 此維度為 None",
+            }
+            continue
+
+        icc = icc_2_1(matrix)
+        dimensions_result[dim_key] = {
+            "icc": round(icc, 3) if icc is not None else None,
+            "category": category,
+            "threshold": threshold,
+            "pass": (icc >= threshold) if icc is not None else None,
+            "note": None,
+        }
+
+    return {
+        "annotators": annotators,
+        "sample_size": n,
+        "include_fixture": include_fixture,
+        "dimensions": dimensions_result,
+        "skipped_dimensions": skipped,
+    }
+
+
+def compute_overlap_audios(
+    session: Session,
+    *,
+    include_fixture: bool = False,
+) -> list[dict[str, Any]]:
+    """列被 ≥ 2 位 annotator is_complete-標過的 audio。
+
+    回 [{audio_file_id, filename, game_name, game_stage, annotators}]，
+    依 (game_name, game_stage) 排序。
+    """
+    annotators = list_completed_annotators(session, include_fixture=include_fixture)
+    if len(annotators) < 2:
+        return []
+
+    rows = session.exec(
+        select(Annotation.audio_file_id, Annotation.annotator_id).where(
+            Annotation.annotator_id.in_(annotators),  # type: ignore[attr-defined]
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    by_audio: dict[str, set[str]] = {}
+    for audio_id, ann_id in rows:
+        by_audio.setdefault(audio_id, set()).add(ann_id)
+
+    overlap_ids = [aid for aid, anns in by_audio.items() if len(anns) >= 2]
+    if not overlap_ids:
+        return []
+
+    audios = session.exec(
+        select(AudioFile)
+        .where(AudioFile.id.in_(overlap_ids))  # type: ignore[attr-defined]
+        .order_by(AudioFile.game_name, AudioFile.game_stage)
+    ).all()
+    return [
+        {
+            "audio_file_id": a.id,
+            "filename": a.filename,
+            "game_name": a.game_name,
+            "game_stage": a.game_stage,
+            "annotators": sorted(by_audio[a.id]),
+        }
+        for a in audios
+    ]
