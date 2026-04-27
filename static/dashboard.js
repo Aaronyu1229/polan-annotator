@@ -82,7 +82,7 @@ async function loadProgressForAll(annotators) {
 function renderIccTable(data) {
   const meta = data.sample_size > 0
     ? `基於 N=${data.sample_size} 筆共同標註的檔案，K=${data.annotators.length} 位標註員：${data.annotators.join(', ')}`
-    : '尚無跨標註員資料（需 ≥ 2 位 annotator 都 is_complete-標過 ≥ 2 個共同檔案）'
+    : '尚無跨標註員資料（需 ≥ 2 位標註員各自完整標記 ≥ 2 個共同檔案）'
   $('icc-meta').textContent = meta
 
   const dims = data.dimensions || {}

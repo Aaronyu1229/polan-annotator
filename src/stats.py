@@ -295,7 +295,7 @@ def compute_icc_per_dimension(
                 "category": category,
                 "threshold": threshold,
                 "pass": None,
-                "note": "尚無足夠重疊資料（需 >= 2 位 annotator + >= 2 個共同檔案）",
+                "note": "尚無足夠重疊資料（需 ≥ 2 位標註員各自完整標記 ≥ 2 個共同檔案）",
             }
         return {
             "annotators": annotators,
