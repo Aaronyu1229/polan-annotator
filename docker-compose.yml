@@ -38,6 +38,11 @@ services:
     networks:
       - polan-net
     # Container-side healthcheck is defined in the Dockerfile.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   litestream:
     image: litestream/litestream:latest
@@ -54,6 +59,11 @@ services:
       - ./data:/app/data:ro
     networks:
       - polan-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   polan-net:
