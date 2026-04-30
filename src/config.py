@@ -87,6 +87,8 @@ class Settings:
     email_to_annotator: dict[str, str] = field(default_factory=dict)
     admin_emails: frozenset[str] = field(default_factory=frozenset)
     sentry_dsn: str | None = None
+    # Cloudflare Access — 由 Cloudflare 邊緣處理登入並帶 header `Cf-Access-Authenticated-User-Email`
+    cloudflare_access_enabled: bool = False
 
 
 def load_settings() -> Settings:
@@ -115,6 +117,10 @@ def load_settings() -> Settings:
 
     sentry_dsn_raw = os.environ.get("SENTRY_DSN", "").strip()
     sentry_dsn: str | None = sentry_dsn_raw or None
+
+    cloudflare_access_enabled = _parse_bool(
+        os.environ.get("CLOUDFLARE_ACCESS_ENABLED"), default=False
+    )
 
     if oauth_enabled:
         missing: list[str] = []
@@ -152,4 +158,5 @@ def load_settings() -> Settings:
         email_to_annotator=email_to_annotator,
         admin_emails=admin_emails,
         sentry_dsn=sentry_dsn,
+        cloudflare_access_enabled=cloudflare_access_enabled,
     )

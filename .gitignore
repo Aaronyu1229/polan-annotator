@@ -1,4 +1,5 @@
-data/audio/*.wav
+# 音檔不進 git（任何副檔名、任何子資料夾）
+data/audio/
 __pycache__/
 *.py[cod]
 .venv/

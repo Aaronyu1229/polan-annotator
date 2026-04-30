@@ -1,12 +1,18 @@
 """Phase 6 — FastAPI auth dependency。
 
-`require_auth` 是統一入口：
-- OAUTH_ENABLED=false（dev / test）→ 從 query string `?annotator=` 取，
-  保留 Phase 1-5 的測試用法；無 query 預設 `amber`（既有 dev UX）。
-- OAUTH_ENABLED=true（prod）→ 從 `request.session["user"]` 取。
-  - 沒 session：raise 401 — HTML route 自行 catch 後 redirect 到 /login
-  - email 不在白名單：清 session，raise 403
-  - 通過：回 user dict
+`require_auth` 是統一入口，支援三種 auth 模式（依優先序）：
+1. **Cloudflare Access**（CLOUDFLARE_ACCESS_ENABLED=true）— 由 Cloudflare 邊緣
+   驗證身分後注入 `Cf-Access-Authenticated-User-Email` header。app 信任此 header
+   並 derive annotator_id。**前提**：domain DNS 設為 Cloudflare proxied (橘雲)
+   且 Zero Trust Application 已 gating 該 domain；ufw 應限制 443 只接受 Cloudflare
+   IP，避免 direct-IP 偽造 header。
+2. **Session OAuth**（OAUTH_ENABLED=true）— 由本 app 內建的 Google OAuth flow
+   設定 session['user']。
+3. **Dev / single-user**（兩者皆 false）— 從 query string `?annotator=` 取，
+   無 query 預設 'amber'（與 Phase 1-5 行為一致）。
+
+CLOUDFLARE_ACCESS_ENABLED 與 OAUTH_ENABLED 同時 true 時，**Cloudflare 優先**
+（邊緣已驗證，無需再走 session）。
 
 回傳 dict 統一 shape：
     {
@@ -22,7 +28,11 @@ from typing import Any
 
 from fastapi import HTTPException, Query, Request, status
 
+from src.auth import email_to_annotator_id, is_admin
 from src.config import Settings, load_settings
+
+# Cloudflare Access 在 proxied 流量上注入的 header
+CF_EMAIL_HEADER = "cf-access-authenticated-user-email"
 
 
 def _get_settings(request: Request) -> Settings:
@@ -54,21 +64,40 @@ def _dev_mode_user(annotator: str | None) -> dict[str, Any]:
     }
 
 
+def _cf_user_from_request(request: Request, settings: Settings) -> dict[str, Any] | None:
+    """從 Cloudflare Access header 解析 user；無 header 回 None（caller 決定 401）。"""
+    email = (request.headers.get(CF_EMAIL_HEADER) or "").strip().lower()
+    if not email:
+        return None
+    return {
+        "annotator_id": email_to_annotator_id(email, settings),
+        "email": email,
+        "is_admin": is_admin(email, settings),
+        "name": None,
+    }
+
+
 def optional_annotator(
     request: Request,
     annotator: str | None = Query(default=None),
 ) -> str | None:
     """**選擇性**取當前 annotator_id，給原本 Optional[annotator] 的 endpoint 用。
 
-    - dev：query `?annotator=` 直接回（None 也允許 → 不做 filter）
-    - prod：session["user"]["annotator_id"]；無 session 回 None（路由視情況拒絕）
-
-    跟 `require_auth` 的差別是 prod 模式下不 raise 401 — 由路由自己決定如何處理 None。
-    這個 helper 只給 list / get-by-id 這類「無 annotator 也能回資料」的 endpoint。
+    優先序同 `require_auth`：CF Access → session OAuth → dev query string。
+    無法解析時回 None（不 raise）— 路由視情況拒絕。
     """
     settings = _get_settings(request)
+
+    if settings.cloudflare_access_enabled:
+        cf_user = _cf_user_from_request(request, settings)
+        if cf_user is not None:
+            return cf_user["annotator_id"]
+        # CF 開了但 header 缺：可能是 health check / 內部呼叫 → 不阻擋
+        return None
+
     if not settings.oauth_enabled:
         return annotator.strip() if annotator and annotator.strip() else None
+
     session = getattr(request, "session", None)
     if session is None:
         return None
@@ -84,10 +113,20 @@ def require_auth(
 ) -> dict[str, Any]:
     """FastAPI dependency — 解析當前使用者。
 
-    - dev：query `?annotator=` → annotator_id
-    - prod：session["user"] → annotator_id（query 被忽略以避免偽造）
+    優先序：Cloudflare Access header → session OAuth → dev query string。
     """
     settings = _get_settings(request)
+
+    # ── Cloudflare Access 模式 ──
+    if settings.cloudflare_access_enabled:
+        cf_user = _cf_user_from_request(request, settings)
+        if cf_user is None:
+            # 邊緣應該擋掉所有未驗證流量；走到這裡通常是 direct-IP 攻擊或設定錯誤
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="尚未登入（缺 Cloudflare Access header）",
+            )
+        return cf_user
 
     if not settings.oauth_enabled:
         return _dev_mode_user(annotator)
