@@ -13,12 +13,13 @@ import json
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from src.audio_analysis import AUDIO_DIR, ensure_cached
 from src.db import get_session
+from src.middleware import optional_annotator
 from src.models import AudioFile, Annotation
 
 router = APIRouter(prefix="/api", tags=["audio"])
@@ -62,7 +63,7 @@ def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
 
 @router.get("/audio")
 def list_audio(
-    annotator: Optional[str] = Query(default=None, description="當前標註員 id，未帶則全部顯示未標"),
+    annotator: Optional[str] = Depends(optional_annotator),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
     """回傳所有音檔，含 duration 與 is_annotated_by_current_annotator 旗標。
@@ -101,7 +102,7 @@ def list_audio(
 @router.get("/audio/{audio_id}")
 def get_audio(
     audio_id: str,
-    annotator: Optional[str] = Query(default=None),
+    annotator: Optional[str] = Depends(optional_annotator),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """回單一音檔詳細 — 含 auto_computed 建議值與當前 annotator 既有標註（if any）。

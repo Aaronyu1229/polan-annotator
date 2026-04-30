@@ -6,8 +6,17 @@ venv/
 .uv/
 *.db
 *.db-journal
+*.db.bak*
 .vscode/
 .idea/
 .DS_Store
 .env
+.env.*
+!.env.example
 .prompts/
+
+# Phase 6 — deployment artefacts (host-side, never commit)
+deploy/letsencrypt/
+deploy/secrets/
+*.pem
+*.key

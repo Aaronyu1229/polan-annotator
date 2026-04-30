@@ -2,7 +2,15 @@
 
 `client` fixture 不觸發 lifespan（避免 hit 真正的 data/audio/ 與 data/annotations.db），
 改用 in-memory SQLite + dependency_overrides 隔離測試。
+
+預設 OAUTH_ENABLED=false：Phase 1-5 測試用 ?annotator= 走 dev 模式 require_auth fallback。
+要測 OAuth 行為的 test 自己用 monkeypatch 改 settings。
 """
+import os
+
+# 必須在 import src.main 之前設好 — main.py 在 import time 跑 load_settings()
+os.environ.setdefault("OAUTH_ENABLED", "false")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool

@@ -17,11 +17,12 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from src.db import get_session
+from src.middleware import require_auth
 from src.models import Annotation, AudioFile
 
 REFERENCE_ANNOTATOR_ID = "amber"  # TODO: 未來改 config
@@ -75,13 +76,14 @@ def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
 
 @api_router.get("/queue")
 def calibration_queue(
-    annotator: str = Query(..., description="目前校準中的 annotator_id"),
+    user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
     """回 reference 已 is_complete 標過、{annotator} 還沒 is_complete 標的 audio 清單。
 
     依 (game_name, game_stage) 排序。若 annotator 就是 reference 自己，回空 list。
     """
+    annotator: str = user["annotator_id"]
     if annotator == REFERENCE_ANNOTATOR_ID:
         return []
 

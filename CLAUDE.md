@@ -77,14 +77,33 @@
 
 1. **不要 auto-install 套件**，要裝新的先停下來跟 Aaron 確認。每個 phase 的 prompt 都會明確列出允許的 stack。
 2. **不要 over-engineer**。這是 MVP，不是要賣給 Fortune 500 的企業系統。
-3. **不要加 user authentication / OAuth**。內部工具，`?annotator=amber` 就夠了。
-4. **不要寫 Docker / CI/CD / GitHub Actions**。
+3. ~~**不要加 user authentication / OAuth**~~ → **Phase 6 起改為：必須 Google OAuth + email 白名單**（見下方 Phase 6 段）
+4. ~~**不要寫 Docker / CI/CD / GitHub Actions**~~ → **Phase 6 起改為：必須 Docker + GitHub Actions**（見下方 Phase 6 段）
 5. **不要加動畫、splash screen、音效、Toast 通知**（除非 prompt 明確要）。
 6. **不要用 React / Vue / Svelte / Next.js**，這個 repo 用 vanilla HTML + JS + Tailwind CDN。
 7. **不要把 33 個音檔名稱 hardcode**，永遠從 `data/audio/` 動態掃描。
 8. **不要修改 `dimensions_config.json` 的定義文字**讓它「更精確」—— Amber 會自己改，這是她的權責。
 9. **不要修改已有測試資料**（`data/annotations.db`）除非 prompt 明確同意。
 10. **不要改其他 Phase 的 code**。做 Phase 2 時只動 Phase 2 相關檔案，做 Phase 4 時只動 Phase 4。跨 phase 的修改要先講。
+
+---
+
+## Phase 6（cloud deployment）覆寫規則
+
+Phase 1-5 是單機 MVP；Phase 6 把工具搬上 VPS、加多人協作能力。**Phase 6 範圍內**以下 MVP 規則作廢：
+
+- ✅ **可以**用 Docker / docker-compose
+- ✅ **可以**寫 GitHub Actions deploy workflow
+- ✅ **必須**加 Google OAuth + email 白名單（員工會直接打開網址登入，不再用 `?annotator=amber`）
+- ✅ **可以**新增的 Python 套件：`authlib` / `itsdangerous` / `python-multipart` / `python-dotenv` / `sentry-sdk[fastapi]`
+
+**仍然不變**：
+- 不引入 React/Vue/Next（前端維持 vanilla + Tailwind CDN）
+- 不換 DB（SQLite + Litestream 即可，不用 Postgres）
+- 不引入 Redis / Celery / Kubernetes 等重型基建
+- 既有 API 行為維持向後相容（annotator_id 既支援從 session 拿、也支援 query string fallback）
+
+**權威 spec**：見 [PHASE6_DEPLOYMENT.md](./PHASE6_DEPLOYMENT.md)。動 Phase 6 任何檔案前先讀那份文件。
 
 ---
 

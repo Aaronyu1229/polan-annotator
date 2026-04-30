@@ -1,0 +1,29 @@
+# Phase 6 — Litestream replication of annotations.db to Cloudflare R2.
+#
+# Litestream resolves ${VAR} from the process environment, so docker-compose's
+# env_file injects R2 credentials without committing them.
+#
+# Restore (manual disaster recovery):
+#   docker run --rm \
+#       -v $(pwd)/data:/restore \
+#       -e LITESTREAM_ACCESS_KEY_ID=... \
+#       -e LITESTREAM_SECRET_ACCESS_KEY=... \
+#       litestream/litestream:latest restore \
+#       -o /restore/annotations.db \
+#       s3://${R2_BUCKET}/annotations
+
+dbs:
+  - path: /app/data/annotations.db
+    replicas:
+      - type: s3
+        bucket: ${R2_BUCKET}
+        path: annotations
+        endpoint: ${R2_ENDPOINT}
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}
+        # Cloudflare R2 requires path-style addressing.
+        force-path-style: true
+        # Keep at least 24h of generations; tune up if you want a longer
+        # point-in-time recovery window (costs are negligible at this size).
+        retention: 72h
+        snapshot-interval: 24h

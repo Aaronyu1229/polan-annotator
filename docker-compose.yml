@@ -1,0 +1,61 @@
+# Phase 6 — application stack on the shared DigitalOcean VPS (68.183.232.52).
+#
+# Notes on the VPS environment:
+#   - The VPS already runs n8n / SerpBear / nika-tech and has its own nginx.
+#   - We deliberately do NOT publish a host port for `app`; nginx on the host
+#     reverse-proxies to the container over the docker bridge using its
+#     internal IP/port (see deploy/nginx/annotate.dolcenforte.com.conf).
+#   - If you ever decide to put nginx into compose instead, add a third
+#     service in the same `polan-net` network and use `proxy_pass http://app:8000`.
+#
+# Network strategy:
+#   `polan-net` is declared as `external: false` here so a fresh VPS comes up
+#   cleanly. If the VPS already has a shared bridge (e.g. `web`), flip
+#   `external: true` and rename to match.
+
+name: polan-annotator
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: polan-annotator:latest
+    container_name: polan-annotator-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Allow operators to override the listening port without rebuilding.
+      # The Dockerfile CMD hard-codes 8000; if APP_PORT changes, also update
+      # the nginx upstream and the HEALTHCHECK target.
+      APP_PORT: "8000"
+    expose:
+      - "8000"
+    volumes:
+      # Bind mount the host's data dir so SQLite + audio survive image rebuilds.
+      - ./data:/app/data
+    networks:
+      - polan-net
+    # Container-side healthcheck is defined in the Dockerfile.
+
+  litestream:
+    image: litestream/litestream:latest
+    container_name: polan-annotator-litestream
+    restart: unless-stopped
+    depends_on:
+      - app
+    env_file:
+      - .env
+    command: ["replicate", "-config", "/etc/litestream.yml"]
+    volumes:
+      - ./deploy/litestream.yml:/etc/litestream.yml:ro
+      # Read-only mount: litestream only needs to read the WAL/SQLite file.
+      - ./data:/app/data:ro
+    networks:
+      - polan-net
+
+networks:
+  polan-net:
+    name: polan-net
+    driver: bridge
