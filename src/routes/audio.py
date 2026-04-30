@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
 from pathlib import Path
 from typing import Any, Optional
 
@@ -174,9 +175,15 @@ def stream_audio(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"音檔檔案不存在：{audio.filename}")
 
+    # Phase 6：依副檔名給正確 Content-Type（mp3 / ogg / m4a / flac），
+    # 否則 WaveSurfer 在某些瀏覽器會拒絕 stream。
+    media_type, _ = mimetypes.guess_type(audio.filename)
+    if not media_type or not media_type.startswith("audio/"):
+        media_type = "audio/wav"
+
     return FileResponse(
         path=file_path,
-        media_type="audio/wav",
+        media_type=media_type,
         filename=audio.filename,
     )
 
