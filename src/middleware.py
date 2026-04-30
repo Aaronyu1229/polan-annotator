@@ -38,12 +38,18 @@ def _get_settings(request: Request) -> Settings:
 
 
 def _dev_mode_user(annotator: str | None) -> dict[str, Any]:
-    """OAUTH_ENABLED=false 的回傳。預設 annotator='amber'（與 Phase 5 行為一致）。"""
+    """OAUTH_ENABLED=false 的回傳。預設 annotator='amber'（與 Phase 5 行為一致）。
+
+    `is_admin=True` 是刻意決定 — dev / 單機模式沒有 ALLOWED_EMAILS / ADMIN_EMAILS
+    白名單，若把 admin 設為 False，admin-only 功能（如音源上傳）在本機就無法測試。
+    Production 走 OAuth 分支，admin 仍嚴格依 `ADMIN_EMAILS` env 判斷，不受影響。
+    詳見 PHASE6_DEPLOYMENT.md「dev 模式 admin 行為」段。
+    """
     annotator_id = (annotator or "amber").strip() or "amber"
     return {
         "annotator_id": annotator_id,
         "email": None,
-        "is_admin": False,
+        "is_admin": True,
         "name": None,
     }
 

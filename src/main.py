@@ -138,4 +138,14 @@ def dashboard_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "dashboard.html")
 
 
+@app.get("/upload", include_in_schema=False)
+def upload_page() -> FileResponse:
+    """Phase 6：admin-only 音源上傳頁。
+
+    本 route 只 serve HTML，admin 判斷在前端 fetch /api/me 後做、
+    上傳 API 後端再驗一次 — 雙閘門避免靠前端守。
+    """
+    return FileResponse(STATIC_DIR / "upload.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

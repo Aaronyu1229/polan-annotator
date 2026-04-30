@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from src.auth import email_to_annotator_id, is_admin
@@ -48,7 +48,9 @@ def test_api_me_dev_mode_returns_query_annotator(client):
     body = r.json()
     assert body["annotator_id"] == "carol"
     assert body["email"] is None
-    assert body["is_admin"] is False
+    # dev 模式刻意給 is_admin=True，讓本機可以測 admin-only 功能（如上傳音源）。
+    # production 走 OAuth 分支，仍嚴格依 ADMIN_EMAILS 判斷。
+    assert body["is_admin"] is True
 
 
 # ─── 2. email → annotator_id 對應規則 ────────────────────
@@ -186,7 +188,7 @@ def test_prod_whitelisted_email_passes(prod_app):
     # 模擬已登入：直接寫 session（透過 endpoint 注入 — 用 starlette 提供的 session 機制）
     # 用一個極簡 helper endpoint 暫時注入 session
     @prod_app.get("/_test/login")
-    def _test_login(request):  # type: ignore[no-untyped-def]
+    def _test_login(request: Request) -> dict:
         request.session["user"] = {
             "email": "reborn.uidesigner@gmail.com",
             "name": "Aaron",
@@ -211,7 +213,7 @@ def test_prod_non_whitelisted_email_returns_403(prod_app):
     client = TestClient(prod_app)
 
     @prod_app.get("/_test/login_bad")
-    def _test_login_bad(request):  # type: ignore[no-untyped-def]
+    def _test_login_bad(request: Request) -> dict:
         request.session["user"] = {
             "email": "stranger@example.com",
             "name": "Stranger",
@@ -232,7 +234,7 @@ def test_prod_logout_clears_session(prod_app):
     client = TestClient(prod_app)
 
     @prod_app.get("/_test/login_amber")
-    def _test_login_amber(request):  # type: ignore[no-untyped-def]
+    def _test_login_amber(request: Request) -> dict:
         request.session["user"] = {
             "email": "polanmusic2025@gmail.com",
             "name": "Amber",

@@ -55,6 +55,30 @@ function injectUserBadge(user) {
   document.body.appendChild(wrap)
 }
 
+function injectAdminNav(user) {
+  // admin 才顯示「音源管理」連結；只在不是 /upload 自身時顯示
+  if (!user || !user.is_admin) return
+  if (window.location.pathname === '/upload') return
+  if (document.getElementById('admin-nav-upload')) return
+
+  const link = document.createElement('a')
+  link.id = 'admin-nav-upload'
+  link.href = '/upload'
+  link.title = '上傳新音源（admin）'
+  link.textContent = '音源管理'
+  link.style.cssText =
+    'position:fixed;top:8px;right:12px;z-index:49;font-size:12px;color:#475569;' +
+    'background:rgba(255,255,255,0.92);padding:4px 10px;border:1px solid #e2e8f0;' +
+    'border-radius:9999px;backdrop-filter:blur(4px);text-decoration:none;'
+  // 若已注入 user badge（OAuth 模式），把 admin link 排到 badge 左邊
+  const badge = document.getElementById('auth-badge')
+  if (badge) {
+    const badgeRect = badge.getBoundingClientRect()
+    link.style.right = `${Math.round(window.innerWidth - badgeRect.left + 8)}px`
+  }
+  document.body.appendChild(link)
+}
+
 async function bootAuth() {
   let res
   try {
@@ -77,6 +101,7 @@ async function bootAuth() {
   try {
     const user = await res.json()
     injectUserBadge(user)
+    injectAdminNav(user)
   } catch (err) {
     console.warn('auth.js /api/me parse failed', err)
   }

@@ -164,6 +164,25 @@ bash scripts/migrate_from_amber.sh amber@<Amber-Mac-Tailscale-or-IP>
 - **Docker image 不含 data/** — `data/` 是 volume，從 host mount 進去；image 重 build 不影響資料
 - **Litestream sidecar mode** — 跟 app 同 compose，shared volume；app 寫 SQLite、Litestream 自動 stream 到 R2
 
+### dev 模式 admin 行為（刻意）
+
+`OAUTH_ENABLED=false` 時 `require_auth` 會回 `is_admin=True`。理由：
+- dev / 單機本沒有 `ALLOWED_EMAILS` / `ADMIN_EMAILS`
+- 若 dev `is_admin=False`，則 admin-only 功能（上傳音源）在本機完全無法測試
+- production 走 OAuth 分支，`is_admin` 仍嚴格依 `ADMIN_EMAILS` env 判斷，dev 開放不影響線上安全
+
+實作見 `src/middleware.py` 的 `_dev_mode_user`。如需在 dev 模擬非 admin 行為（例如測 403），用 `app.dependency_overrides[require_auth]` 注入一個回 `is_admin=False` 的 fake（見 `tests/test_audio_upload.py`）。
+
+### 音源上傳 API（Phase 6 已實作）
+
+- `POST /api/audio/upload` — multipart/form-data，單檔；admin only
+- `?replace=true` query 可覆蓋同名檔
+- 100 MB size 上限（與 nginx `client_max_body_size` 對齊）
+- 檔名必須符合 `parse_audio_filename` 的兩段式（`{Game}_{Stage}.wav`）或三段式品牌主題曲；落到 fallback 分支會回 400 + 繁中具體訊息
+- 寫檔走 `<filename>.uploading.tmp` 然後 `os.replace` atomic rename，避免半寫入的破檔被掃到
+- 寫完後 call `scan_audio_directory` upsert 到 `AudioFile` table
+- 前端：`/upload` 頁（admin nav 自動注入），drag-drop / file picker，per-file XHR + progress event
+
 ---
 
 ## 預計時程
