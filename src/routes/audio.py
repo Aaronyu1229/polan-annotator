@@ -25,11 +25,11 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from src.audio_analysis import AUDIO_DIR, ensure_cached
-from src.audio_scanner import scan_audio_directory
+from src.audio_scanner import SUPPORTED_EXTS, scan_audio_directory
 from src.constants import KNOWN_STAGES, parse_audio_filename
 from src.db import get_session
 from src.middleware import optional_annotator, require_auth
-from src.models import AudioFile, Annotation
+from src.models import Annotation, AudioFile, DimensionFeedback
 
 router = APIRouter(prefix="/api", tags=["audio"])
 log = logging.getLogger("polan.routes.audio")
@@ -263,8 +263,13 @@ async def upload_audio(
     audio_dir.mkdir(parents=True, exist_ok=True)
 
     raw_name = file.filename or ""
-    if not raw_name.lower().endswith(".wav"):
-        raise HTTPException(status_code=400, detail="僅接受 .wav 檔案")
+    suffix = Path(raw_name).suffix.lower()
+    if suffix not in SUPPORTED_EXTS:
+        accepted = " / ".join(sorted(SUPPORTED_EXTS))
+        raise HTTPException(
+            status_code=400,
+            detail=f"副檔名 {suffix or '(無)'} 不支援，僅接受：{accepted}",
+        )
 
     content_type = (file.content_type or "").lower()
     # 部分瀏覽器把 .wav 標成 audio/x-wav / audio/wave / audio/vnd.wave；
@@ -351,4 +356,63 @@ async def upload_audio(
         "size_bytes": bytes_written,
         "added": not file_existed,
         "replaced": file_existed,
+    }
+
+
+# ─── Phase 6：admin delete ──────────────────────────────────
+
+
+@router.delete("/audio/{audio_id}")
+def delete_audio(
+    audio_id: str,
+    request: Request,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """admin-only 刪除音檔。
+
+    一併刪除：
+    - 磁碟上的音檔
+    - AudioFile row
+    - 該音檔所有 Annotation rows（手動級聯，SQLite 不強制 FK CASCADE）
+    - 該音檔所有 DimensionFeedback rows
+    """
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要 admin 權限")
+
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔：{audio_id}")
+
+    audio_dir: Path = getattr(request.app.state, "audio_dir", AUDIO_DIR)
+    file_path = audio_dir / audio.filename
+
+    n_annotations = session.exec(
+        select(Annotation).where(Annotation.audio_file_id == audio_id)
+    ).all()
+    n_feedback = session.exec(
+        select(DimensionFeedback).where(DimensionFeedback.audio_file_id == audio_id)
+    ).all()
+
+    for ann in n_annotations:
+        session.delete(ann)
+    for fb in n_feedback:
+        session.delete(fb)
+    session.delete(audio)
+    session.commit()
+
+    file_removed = False
+    if file_path.exists():
+        try:
+            file_path.unlink()
+            file_removed = True
+        except OSError as e:
+            log.warning("刪除音檔磁碟檔案失敗（%s）：%s — DB row 已刪", file_path, e)
+
+    return {
+        "audio_id": audio_id,
+        "filename": audio.filename,
+        "annotations_deleted": len(n_annotations),
+        "feedback_deleted": len(n_feedback),
+        "file_removed": file_removed,
     }

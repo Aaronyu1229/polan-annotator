@@ -214,6 +214,75 @@ def test_upload_brand_theme_missing_brand_returns_400(client, upload_audio_dir):
 # 這裡用 monkeypatch 把 require_auth override 成回 is_admin=False，
 # 直接驗 endpoint 的 403 分支，保證 dev → prod 切換時 admin gate 仍生效。
 
+def test_upload_accepts_mp3(client, upload_audio_dir, in_memory_engine):
+    """Phase 6 update: upload 路由現在接受 .mp3 / .ogg / .m4a / .flac。"""
+    files = {
+        "file": ("Volcano Goddess_Free Game.mp3", io.BytesIO(b"\xff\xfb\x10" + b"\x00" * 256), "audio/mpeg"),
+    }
+    r = client.post("/api/audio/upload?annotator=amber", files=files)
+    assert r.status_code == 200, r.text
+    assert r.json()["filename"] == "Volcano Goddess_Free Game.mp3"
+
+
+def test_upload_rejects_unsupported_extension(client, upload_audio_dir):
+    """副檔名不在 SUPPORTED_EXTS 內 → 400，訊息含支援清單。"""
+    files = {"file": ("Volcano Goddess_Base Game.txt", io.BytesIO(b"hello"), "audio/wav")}
+    r = client.post("/api/audio/upload?annotator=amber", files=files)
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert ".wav" in detail and ".mp3" in detail
+
+
+def test_delete_audio_admin_removes_file_and_rows(client, upload_audio_dir, in_memory_engine):
+    """admin DELETE /api/audio/{id} → 檔案刪除、AudioFile + Annotation row 都清掉。"""
+    # 先上傳一個
+    payload = _wav_bytes(1024)
+    up = client.post(
+        "/api/audio/upload?annotator=amber",
+        files={"file": ("Goose Lake_Base Game.wav", io.BytesIO(payload), "audio/wav")},
+    )
+    assert up.status_code == 200, up.text
+    audio_id = up.json()["audio_id"]
+    target = upload_audio_dir / "Goose Lake_Base Game.wav"
+    assert target.exists()
+
+    # 刪除
+    r = client.delete(f"/api/audio/{audio_id}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["audio_id"] == audio_id
+    assert body["file_removed"] is True
+    assert not target.exists()
+
+    # DB row 也消失
+    with Session(in_memory_engine) as s:
+        assert s.get(AudioFile, audio_id) is None
+
+
+def test_delete_audio_non_admin_returns_403(client, upload_audio_dir):
+    from src.middleware import require_auth
+
+    def _fake_non_admin():
+        return {
+            "annotator_id": "intern",
+            "email": "intern@example.com",
+            "is_admin": False,
+            "name": "Intern",
+        }
+
+    main_module.app.dependency_overrides[require_auth] = _fake_non_admin
+    try:
+        r = client.delete("/api/audio/nonexistent-id")
+        assert r.status_code == 403
+    finally:
+        main_module.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_delete_audio_not_found_returns_404(client, upload_audio_dir):
+    r = client.delete("/api/audio/bogus-id-12345")
+    assert r.status_code == 404
+
+
 def test_upload_non_admin_returns_403(client, upload_audio_dir):
     from src.middleware import require_auth
 

@@ -33,16 +33,16 @@
         <h2 class="text-base font-semibold mb-2">檔名規則</h2>
         <ul class="text-sm text-slate-700 dark:text-slate-300 space-y-1.5 list-disc pl-5">
           <li>
-            兩段式：<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">{遊戲}_{Stage}.wav</code>
+            兩段式：<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">{遊戲}_{Stage}.{副檔名}</code>
             <span class="text-slate-500 dark:text-slate-400"> — Stage 限 Base Game / Free Game / Bonus Game / Main Game / Winning Panel</span>
           </li>
           <li>
-            三段式品牌主題曲：<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Game Brand Theme Music_{品牌}_AI Virtual Voice.wav</code>
+            三段式品牌主題曲：<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Game Brand Theme Music_{品牌}_AI Virtual Voice.{副檔名}</code>
           </li>
-          <li>大小上限 100 MB；副檔名須為 <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">.wav</code></li>
+          <li>大小上限 100 MB；支援副檔名：<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">.wav .mp3 .ogg .m4a .flac</code></li>
         </ul>
         <div class="mt-3 text-xs text-slate-500 dark:text-slate-400">
-          範例：<code>Volcano Goddess_Base Game.wav</code>、<code>Game Brand Theme Music_金鑫_AI Virtual Voice.wav</code>
+          範例：<code>Volcano Goddess_Base Game.wav</code>、<code>Game Brand Theme Music_金鑫_AI Virtual Voice.mp3</code>
         </div>
       </div>
 
@@ -52,18 +52,19 @@
                text-center cursor-pointer bg-white dark:bg-slate-800
                hover:border-amber-400 dark:hover:border-amber-500">
         <p class="text-base text-slate-700 dark:text-slate-200 mb-1">
-          拖曳 <code>.wav</code> 檔到這裡
+          拖曳音檔到這裡（wav / mp3 / ogg / m4a / flac）
         </p>
         <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">或</p>
         <button id="file-picker-btn" type="button"
           class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded font-medium">
           選擇檔案
         </button>
-        <input id="file-input" type="file" accept=".wav,audio/*" multiple class="hidden">
+        <input id="file-input" type="file"
+          accept=".wav,.mp3,.ogg,.m4a,.flac,audio/*" multiple class="hidden">
       </div>
 
       <!-- 上傳佇列 -->
-      <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden">
+      <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden mb-6">
         <div class="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-700">
           <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">上傳佇列</h2>
           <button id="upload-all-btn" type="button"
@@ -75,6 +76,23 @@
           <li id="queue-empty" class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">
             尚未選擇檔案
           </li>
+        </ul>
+      </div>
+
+      <!-- 已上傳音檔清單（含刪除） -->
+      <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden">
+        <div class="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-700">
+          <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            已上傳音檔
+            <span id="existing-count" class="ml-1 text-slate-500 dark:text-slate-400 font-normal"></span>
+          </h2>
+          <button id="existing-refresh" type="button"
+            class="px-2.5 py-1 text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded">
+            重新整理
+          </button>
+        </div>
+        <ul id="existing-list" class="divide-y divide-slate-100 dark:divide-slate-700 max-h-[480px] overflow-y-auto">
+          <li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">載入中…</li>
         </ul>
       </div>
     </section>

@@ -24,7 +24,12 @@ const SELECTORS = {
   queueList: '#queue-list',
   queueEmpty: '#queue-empty',
   uploadAll: '#upload-all-btn',
+  existingList: '#existing-list',
+  existingCount: '#existing-count',
+  existingRefresh: '#existing-refresh',
 }
+
+const SUPPORTED_EXTS = ['.wav', '.mp3', '.ogg', '.m4a', '.flac']
 
 function $(sel) { return document.querySelector(sel) }
 
@@ -222,6 +227,15 @@ function uploadOne(id) {
     item.audio = null
     renderQueue()
 
+    const lower = item.file.name.toLowerCase()
+    const okExt = SUPPORTED_EXTS.some(ext => lower.endsWith(ext))
+    if (!okExt) {
+      item.status = 'error'
+      item.message = `副檔名不支援，僅接受：${SUPPORTED_EXTS.join(' / ')}`
+      renderQueue()
+      return resolve()
+    }
+
     const form = new FormData()
     form.append('file', item.file, item.file.name)
     const url = item.replace ? '/api/audio/upload?replace=true' : '/api/audio/upload'
@@ -271,6 +285,96 @@ async function uploadAll() {
       await uploadOne(item.id)
     }
   }
+  // 上傳完更新右下「已上傳音檔」列表
+  await refreshExistingList()
+}
+
+// ─── 已上傳音檔清單 + 刪除 ─────────────────────────────────
+
+async function refreshExistingList() {
+  const list = $(SELECTORS.existingList)
+  const count = $(SELECTORS.existingCount)
+  list.innerHTML = '<li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">載入中…</li>'
+  let res
+  try {
+    res = await fetch('/api/audio', { credentials: 'same-origin' })
+  } catch (err) {
+    list.innerHTML = '<li class="p-6 text-sm text-red-600 dark:text-red-400 text-center">載入失敗（網路錯誤）</li>'
+    return
+  }
+  if (!res.ok) {
+    list.innerHTML = `<li class="p-6 text-sm text-red-600 dark:text-red-400 text-center">載入失敗（HTTP ${res.status}）</li>`
+    return
+  }
+  const audios = await res.json()
+  count.textContent = `（${audios.length}）`
+  if (audios.length === 0) {
+    list.innerHTML = '<li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">尚未有任何音檔</li>'
+    return
+  }
+  list.innerHTML = audios.map(renderExistingRow).join('')
+  for (const a of audios) {
+    const btn = list.querySelector(`[data-action="delete-existing"][data-id="${a.id}"]`)
+    if (btn) {
+      btn.addEventListener('click', () => deleteExisting(a))
+    }
+  }
+}
+
+function renderExistingRow(a) {
+  const dur = a.duration_sec ? `${a.duration_sec.toFixed(1)}s` : '—'
+  const tick = a.is_annotated_by_current_annotator
+    ? '<span class="text-emerald-600 dark:text-emerald-400 text-xs shrink-0" title="你已標">✓</span>'
+    : ''
+  return `
+    <li class="p-3 flex items-center gap-3" data-existing="${a.id}">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-2">
+          <span class="font-mono text-sm truncate" title="${escapeHtml(a.filename)}">
+            ${escapeHtml(a.filename)}
+          </span>
+          <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0">${dur}</span>
+        </div>
+        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+          ${escapeHtml(a.game_name)} — ${escapeHtml(a.game_stage)}
+        </div>
+      </div>
+      ${tick}
+      <button type="button" data-action="delete-existing" data-id="${a.id}"
+        class="px-2.5 py-1 text-xs rounded font-medium bg-red-50 hover:bg-red-100 text-red-700
+               dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
+        刪除
+      </button>
+    </li>
+  `
+}
+
+async function deleteExisting(audio) {
+  const confirmText =
+    `確定要刪除「${audio.filename}」嗎？\n` +
+    `這會同時刪除這首歌所有員工已標的資料，無法復原。`
+  if (!window.confirm(confirmText)) return
+
+  let res
+  try {
+    res = await fetch(`/api/audio/${encodeURIComponent(audio.id)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+  } catch (err) {
+    window.alert('刪除失敗：網路錯誤')
+    return
+  }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      if (body && body.detail) detail = body.detail
+    } catch {}
+    window.alert(`刪除失敗：${detail}`)
+    return
+  }
+  await refreshExistingList()
 }
 
 // ─── 拖放 / 檔案選擇 ───────────────────────────────────────
@@ -323,6 +427,10 @@ function bindUploadAll() {
   $(SELECTORS.uploadAll).addEventListener('click', () => uploadAll())
 }
 
+function bindExistingRefresh() {
+  $(SELECTORS.existingRefresh).addEventListener('click', () => refreshExistingList())
+}
+
 // ─── boot ──────────────────────────────────────────────────
 
 async function boot() {
@@ -331,7 +439,9 @@ async function boot() {
   $(SELECTORS.main).classList.remove('hidden')
   bindDropZone()
   bindUploadAll()
+  bindExistingRefresh()
   renderQueue()
+  refreshExistingList()
 }
 
 boot()
