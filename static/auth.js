@@ -79,6 +79,21 @@ function injectAdminNav(user) {
   document.body.appendChild(link)
 }
 
+function syncAnnotatorUrl(user) {
+  // 修 ?annotator=guest 假象：登入後若 URL annotator query 跟 server 認定的 annotator_id
+  // 不符（或缺），整路 replace 一次 — 讓 list.js / annotate.js 等其他 script 用對的 ID
+  // 抓 sessionStorage、發 API 請求、設 dropdown 預選值。
+  // 只在「真實有 email 的登入態」做（CF Access / OAuth），dev 模式 email=null 不動。
+  if (!user || !user.email || !user.annotator_id) return false
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('annotator') === user.annotator_id) return false
+  params.set('annotator', user.annotator_id)
+  const newUrl = window.location.pathname + '?' + params.toString() + window.location.hash
+  // replace（不是 assign）— 不留 history，避免上一頁回到 ?annotator=guest
+  window.location.replace(newUrl)
+  return true
+}
+
 async function bootAuth() {
   let res
   try {
@@ -100,6 +115,8 @@ async function bootAuth() {
   }
   try {
     const user = await res.json()
+    // URL 不對先校正，會 reload；reload 後第二趟 syncAnnotatorUrl 回 false 才繼續注入 UI
+    if (syncAnnotatorUrl(user)) return
     injectUserBadge(user)
     injectAdminNav(user)
   } catch (err) {

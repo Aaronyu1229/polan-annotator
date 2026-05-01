@@ -254,3 +254,206 @@ def test_prod_logout_clears_session(prod_app):
     # 之後再請求 → 401
     r2 = client.get("/api/me")
     assert r2.status_code == 401
+
+
+# ─── 4. Cloudflare Access tests ────────────────────────────
+#
+# CF Access 路徑有兩種：
+# (a) header-only（CLOUDFLARE_ACCESS_TEAM_DOMAIN/AUD 任一空）— 信任 ufw + email header
+# (b) JWT 驗證（兩個都設）— 強制驗證 Cf-Access-Jwt-Assertion 簽章
+#
+# 為避免測試需要真的去 Cloudflare 抓 JWKS，整段 CF 測試用 monkeypatch
+# 把 src.middleware.verify_jwt 換成 fake。
+
+
+def _cf_settings(
+    *,
+    team_domain: str = "",
+    aud: str = "",
+    map_dict: dict[str, str] | None = None,
+    admins: set[str] | None = None,
+) -> Settings:
+    """Build a Settings with Cloudflare Access enabled (oauth disabled)."""
+    map_dict = map_dict or {
+        "reborn.uidesigner@gmail.com": "aaron",
+        "polanmusic2025@gmail.com": "amber",
+    }
+    return Settings(
+        oauth_enabled=False,
+        app_domain="annotate.dolcenforte.com",
+        app_secret_key="x" * 32,
+        google_client_id="",
+        google_client_secret="",
+        oauth_redirect_uri="https://annotate.dolcenforte.com/auth/callback",
+        allowed_emails=frozenset({k.lower() for k in map_dict}),
+        email_to_annotator={k.lower(): v for k, v in map_dict.items()},
+        admin_emails=frozenset({a.lower() for a in (admins or set())}),
+        cloudflare_access_enabled=True,
+        cloudflare_access_team_domain=team_domain,
+        cloudflare_access_aud=aud,
+    )
+
+
+@pytest.fixture
+def cf_app(in_memory_engine):
+    """組一個 Cloudflare Access 模式的 app（無 SessionMiddleware；不需 OAuth）。
+
+    回 callable `make(settings)` — caller 自選 header-only 或 JWT mode。
+    """
+    from sqlmodel import Session
+
+    from src.db import get_session
+    from src.routes import auth as auth_routes
+    from src.routes import calibration, feedback, stats
+
+    def make(settings: Settings) -> FastAPI:
+        app = FastAPI()
+        app.state.settings = settings
+        app.include_router(auth_routes.router)
+        app.include_router(stats.router)
+        app.include_router(feedback.router)
+        app.include_router(calibration.api_router)
+
+        def _override_session():
+            with Session(in_memory_engine) as s:
+                yield s
+
+        app.dependency_overrides[get_session] = _override_session
+        return app
+
+    return make
+
+
+def test_cf_mode_header_only_trust(cf_app):
+    """CF enabled、未設 JWT env → 信任 Cf-Access-Authenticated-User-Email header。"""
+    settings = _cf_settings()  # team_domain='' aud='' → header-only
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get(
+        "/api/me",
+        headers={"Cf-Access-Authenticated-User-Email": "reborn.uidesigner@gmail.com"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["email"] == "reborn.uidesigner@gmail.com"
+    assert body["annotator_id"] == "aaron"
+
+
+def test_cf_mode_no_header_returns_401(cf_app):
+    """CF enabled、header-only mode、完全沒帶 header → 401。"""
+    settings = _cf_settings()
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get("/api/me")
+    assert r.status_code == 401
+
+
+def test_cf_mode_jwt_required_when_aud_set_but_no_jwt(cf_app):
+    """JWT mode（team+aud 都設）但只帶 email header、沒帶 JWT header → 401。"""
+    settings = _cf_settings(
+        team_domain="polan.cloudflareaccess.com",
+        aud="abc123def",
+    )
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get(
+        "/api/me",
+        headers={"Cf-Access-Authenticated-User-Email": "reborn.uidesigner@gmail.com"},
+    )
+    assert r.status_code == 401
+
+
+def test_cf_mode_jwt_invalid_signature_rejected(cf_app, monkeypatch):
+    """JWT mode、帶了 JWT 但簽章爛 → 401（mock verify_jwt 拋 JwtVerificationError）。"""
+    from src import middleware as middleware_module
+    from src.cf_jwt import JwtVerificationError
+
+    def _fake_verify(token, *, team_domain, aud):  # noqa: ARG001
+        raise JwtVerificationError("simulated bad signature")
+
+    monkeypatch.setattr(middleware_module, "verify_jwt", _fake_verify)
+
+    settings = _cf_settings(
+        team_domain="polan.cloudflareaccess.com",
+        aud="abc123def",
+    )
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get(
+        "/api/me",
+        headers={
+            "Cf-Access-Authenticated-User-Email": "reborn.uidesigner@gmail.com",
+            "Cf-Access-Jwt-Assertion": "this.is.not.a.real.jwt",
+        },
+    )
+    assert r.status_code == 401
+    # 內部錯誤訊息不該洩漏給 client
+    assert "simulated bad signature" not in r.text
+
+
+def test_cf_mode_jwt_valid_signature_accepts(cf_app, monkeypatch):
+    """JWT mode、verify_jwt 回成功 claims → 200，使用 claims['email']。"""
+    from src import middleware as middleware_module
+
+    def _fake_verify(token, *, team_domain, aud):  # noqa: ARG001
+        return {
+            "email": "polanmusic2025@gmail.com",
+            "name": "Amber",
+            "aud": aud,
+            "exp": 9999999999,
+        }
+
+    monkeypatch.setattr(middleware_module, "verify_jwt", _fake_verify)
+
+    settings = _cf_settings(
+        team_domain="polan.cloudflareaccess.com",
+        aud="abc123def",
+    )
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get(
+        "/api/me",
+        headers={
+            # 故意給不同 email 在 plaintext header；JWT mode 應以 claims 為準（忽略此 header）
+            "Cf-Access-Authenticated-User-Email": "stranger@example.com",
+            "Cf-Access-Jwt-Assertion": "valid.signed.token",
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["email"] == "polanmusic2025@gmail.com"
+    assert body["annotator_id"] == "amber"
+
+
+def test_cf_mode_admin_email_yields_admin_true(cf_app):
+    """admin email（在 ADMIN_EMAILS）→ is_admin=True；非 admin → False。"""
+    settings = _cf_settings(admins={"reborn.uidesigner@gmail.com"})
+    app = cf_app(settings)
+    client = TestClient(app)
+
+    r_admin = client.get(
+        "/api/me",
+        headers={"Cf-Access-Authenticated-User-Email": "reborn.uidesigner@gmail.com"},
+    )
+    assert r_admin.status_code == 200
+    assert r_admin.json()["is_admin"] is True
+
+    r_amber = client.get(
+        "/api/me",
+        headers={"Cf-Access-Authenticated-User-Email": "polanmusic2025@gmail.com"},
+    )
+    assert r_amber.status_code == 200
+    assert r_amber.json()["is_admin"] is False
+
+
+def test_email_to_annotator_mapping_used(cf_app):
+    """polanmusic2025@gmail.com 透過 EMAIL_TO_ANNOTATOR_JSON 映射成 'amber'。"""
+    settings = _cf_settings()
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get(
+        "/api/me",
+        headers={"Cf-Access-Authenticated-User-Email": "polanmusic2025@gmail.com"},
+    )
+    assert r.status_code == 200
+    assert r.json()["annotator_id"] == "amber"

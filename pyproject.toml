@@ -17,6 +17,8 @@ dependencies = [
     "itsdangerous>=2.2,<3",
     "python-dotenv>=1.0,<2",
     "python-multipart>=0.0.9,<1",
+    # Cloudflare Access JWT verification（defense in depth；只在 CLOUDFLARE_ACCESS_TEAM_DOMAIN+AUD 都設時才實際使用）
+    "pyjwt[crypto]>=2.9,<3",
 ]
 
 [project.optional-dependencies]

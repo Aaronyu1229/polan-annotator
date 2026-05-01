@@ -48,20 +48,24 @@ GitHub push to main ──→ Actions ──→ ssh VPS ──→ docker compose
 
 ---
 
-## 已鎖決策
+## 已鎖決策（**最終實際部署**，2026-05-01 update）
 
 | 項目 | 值 | 備註 |
 |------|------|------|
-| 主網域 | `dolcenforte.com` | Amber 持有 |
-| Subdomain | `annotate.dolcenforte.com` | 可改，code 內走 env `APP_DOMAIN` |
-| VPS | DigitalOcean `68.183.232.52` | 既有，已跑 n8n / SerpBear / nika-tech，需確認 port 8000 / 8001 衝突 |
-| Container runtime | Docker + docker compose | nginx 已有人在跑 → 共用 nginx 或新跑一個 reverse proxy（待 SSH 進去看） |
-| Auth | Google OAuth (Authlib) + email 白名單 | session cookie，HttpOnly + Secure |
-| DB | SQLite + Litestream | 不換 Postgres — SQLite 對單寫多讀夠用，Litestream 解決備份 |
-| 備份目的地 | Cloudflare R2 | Aaron 已有 Cloudflare 帳號 |
-| Error tracking | Sentry (free tier) | env-gated，可選 |
-| Uptime | UptimeRobot (free tier) | 不需 code |
-| CI/CD | GitHub Actions → SSH deploy | push main 即部署 |
+| 主網域 | `dolcenforte.com` | Amber 持有，DNS 在 Cloudflare |
+| Subdomain | `annotate.dolcenforte.com` | proxied (橘雲) |
+| VPS | DigitalOcean `152.42.226.237` (SGP1) | **新開的 droplet，2 vCPU / 2GB / 60GB Ubuntu 24.04**；非共用既有那台 |
+| Container runtime | Docker + docker compose | nginx 在 host (apt install)，proxy_pass 到 127.0.0.1:8000 |
+| Auth | **Cloudflare Access (OTP)** + email 白名單 | 取代原計畫的 Google OAuth；team `polanyu.cloudflareaccess.com`，Free plan |
+| Auth defense-in-depth | JWT 驗證 (`src/cf_jwt.py`) + ufw 限制 443 為 CF IP | JWT env 暫未啟用；ufw 已限 |
+| DB | SQLite + Litestream（待設） | 不換 Postgres |
+| 備份目的地 | Cloudflare R2 (待建 bucket) | Aaron 已有 Cloudflare 帳號 |
+| Error tracking | Sentry (free tier) | env-gated `SENTRY_DSN`，待填 |
+| Uptime | UptimeRobot (free tier) | 待設 5min ping |
+| CI/CD | GitHub Actions → SSH deploy | workflow 寫好；secrets 待加 |
+| Log rotation | Docker json-file，10MB × 5 / service | 已設 |
+| SSL | Let's Encrypt via certbot --nginx | 自動續，到 2026-07-29 |
+| Internal Google OAuth code | 保留 dormant（`OAUTH_ENABLED=false`） | 留作 CF Access 失敗時 fallback |
 
 ### Email → annotator_id 對應
 
@@ -75,15 +79,27 @@ EMAIL_TO_ANNOTATOR_JSON={"reborn.uidesigner@gmail.com":"aaron","polanmusic2025@g
 
 ---
 
-## 待補資訊（Aaron 給齊才能完成 deploy）
+## 待補資訊（已完成 ✓ / 待 Aaron 提供 ☐）
 
-- [ ] DNS 在哪管？（Cloudflare / Namecheap / GoDaddy / 其他）
-- [ ] 員工 Gmail 列表（Amber 員工們的 email，N 位都列）
-- [ ] VPS 診斷輸出：
-  ```bash
-  ssh root@68.183.232.52 "df -h / && docker ps && netstat -tlnp 2>/dev/null | grep -E ':(80|443|8000|8001|8002)' && uname -a"
-  ```
-- [ ] R2 bucket 名稱（建議 `polan-annotator-backup`）+ Access Key / Secret
+- [x] DNS：Cloudflare proxied
+- [x] 員工 Gmail：第一位 `yyslin1024@gmail.com` 已加 Cloudflare 白名單；後續員工同樣作法
+- [x] 新 VPS provisioned + 已交付 `https://annotate.dolcenforte.com`
+- [ ] **Cloudflare R2 bucket 名稱 + Access Key / Secret**（給我即可設 Litestream 即時備份）
+- [ ] GitHub Actions secrets：`VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY`
+- [ ] (選) Sentry DSN
+- [ ] (選) UptimeRobot 帳號 + 加 monitor `https://annotate.dolcenforte.com`
+- [ ] (選) Cloudflare Application AUD Tag → 啟用 JWT 驗證（多一層 defense in depth）
+
+### 啟用 JWT 驗證（之後想做時）
+
+Aaron 在 Zero Trust Dashboard → Access → Applications → polan-annotator → Overview 找到 **AUD Tag**（hex 字串），把以下兩行寫進 VPS `.env`：
+
+```
+CLOUDFLARE_ACCESS_TEAM_DOMAIN=polanyu.cloudflareaccess.com
+CLOUDFLARE_ACCESS_AUD=<從 Dashboard 複製>
+```
+
+Restart：`docker compose restart app`。之後每個請求都會驗 JWT 簽章 + audience claim。
 
 ---
 

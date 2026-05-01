@@ -29,10 +29,12 @@ from typing import Any
 from fastapi import HTTPException, Query, Request, status
 
 from src.auth import email_to_annotator_id, is_admin
+from src.cf_jwt import JwtVerificationError, verify_jwt
 from src.config import Settings, load_settings
 
 # Cloudflare Access 在 proxied 流量上注入的 header
 CF_EMAIL_HEADER = "cf-access-authenticated-user-email"
+CF_JWT_HEADER = "cf-access-jwt-assertion"
 
 
 def _get_settings(request: Request) -> Settings:
@@ -65,7 +67,59 @@ def _dev_mode_user(annotator: str | None) -> dict[str, Any]:
 
 
 def _cf_user_from_request(request: Request, settings: Settings) -> dict[str, Any] | None:
-    """從 Cloudflare Access header 解析 user；無 header 回 None（caller 決定 401）。"""
+    """從 Cloudflare Access header 解析 user；無 header 回 None（caller 決定 401）。
+
+    若 settings.cloudflare_access_team_domain 與 cloudflare_access_aud 都設好 →
+    強制驗證 `Cf-Access-Jwt-Assertion`，使用 claims['email'] 為權威值
+    （忽略 plaintext email header，JWT 簽章更可信）；缺 JWT 或驗證失敗 → 401。
+
+    否則 fallback 為信任 `Cf-Access-Authenticated-User-Email` header（依賴 ufw IP 限制）。
+    """
+    jwt_required = bool(
+        settings.cloudflare_access_team_domain and settings.cloudflare_access_aud
+    )
+
+    if jwt_required:
+        token = (request.headers.get(CF_JWT_HEADER) or "").strip()
+        if not token:
+            # CF 邊緣應該已注入；走到這裡多半是 direct-IP 攻擊或設定錯誤
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="尚未登入（缺 Cloudflare Access JWT）",
+            )
+        try:
+            claims = verify_jwt(
+                token,
+                team_domain=settings.cloudflare_access_team_domain,
+                aud=settings.cloudflare_access_aud,
+            )
+        except JwtVerificationError as e:
+            # 不把 verifier 內部訊息直接吐給 client（避免洩漏實作細節）
+            # 但 server log 留 debug 用
+            import logging
+
+            logging.getLogger("polan.middleware").warning(
+                "Cloudflare JWT 驗證失敗：%s", e
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="JWT 驗證失敗：來源未通過 Cloudflare Access",
+            ) from e
+
+        email = (claims.get("email") or "").strip().lower()
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="JWT 驗證失敗：claims 缺 email",
+            )
+        return {
+            "annotator_id": email_to_annotator_id(email, settings),
+            "email": email,
+            "is_admin": is_admin(email, settings),
+            "name": claims.get("name"),
+        }
+
+    # ── Fallback：僅信任 email header（搭配 ufw IP 限制）──
     email = (request.headers.get(CF_EMAIL_HEADER) or "").strip().lower()
     if not email:
         return None
@@ -89,7 +143,12 @@ def optional_annotator(
     settings = _get_settings(request)
 
     if settings.cloudflare_access_enabled:
-        cf_user = _cf_user_from_request(request, settings)
+        # JWT 強制模式下 _cf_user_from_request 缺 header / 驗證失敗會 raise；
+        # optional 語意是「不阻擋」，故吞掉 401 改回 None
+        try:
+            cf_user = _cf_user_from_request(request, settings)
+        except HTTPException:
+            return None
         if cf_user is not None:
             return cf_user["annotator_id"]
         # CF 開了但 header 缺：可能是 health check / 內部呼叫 → 不阻擋

@@ -89,6 +89,10 @@ class Settings:
     sentry_dsn: str | None = None
     # Cloudflare Access — 由 Cloudflare 邊緣處理登入並帶 header `Cf-Access-Authenticated-User-Email`
     cloudflare_access_enabled: bool = False
+    # Cloudflare Access JWT verification (defense in depth)：兩個都填才生效；
+    # 任一空則中介層只信任 email header（仍安全，因為 ufw 限制 direct-IP 流量）
+    cloudflare_access_team_domain: str = ""
+    cloudflare_access_aud: str = ""
 
 
 def load_settings() -> Settings:
@@ -121,6 +125,36 @@ def load_settings() -> Settings:
     cloudflare_access_enabled = _parse_bool(
         os.environ.get("CLOUDFLARE_ACCESS_ENABLED"), default=False
     )
+    cloudflare_access_team_domain = os.environ.get(
+        "CLOUDFLARE_ACCESS_TEAM_DOMAIN", ""
+    ).strip()
+    cloudflare_access_aud = os.environ.get(
+        "CLOUDFLARE_ACCESS_AUD", ""
+    ).strip()
+
+    # Cloudflare Access JWT verification — 兩個 env 必須一起設或一起空
+    # 不 raise（CF 仍能在邊緣 gate），只 log warning 提醒設定不一致
+    if cloudflare_access_enabled:
+        has_domain = bool(cloudflare_access_team_domain)
+        has_aud = bool(cloudflare_access_aud)
+        if has_domain and has_aud:
+            log.info(
+                "Cloudflare Access JWT verification 啟用 (team=%s)",
+                cloudflare_access_team_domain,
+            )
+        elif has_domain != has_aud:
+            log.warning(
+                "Cloudflare Access JWT 設定不完整：CLOUDFLARE_ACCESS_TEAM_DOMAIN=%r，"
+                "CLOUDFLARE_ACCESS_AUD=%r — 兩個都要填才會啟用 JWT 驗證；"
+                "目前 fallback 為僅信任 email header",
+                cloudflare_access_team_domain,
+                cloudflare_access_aud,
+            )
+        else:
+            log.info(
+                "Cloudflare Access 啟用，但未設 JWT 驗證 env — "
+                "僅信任 Cf-Access-Authenticated-User-Email header（依賴 ufw IP 限制）"
+            )
 
     if oauth_enabled:
         missing: list[str] = []
@@ -159,4 +193,6 @@ def load_settings() -> Settings:
         admin_emails=admin_emails,
         sentry_dsn=sentry_dsn,
         cloudflare_access_enabled=cloudflare_access_enabled,
+        cloudflare_access_team_domain=cloudflare_access_team_domain,
+        cloudflare_access_aud=cloudflare_access_aud,
     )
