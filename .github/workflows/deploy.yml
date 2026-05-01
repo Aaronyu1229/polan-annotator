@@ -1,6 +1,6 @@
 name: Deploy to VPS
 
-# Phase 6 — push to main → SSH into the DigitalOcean VPS → rebuild + restart.
+# Phase 6 — push to master → SSH into the DigitalOcean VPS → rebuild + restart.
 #
 # Required repository secrets:
 #   VPS_HOST     — e.g. 68.183.232.52
@@ -14,7 +14,7 @@ name: Deploy to VPS
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -43,9 +43,9 @@ jobs:
             set -euo pipefail
             APP_DIR="${VPS_APP_DIR:-/opt/polan-annotator}"
             cd "$APP_DIR"
-            echo "→ pulling latest main"
+            echo "→ pulling latest master"
             git fetch --all --prune
-            git reset --hard origin/main
+            git reset --hard origin/master
             echo "→ pulling base images"
             docker compose pull litestream || true
             echo "→ rebuilding app image"
