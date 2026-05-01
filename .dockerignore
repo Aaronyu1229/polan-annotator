@@ -1,0 +1,49 @@
+# Phase 6 — keep the build context lean.
+# data/ is a volume on the VPS; never copy it into the image.
+
+# Python
+.venv/
+venv/
+.uv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Project artefacts
+data/
+exports/
+install/
+tests/
+.prompts/
+
+# DBs / dumps
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# VCS / editors / OS
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+.DS_Store
+
+# Node / misc (in case any tooling drops files here)
+node_modules/
+
+# Docker / CI artefacts
+Dockerfile
+.dockerignore
+docker-compose.yml
+deploy/letsencrypt/
+.env
+.env.*
+!.env.example
+
+# Docs / lockfile noise
+*.log

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from src.db import get_session
+from src.middleware import require_auth
 from src.models import AudioFile, DimensionFeedback, _utcnow
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
@@ -123,11 +124,12 @@ def upsert_feedback(
 
 @router.get("/dimension")
 def list_feedback_for_audio(
-    annotator: str = Query(..., description="annotator_id"),
     audio_file_id: str = Query(..., description="單一音檔 id"),
+    user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """回某 annotator 對某音檔所有維度 feedback — 給前端 render 💬/✅ 狀態。"""
+    annotator: str = user["annotator_id"]
     rows = session.exec(
         select(DimensionFeedback).where(
             DimensionFeedback.audio_file_id == audio_file_id,
@@ -143,9 +145,10 @@ def list_feedback_for_audio(
 
 @router.get("/summary")
 def feedback_summary(
-    annotator: str = Query(..., description="annotator_id"),
+    user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    annotator: str = user["annotator_id"]
     """Aaron 用 — 看哪個維度的 feedback 分佈最值得調整定義。"""
     rows = session.exec(
         select(DimensionFeedback).where(

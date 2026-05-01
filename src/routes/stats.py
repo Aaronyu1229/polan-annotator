@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from src.db import get_session
+from src.middleware import require_auth
 from src.stats import compute_icc_per_dimension, compute_overlap_audios, compute_progress
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -22,11 +23,11 @@ router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 @router.get("/progress")
 def progress(
-    annotator: str = Query(..., description="annotator_id"),
+    user: dict[str, Any] = Depends(require_auth),
     tz: Optional[str] = Query(default=None, description="IANA TZ，例如 Asia/Taipei"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_progress(session, annotator, tz_name=tz).to_dict()
+    return compute_progress(session, user["annotator_id"], tz_name=tz).to_dict()
 
 
 @router.get("/icc")

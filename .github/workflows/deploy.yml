@@ -1,0 +1,76 @@
+name: Deploy to VPS
+
+# Phase 6 — push to master → SSH into the DigitalOcean VPS → rebuild + restart.
+#
+# Required repository secrets:
+#   VPS_HOST     — e.g. 68.183.232.52
+#   VPS_USER     — typically `root` or a deploy user with docker access
+#   VPS_SSH_KEY  — private key (PEM) authorised on the VPS
+#
+# Optional repo variables (vars):
+#   VPS_APP_DIR  — defaults to /opt/polan-annotator
+#   APP_HEALTH_URL — defaults to https://annotate.dolcenforte.com/api/dimensions
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script_stop: true
+          envs: VPS_APP_DIR
+          script: |
+            set -euo pipefail
+            APP_DIR="${VPS_APP_DIR:-/opt/polan-annotator}"
+            cd "$APP_DIR"
+            echo "→ pulling latest master"
+            git fetch --all --prune
+            git reset --hard origin/master
+            echo "→ pulling base images"
+            docker compose pull litestream || true
+            echo "→ rebuilding app image"
+            docker compose build app
+            echo "→ bringing stack up"
+            docker compose up -d --remove-orphans
+            echo "→ pruning dangling images"
+            docker image prune -f
+        env:
+          VPS_APP_DIR: ${{ vars.VPS_APP_DIR }}
+
+      - name: Smoke test — public health endpoint
+        env:
+          HEALTH_URL: ${{ vars.APP_HEALTH_URL || 'https://annotate.dolcenforte.com/api/dimensions' }}
+        run: |
+          set -euo pipefail
+          echo "→ waiting up to 90s for app to settle"
+          for attempt in $(seq 1 18); do
+            status=$(curl -k -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || echo "000")
+            echo "  attempt $attempt: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "✅ deploy verified at $HEALTH_URL"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ health check failed at $HEALTH_URL"
+          exit 1
