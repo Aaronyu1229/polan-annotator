@@ -22,7 +22,6 @@ const SELECTORS = {
   fileInput: '#file-input',
   filePicker: '#file-picker-btn',
   queueList: '#queue-list',
-  queueEmpty: '#queue-empty',
   uploadAll: '#upload-all-btn',
   existingList: '#existing-list',
   existingCount: '#existing-count',
@@ -104,19 +103,18 @@ function addFiles(files) {
   renderQueue()
 }
 
+const EMPTY_PLACEHOLDER_HTML =
+  '<li id="queue-empty" class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">尚未選擇檔案</li>'
+
 function renderQueue() {
   const list = $(SELECTORS.queueList)
-  const empty = $(SELECTORS.queueEmpty)
   const uploadAll = $(SELECTORS.uploadAll)
 
   if (STATE.queue.size === 0) {
-    empty.classList.remove('hidden')
-    list.innerHTML = ''
-    list.appendChild(empty)
+    list.innerHTML = EMPTY_PLACEHOLDER_HTML
     uploadAll.classList.add('hidden')
     return
   }
-  empty.classList.add('hidden')
   uploadAll.classList.remove('hidden')
 
   const rows = []
