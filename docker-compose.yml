@@ -52,6 +52,12 @@ services:
       - app
     env_file:
       - .env
+    # Run as the same UID/GID as the app container (1000:1000) so we share
+    # write access to data/. The image defaults to its own nonroot user
+    # (65532) which can't write into the bind-mounted data dir owned by
+    # the app's user — manifests as "attempt to write a readonly database (1544)"
+    # because SQLite can't create the -shm / -wal companion files.
+    user: "1000:1000"
     command: ["replicate", "-config", "/etc/litestream.yml"]
     volumes:
       - ./deploy/litestream.yml:/etc/litestream.yml:ro
