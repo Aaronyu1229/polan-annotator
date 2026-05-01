@@ -55,8 +55,10 @@ services:
     command: ["replicate", "-config", "/etc/litestream.yml"]
     volumes:
       - ./deploy/litestream.yml:/etc/litestream.yml:ro
-      # Read-only mount: litestream only needs to read the WAL/SQLite file.
-      - ./data:/app/data:ro
+      # RW mount: Litestream writes a shadow WAL alongside the SQLite file
+      # to track replication state. Read-only would break replication
+      # ("attempt to write a readonly database (8)").
+      - ./data:/app/data
     networks:
       - polan-net
     logging:
