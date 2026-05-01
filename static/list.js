@@ -152,14 +152,6 @@ function renderDashboard(stats) {
         <span>${sessionRight}</span>
       </div>
       <div class="flex items-baseline justify-between">
-        <span class="text-slate-600 dark:text-slate-300">平均耗時</span>
-        <span>每個 ${formatDurationHuman(stats.avg_duration_sec)}</span>
-      </div>
-      <div class="flex items-baseline justify-between">
-        <span class="text-slate-600 dark:text-slate-300">預計完成</span>
-        <span>還需 ${formatDurationHuman(stats.estimated_remaining_sec)}</span>
-      </div>
-      <div class="flex items-baseline justify-between">
         <span class="text-slate-600 dark:text-slate-300">連續標註</span>
         <span>${streakRight}</span>
       </div>
