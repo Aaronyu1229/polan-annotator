@@ -191,38 +191,21 @@ def stream_audio(
 # ─── Phase 6：admin upload ──────────────────────────────────
 
 def _validate_filename_format(filename: str) -> tuple[dict[str, Any], str | None]:
-    """跑 parser 並判斷是否為「合法」格式。
+    """跑 parser 並回傳結果。
 
-    回傳 (parsed_dict, error_or_None)。error 為 None 表示通過；非 None 為繁體中文具體訊息。
+    Phase 6 後實際檔案命名規則已大幅放寬（音效類檔名如 `countDown_ai.mp3`、
+    `crazyBus_2.mp3` 不符合原本 BGM 兩段式 / 三段式格式，但仍要能上傳）。
 
-    判定為 fallback 的條件（依 `parse_audio_filename` 的三 case 結構）：
-    - 既非品牌主題曲前綴
-    - 也沒有以已知 stage（KNOWN_STAGES）結尾
-    這時 parser 雖會回值但屬於 case 3 fallback，admin 應該被擋下並修正檔名。
+    parser 本身有 fallback 邏輯能處理任意檔名（case 3：split 後保留 head/tail），
+    這裡只擋一個極端 case：三段式品牌主題曲前綴但缺品牌名 — 這明顯是手誤。
     """
     parsed = parse_audio_filename(filename)
-    stem = Path(filename).stem
-    is_brand = parsed["is_brand_theme"]
-    if is_brand:
-        # 三段式品牌主題曲必須有「品牌名 (AI Virtual Voice)」這種結構，
-        # 缺品牌名（例如 `Game Brand Theme Music_.wav`）會 parse 出 game_stage="Unknown"
-        if parsed["game_stage"].startswith("Unknown"):
-            return parsed, (
-                "三段式品牌主題曲缺品牌名。"
-                "格式：Game Brand Theme Music_{品牌}_AI Virtual Voice.wav"
-            )
-        return parsed, None
-    # 兩段式：必須以已知 stage 結尾（rsplit 後的 tail 在 KNOWN_STAGES 中）
-    if "_" in stem:
-        _, tail = stem.rsplit("_", 1)
-        if tail in KNOWN_STAGES:
-            return parsed, None
-    # 落到 fallback 分支
-    stages = " / ".join(sorted(KNOWN_STAGES))
-    return parsed, (
-        f"檔名格式不符。應為 `{{遊戲}}_{{Stage}}.wav`，"
-        f"Stage 限：{stages}；或品牌主題曲：`Game Brand Theme Music_{{品牌}}_AI Virtual Voice.wav`"
-    )
+    if parsed["is_brand_theme"] and parsed["game_stage"].startswith("Unknown"):
+        return parsed, (
+            "三段式品牌主題曲缺品牌名。"
+            "格式：Game Brand Theme Music_{品牌}_AI Virtual Voice.{副檔名}"
+        )
+    return parsed, None
 
 
 def _safe_target_path(audio_dir: Path, filename: str) -> Path:

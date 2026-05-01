@@ -154,30 +154,21 @@ def test_upload_replace_true_overwrites(client, upload_audio_dir, in_memory_engi
         assert len(rows) == 1
 
 
-def test_upload_rejects_non_wav_extension(client, upload_audio_dir):
+def test_upload_accepts_arbitrary_filename(client, upload_audio_dir):
+    """Phase 6 update: 真實使用中許多音效檔（countDown_ai.mp3 等）不符合
+    原本 BGM 兩段式格式 — parser fallback 處理就好，不擋上傳。"""
     payload = _wav_bytes(512)
-    files = {"file": ("not_audio.mp3", io.BytesIO(payload), "audio/mpeg")}
+    files = {"file": ("countDown_ai.mp3", io.BytesIO(payload), "audio/mpeg")}
     r = client.post("/api/audio/upload?annotator=amber", files=files)
-    assert r.status_code == 400
-    assert ".wav" in r.json()["detail"]
+    assert r.status_code == 200, r.text
 
 
-def test_upload_rejects_bad_filename_falls_to_parser_fallback(client, upload_audio_dir):
-    """檔名沒有已知 stage 結尾、也不是品牌主題曲 → parser fallback → 400 + hint。"""
-    payload = _wav_bytes(512)
-    files = {"file": ("randomthing.wav", io.BytesIO(payload), "audio/wav")}
-    r = client.post("/api/audio/upload?annotator=amber", files=files)
-    assert r.status_code == 400
-    detail = r.json()["detail"]
-    assert "格式" in detail or "Stage" in detail
-
-
-def test_upload_rejects_bad_filename_unknown_stage(client, upload_audio_dir):
-    """兩段式但 stage 不在 KNOWN_STAGES → 400。"""
+def test_upload_accepts_unknown_stage_two_segment(client, upload_audio_dir):
+    """兩段式但 stage 不在 KNOWN_STAGES → 仍接受（fallback parser）。"""
     payload = _wav_bytes(512)
     files = {"file": ("Some Game_Tutorial Mode.wav", io.BytesIO(payload), "audio/wav")}
     r = client.post("/api/audio/upload?annotator=amber", files=files)
-    assert r.status_code == 400
+    assert r.status_code == 200, r.text
 
 
 def test_upload_rejects_empty_file(client, upload_audio_dir):
