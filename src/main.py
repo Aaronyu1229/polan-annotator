@@ -26,6 +26,7 @@ from src.audio_scanner import scan_audio_directory
 from src.config import load_settings
 from src.db import create_db, engine
 from src.routes import (
+    admin,
     annotations,
     audio,
     auth as auth_routes,
@@ -114,6 +115,7 @@ app.include_router(stats.router)
 app.include_router(feedback.router)
 app.include_router(calibration.api_router)
 app.include_router(calibration.page_router)
+app.include_router(admin.router)
 
 
 @app.get("/", include_in_schema=False)

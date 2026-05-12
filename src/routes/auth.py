@@ -152,5 +152,19 @@ def logout(request: Request) -> Response:
 
 @router.get("/api/me")
 def get_me(user: dict[str, Any] = Depends(require_auth)) -> dict[str, Any]:
-    """回當前使用者。給前端 auth.js 用：401 → redirect、200 → 顯示 email/logout 按鈕。"""
-    return user
+    """回當前使用者 + Phase 8 annotators_config 的 profile / status。
+
+    給前端 auth.js 用:401 → redirect、200 → 顯示 email/logout、
+    pending_calibration → 觸發 welcome modal + 引導至校準頁。
+    """
+    from src.annotators_loader import get_annotator, AnnotatorsConfigError  # noqa: PLC0415
+    enriched = dict(user)
+    try:
+        spec = get_annotator(user.get("annotator_id", ""))
+    except AnnotatorsConfigError:
+        spec = None
+    if spec is not None:
+        enriched["annotator_profile"] = spec.get("annotator_profile")
+        enriched["status"] = spec.get("status")
+        enriched["display_name"] = spec.get("name")
+    return enriched

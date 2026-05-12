@@ -27,10 +27,13 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException, Query, Request, status
+from sqlmodel import Session, select
 
+from src.annotators_loader import AnnotatorsConfigError, get_annotator
 from src.auth import email_to_annotator_id, is_admin
 from src.cf_jwt import JwtVerificationError, verify_jwt
 from src.config import Settings, load_settings
+from src.models import Annotation
 
 # Cloudflare Access 在 proxied 流量上注入的 header
 CF_EMAIL_HEADER = "cf-access-authenticated-user-email"
@@ -224,3 +227,61 @@ def require_auth(
         "is_admin": bool(user.get("is_admin", False)),
         "name": user.get("name"),
     }
+
+
+# ─── Phase 8：team formalization — annotator access gate ──────────────────
+
+# 訊息獨立常數方便測試斷言比對
+ARCHIVED_ANNOTATOR_MSG = "此標註員帳號已封存，請聯絡 Amber 重啟。"
+PENDING_NEED_CALIBRATION_MSG = (
+    "你尚未通過校準。請先標完 Amber 已 is_complete 的音檔，"
+    "完成後請 Amber 在 Dashboard 點「認可校準通過」解鎖全部音檔。"
+)
+
+
+def enforce_annotator_access(
+    annotator_id: str,
+    audio_id: str,
+    session: Session,
+) -> None:
+    """Phase 8 access gate — 給 POST /api/annotations 與 GET /api/audio/{id} 共用。
+
+    狀態判斷（讀 data/annotators_config.json）：
+        archived              → 403 一律拒
+        pending_calibration   → 只能存取 Amber 已 is_complete 的音檔（calibration set）
+        active                → 通過
+        annotator 不在 config → 通過（向後相容歷史 annotator_id，如 'guest'）
+
+    刻意不在 config 缺項時 raise — 避免 'guest' 等舊資料突然 403 衝擊產線。
+    新人(vvgosick) 必然會被加進 config，所以實際擋的只有 archived / pending 兩種。
+    """
+    try:
+        spec = get_annotator(annotator_id)
+    except AnnotatorsConfigError:
+        # 設定檔壞了 — fail-open 避免阻斷產線；錯誤已被 loader logging
+        return
+
+    if spec is None:
+        return  # 向後相容歷史 annotator_id
+
+    status_value = spec.get("status")
+    if status_value == "archived":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ARCHIVED_ANNOTATOR_MSG,
+        )
+
+    if status_value == "pending_calibration":
+        # 是否在 calibration set（Amber 已 is_complete 標過）
+        amber_done = session.exec(
+            select(Annotation).where(
+                Annotation.audio_file_id == audio_id,
+                Annotation.annotator_id == "amber",
+                Annotation.is_complete == True,  # noqa: E712
+            )
+        ).first()
+        if amber_done is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=PENDING_NEED_CALIBRATION_MSG,
+            )

@@ -28,7 +28,7 @@ from src.audio_analysis import AUDIO_DIR, ensure_cached
 from src.audio_scanner import SUPPORTED_EXTS, scan_audio_directory
 from src.constants import KNOWN_STAGES, parse_audio_filename
 from src.db import get_session
-from src.middleware import optional_annotator, require_auth
+from src.middleware import enforce_annotator_access, optional_annotator, require_auth
 from src.models import Annotation, AudioFile, DimensionFeedback
 
 router = APIRouter(prefix="/api", tags=["audio"])
@@ -126,6 +126,10 @@ def get_audio(
     audio = session.get(AudioFile, audio_id)
     if audio is None:
         raise HTTPException(status_code=404, detail=f"找不到音檔：{audio_id}")
+
+    # Phase 8：pending_calibration 標註員只能 GET Amber 已 is_complete 的音檔
+    if annotator:
+        enforce_annotator_access(annotator, audio_id, session)
 
     # 首次開啟時算 librosa 並 cache；失敗時 auto 欄位仍為 None，UI 顯示 N/A
     try:

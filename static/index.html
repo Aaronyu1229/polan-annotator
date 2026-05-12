@@ -61,6 +61,20 @@
     </div>
   </main>
 
+  <!-- Phase 8：Welcome modal for first-time login + pending_calibration onboarding -->
+  <div id="welcome-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+      <h2 id="welcome-title" class="text-xl font-semibold mb-3">歡迎加入珀瀾標註團隊 🎧</h2>
+      <div id="welcome-body" class="text-sm text-slate-700 dark:text-slate-300 space-y-3 mb-5">
+        <!-- 由 list.js 依 status 注入 -->
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="welcome-secondary" type="button" class="hidden px-4 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">稍後</button>
+        <button id="welcome-primary" type="button" class="px-4 py-2 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 font-medium">開始</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/static/auth.js"></script>
   <script type="module" src="/static/list.js"></script>
 </body>
