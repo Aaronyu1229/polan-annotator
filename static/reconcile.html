@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仲裁 — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <style>
+    /* slider 上其他人值的 marker */
+    .rater-marker {
+      position: absolute;
+      top: -3px;
+      width: 2px;
+      height: 14px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <main class="max-w-4xl mx-auto p-6">
+    <header class="mb-4 flex items-baseline justify-between">
+      <div>
+        <h1 class="text-xl font-semibold">⚖️ 仲裁 <span id="audio-title" class="text-slate-500"></span></h1>
+        <p id="audio-meta" class="text-xs text-slate-500 mt-1">載入中…</p>
+      </div>
+      <a href="/admin/reconcile" class="text-sm text-slate-500 hover:text-amber-500">← 清單</a>
+    </header>
+
+    <!-- audio player -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-3 mb-4">
+      <div id="waveform" class="mb-2"></div>
+      <div class="flex items-center gap-3">
+        <button id="play-btn" type="button" class="px-3 py-1.5 text-sm rounded bg-amber-500 text-white hover:bg-amber-600">▶ 播放</button>
+        <label class="text-xs flex items-center gap-1">
+          <input id="loop-toggle" type="checkbox" class="accent-amber-500"> 循環
+        </label>
+        <span id="play-time" class="text-xs text-slate-500 font-mono">0.0 / —</span>
+      </div>
+    </section>
+
+    <!-- 連續維度區 -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 mb-4">
+      <header class="p-3 border-b border-slate-200 dark:border-slate-700">
+        <h2 class="text-base font-semibold">7 個主觀維度</h2>
+        <p class="text-xs text-slate-500 mt-1">你的滑桿可編輯;其他人標的值顯示在滑桿軌道上作參考(不揭露具體數值,僅顯示位置)。</p>
+      </header>
+      <div id="dims-list" class="p-4 space-y-4"></div>
+    </section>
+
+    <!-- 多選 tags 區(可選編輯,顯示其他人的選擇) -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 mb-4">
+      <header class="p-3 border-b border-slate-200 dark:border-slate-700">
+        <h2 class="text-base font-semibold">Tags / 多選</h2>
+        <p class="text-xs text-slate-500 mt-1">其他人選了什麼會以 chip 顯示。Amber 自己編寫採用哪些。</p>
+      </header>
+      <div id="tags-section" class="p-4 space-y-3"></div>
+    </section>
+
+    <!-- 儲存 -->
+    <div class="flex justify-end gap-2">
+      <button id="save-btn" type="button" class="px-4 py-2 text-sm font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700">
+        💾 儲存仲裁(寫成 Amber 標註)
+      </button>
+    </div>
+    <p id="save-status" class="text-xs mt-2 text-right text-slate-500"></p>
+  </main>
+
+  <script type="module" src="/static/auth.js"></script>
+  <script type="module" src="/static/reconcile.js"></script>
+</body>
+</html>

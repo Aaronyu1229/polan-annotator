@@ -160,4 +160,16 @@ def review_dimensions_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "review-dimensions.html")
 
 
+@app.get("/admin/reconcile", include_in_schema=False)
+def reconcile_list_page() -> FileResponse:
+    """Phase 11：admin-only 仲裁清單頁。"""
+    return FileResponse(STATIC_DIR / "reconcile-list.html")
+
+
+@app.get("/admin/reconcile/{audio_id}", include_in_schema=False)
+def reconcile_detail_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS 從 path 取
+    """Phase 11：admin-only 單筆仲裁頁。"""
+    return FileResponse(STATIC_DIR / "reconcile.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

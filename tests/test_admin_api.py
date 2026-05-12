@@ -484,3 +484,111 @@ def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_
     assert data["total"] == 2
     assert data["untouched"] == 1
     assert data["draft"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 11: reconciliation endpoints
+# ---------------------------------------------------------------------------
+
+def test_reconcile_list_returns_only_cross_annotated(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """reconcile list 只回 status=cross_annotated 的 audio,不該含 lockable / gold / draft / untouched。"""
+    # 1 untouched
+    _make_audio(in_memory_engine, "U_X.wav")
+    # 1 draft
+    a_draft = _make_audio(in_memory_engine, "D_X.wav")
+    _make_amber_completed_annotation(in_memory_engine, a_draft)
+    # 1 cross_annotated (wide spread)
+    a_cross = _make_audio(in_memory_engine, "C_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a_cross, 0.1, 0.9)
+    # 1 lockable (tight spread) — 不該出現
+    a_lock = _make_audio(in_memory_engine, "L_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a_lock, 0.5, 0.55)
+
+    r = client.get("/api/admin/reconcile/list?annotator=amber")
+    assert r.status_code == 200, r.text
+    items = r.json()
+    filenames = [it["filename"] for it in items]
+    assert filenames == ["C_X.wav"]  # 只 cross_annotated
+    assert items[0]["max_spread_dim"] == "valence"
+    assert items[0]["max_spread_value"] == pytest.approx(0.8)
+    assert "amber" in items[0]["annotators"]
+    assert items[0]["amber_already_annotated"] is True
+
+
+def test_reconcile_list_sorts_by_max_spread_desc(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """max spread 大的優先。"""
+    # 3 個 cross_annotated,不同 spread
+    a1 = _make_audio(in_memory_engine, "A1_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a1, 0.1, 0.4)  # spread 0.3
+    a2 = _make_audio(in_memory_engine, "A2_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a2, 0.1, 0.9)  # spread 0.8
+    a3 = _make_audio(in_memory_engine, "A3_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a3, 0.3, 0.6)  # spread 0.3
+
+    r = client.get("/api/admin/reconcile/list?annotator=amber")
+    items = r.json()
+    spreads = [it["max_spread_value"] for it in items]
+    assert spreads == sorted(spreads, reverse=True)
+    assert items[0]["filename"] == "A2_X.wav"  # 最大 spread 在最前
+
+
+def test_reconcile_detail_returns_all_annotations(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    audio_id = _make_audio(in_memory_engine, "R_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.3, 0.7)
+    r = client.get(f"/api/admin/reconcile/{audio_id}?annotator=amber")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["audio"]["filename"] == "R_X.wav"
+    assert len(data["annotations"]) == 2
+    annotator_ids = {a["annotator_id"] for a in data["annotations"]}
+    assert annotator_ids == {"amber", "yyslin1024"}
+    assert data["status"] == "cross_annotated"
+
+
+def test_reconcile_detail_404_for_missing_audio(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    r = client.get("/api/admin/reconcile/non-existent-id?annotator=amber")
+    assert r.status_code == 404
+
+
+def test_reconcile_list_requires_admin(client, in_memory_engine, tmp_annotators_config):
+    from src import main as main_module
+    from src.middleware import require_auth
+
+    def _non_admin_user():
+        return {"annotator_id": "vvgosick", "email": "x", "is_admin": False, "name": None}
+
+    main_module.app.dependency_overrides[require_auth] = _non_admin_user
+    try:
+        r = client.get("/api/admin/reconcile/list")
+        assert r.status_code == 403
+    finally:
+        main_module.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_reconcile_save_via_annotations_post_updates_amber(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """仲裁儲存走 POST /api/annotations(annotator_id=amber)— 該 path 已存在,只驗 flow。"""
+    audio_id = _make_audio(in_memory_engine, "S_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.2, 0.8)  # 仲裁前 spread 0.6
+
+    # Amber 仲裁後寫一筆覆蓋
+    payload = _complete_payload(audio_id, annotator_id="amber")
+    payload["valence"] = 0.5  # Amber 決定 0.5
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200, r.text
+
+    # 驗 reconcile detail 該回 3 筆 annotation(amber + yyslin1024 + 上面 setup 的 amber 已被改)
+    # 注意:_make_two_complete_annotations 已建 amber row,所以這 POST 是 update upsert
+    r = client.get(f"/api/admin/reconcile/{audio_id}?annotator=amber")
+    data = r.json()
+    amber_ann = next(a for a in data["annotations"] if a["annotator_id"] == "amber")
+    assert amber_ann["valence"] == 0.5
