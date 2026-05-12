@@ -26,16 +26,23 @@ from src.models import AudioFile, Annotation, TagSuggestion
 router = APIRouter(prefix="/api", tags=["annotations"])
 log = logging.getLogger("polan.routes.annotations")
 
-CONTINUOUS_DIMENSION_FIELDS: tuple[str, ...] = (
+# Phase 7 起 tonal_noise_ratio / spectral_density 由 librosa 自動寫入 AudioFile.*_auto，
+# 不再列為 human 標註的必填維度。Payload 仍接受這兩欄（向後相容舊 client + 既有 258 筆
+# 歷史資料），但 _check_completeness 不再要求其有值。
+HUMAN_CONTINUOUS_DIMENSION_FIELDS: tuple[str, ...] = (
     "valence",
     "arousal",
     "emotional_warmth",
     "tension_direction",
     "temporal_position",
     "event_significance",
+    "world_immersion",
+)
+
+# Phase 7 前的別名，保留是因為某些下游 callsite 仍依賴。新增 callsite 用 HUMAN_*。
+CONTINUOUS_DIMENSION_FIELDS: tuple[str, ...] = HUMAN_CONTINUOUS_DIMENSION_FIELDS + (
     "tonal_noise_ratio",
     "spectral_density",
-    "world_immersion",
 )
 
 # loop_capability 是 multi_discrete，存 list[float]，與其他連續維度分開驗證。
@@ -86,6 +93,7 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
     - 任一維度為 None
     - source_type 為 None
     """
+    # Phase 7 起 acoustic 兩維由 librosa 算，但仍驗範圍（如果 client 還在送的話）
     for field in CONTINUOUS_DIMENSION_FIELDS:
         value = getattr(payload, field)
         if value is not None and not (0.0 <= value <= 1.0):
@@ -109,8 +117,9 @@ def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]
     if invalid_roles:
         return False, f"function_roles 包含非法值：{', '.join(invalid_roles)}"
 
+    # Phase 7：只看 7 個 human 維度。acoustic 兩維由 librosa 寫 AudioFile，不影響 is_complete。
     continuous_filled = all(
-        getattr(payload, f) is not None for f in CONTINUOUS_DIMENSION_FIELDS
+        getattr(payload, f) is not None for f in HUMAN_CONTINUOUS_DIMENSION_FIELDS
     )
     loop_filled = len(payload.loop_capability) >= 1
     source_filled = len(payload.source_type) >= 1

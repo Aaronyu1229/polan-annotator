@@ -137,6 +137,29 @@ def test_post_empty_loop_capability_marks_is_complete_false(client, in_memory_en
     assert r.json()["is_complete"] is False
 
 
+def test_post_phase7_payload_without_acoustic_still_is_complete(client, in_memory_engine):
+    """Phase 7 起 tonal_noise_ratio / spectral_density 由 librosa 寫 AudioFile，
+    不再列為人類標註的必填維度。新前端會 omit 這 2 欄，仍應 is_complete=True。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload.pop("tonal_noise_ratio")
+    payload.pop("spectral_density")
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+
+def test_post_phase7_payload_with_null_acoustic_still_is_complete(client, in_memory_engine):
+    """過渡期：舊前端仍會送 null 給 acoustic 兩維，必須仍允許 is_complete=True。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["tonal_noise_ratio"] = None
+    payload["spectral_density"] = None
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+
 def test_post_invalid_loop_capability_value_returns_400(client, in_memory_engine):
     audio_id = _make_audio(in_memory_engine)
     payload = _complete_payload(audio_id)
