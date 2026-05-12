@@ -150,32 +150,42 @@ def upload_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "upload.html")
 
 
-@app.get("/admin/review-dimensions", include_in_schema=False)
-def review_dimensions_page() -> FileResponse:
-    """Phase 8.5：admin-only 維度定義 review 頁。
+# Phase 13-B：admin-only HTML page 加 auth gate(非 admin → 302 redirect 到 /)
+from fastapi import Depends  # noqa: E402
+from fastapi.responses import RedirectResponse  # noqa: E402
 
-    Amber 看自己 14 筆 × 4 個 amber_confirmed:false 維度,判斷定義是否要 refine。
-    無 save 功能 — 改 dimensions_config.json 由 Amber 自己編。
-    """
-    return FileResponse(STATIC_DIR / "review-dimensions.html")
+from src.middleware import require_auth  # noqa: E402
+
+
+def _ensure_admin_or_redirect(user: dict, static_file: str):
+    """admin → serve HTML;非 admin → 302 redirect to /(不洩露 admin route 存在)。"""
+    if not user.get("is_admin"):
+        return RedirectResponse(url="/", status_code=302)
+    return FileResponse(STATIC_DIR / static_file)
+
+
+@app.get("/admin/review-dimensions", include_in_schema=False)
+def review_dimensions_page(user: dict = Depends(require_auth)):
+    """Phase 8.5(+13-B auth gate):admin-only 維度定義 review 頁。"""
+    return _ensure_admin_or_redirect(user, "review-dimensions.html")
 
 
 @app.get("/admin/reconcile", include_in_schema=False)
-def reconcile_list_page() -> FileResponse:
-    """Phase 11：admin-only 仲裁清單頁。"""
-    return FileResponse(STATIC_DIR / "reconcile-list.html")
+def reconcile_list_page(user: dict = Depends(require_auth)):
+    """Phase 11(+13-B auth gate):admin-only 仲裁清單頁。"""
+    return _ensure_admin_or_redirect(user, "reconcile-list.html")
 
 
 @app.get("/admin/reconcile/{audio_id}", include_in_schema=False)
-def reconcile_detail_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS 從 path 取
-    """Phase 11：admin-only 單筆仲裁頁。"""
-    return FileResponse(STATIC_DIR / "reconcile.html")
+def reconcile_detail_page(audio_id: str, user: dict = Depends(require_auth)):  # noqa: ARG001
+    """Phase 11(+13-B auth gate):admin-only 單筆仲裁頁。"""
+    return _ensure_admin_or_redirect(user, "reconcile.html")
 
 
 @app.get("/admin/lockable", include_in_schema=False)
-def lockable_list_page() -> FileResponse:
-    """Phase 12-A：admin-only 可鎖 gold 清單頁。"""
-    return FileResponse(STATIC_DIR / "lockable-list.html")
+def lockable_list_page(user: dict = Depends(require_auth)):
+    """Phase 12-A(+13-B auth gate):admin-only 可鎖 gold 清單頁。"""
+    return _ensure_admin_or_redirect(user, "lockable-list.html")
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

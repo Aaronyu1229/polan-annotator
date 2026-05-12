@@ -256,7 +256,7 @@ def test_empty_database_does_not_crash(in_memory_engine):
     assert data["total_annotations"] == 0
     assert data["annotators"] == []
     # schema_version / dimension_schema 仍在，買方 parser 不會炸
-    assert data["schema_version"] == "0.2.0"
+    assert data["schema_version"] == "0.3.0"
     assert "valence" in data["dimension_schema"]
 
 
@@ -308,7 +308,7 @@ def test_dataset_endpoint_returns_valid_envelope(client, in_memory_engine):
     r = client.get("/api/export/dataset.json")
     assert r.status_code == 200
     data = r.json()
-    assert data["schema_version"] == "0.2.0"
+    assert data["schema_version"] == "0.3.0"
     assert data["total_annotated"] == 1
     # function_roles 在 HTTP body 裡應該是真的 array，不是 escape string
     roles = data["items"][0]["consensus"]["function_roles"]
@@ -461,3 +461,39 @@ def test_acoustic_null_when_audio_auto_not_cached(in_memory_engine):
     consensus_dims = data["items"][0]["consensus"]["dimensions"]
     assert consensus_dims["tonal_noise_ratio"] is None
     assert consensus_dims["spectral_density"] is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 13-C: item 加 status + gold_locked metadata + schema bump
+# ---------------------------------------------------------------------------
+
+def test_export_item_includes_status_field(client, in_memory_engine):
+    """Phase 13-C: 每個 item 該帶 status 欄位。"""
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber")
+    r = client.get("/api/export/dataset.json")
+    item = r.json()["items"][0]
+    assert "status" in item
+    assert item["status"] == "draft"
+
+
+def test_export_item_includes_gold_locked_metadata(client, in_memory_engine):
+    """audio_metadata 該帶 is_gold_locked。"""
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        audio.is_gold_locked = True
+        s.add(audio); s.commit()
+        _make_annotation(s, audio.id, "amber")
+        _make_annotation(s, audio.id, "bob")
+    r = client.get("/api/export/dataset.json")
+    item = r.json()["items"][0]
+    assert item["status"] == "gold"
+    assert item["audio_metadata"]["is_gold_locked"] is True
+
+
+def test_export_schema_version_bumped_to_0_3_0(client, in_memory_engine):
+    """Phase 13-C bump: item 新增 status / metadata.is_gold_locked。"""
+    r = client.get("/api/export/dataset.json")
+    assert r.json()["schema_version"] == "0.3.0"
+

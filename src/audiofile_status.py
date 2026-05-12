@@ -163,16 +163,54 @@ def gold_lock_prerequisites(
     }
 
 
+def bulk_load_annotations_by_audio(
+    session: Session,
+) -> dict[str, list[Annotation]]:
+    """Phase 13-A:一次撈所有 is_complete annotation,分組 by audio_id。
+
+    給需要對全部 audio 算 status 的 endpoint 避免 N+1 query。
+    """
+    rows = session.exec(
+        select(Annotation).where(Annotation.is_complete == True)  # noqa: E712
+    ).all()
+    by_audio: dict[str, list[Annotation]] = {}
+    for r in rows:
+        by_audio.setdefault(r.audio_file_id, []).append(r)
+    return by_audio
+
+
+def compute_status_from_preload(
+    audio: AudioFile,
+    annotations: list[Annotation],
+) -> str:
+    """compute_audiofile_status 的 pure-function 版本 — 用預載 annotations,不查 DB。
+
+    Phase 13-A:給 bulk endpoint 避免 N+1。語意跟 compute_audiofile_status 完全一致。
+    """
+    if audio.is_gold_locked:
+        return "gold"
+    n = len({a.annotator_id for a in annotations})
+    if n == 0:
+        return "untouched"
+    if n == 1:
+        return "draft"
+    spreads = per_dim_spread(annotations)
+    has_any_exceeds = any(
+        s is not None and s > GOLD_MAX_SPREAD for s in spreads.values()
+    )
+    return "cross_annotated" if has_any_exceeds else "lockable"
+
+
 def status_summary(session: Session) -> dict[str, Any]:
     """Dashboard 5 卡用 — 一次回所有 audio 的 status 分布。
 
-    回 {"untouched": N, "draft": N, ..., "gold": N, "total": N}。
-    為效能考量做 in-memory 聚合(1311 row 等級無壓力)。
+    Phase 13-A:bulk pre-load 把 1312 queries 降到 2 queries(audiofile + annotation)。
     """
     audios = session.exec(select(AudioFile)).all()
+    by_audio = bulk_load_annotations_by_audio(session)
     counts = {k: 0 for k in _STATUS_ORDER}
     for a in audios:
-        st = compute_audiofile_status(a, session)
+        st = compute_status_from_preload(a, by_audio.get(a.id, []))
         counts[st] = counts.get(st, 0) + 1
     counts["total"] = len(audios)
     return counts

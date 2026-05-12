@@ -27,8 +27,8 @@ from sqlmodel import Session, select
 from src.dimensions_loader import list_dimension_ids, load_dimensions
 from src.models import AudioFile, Annotation
 
-SCHEMA_VERSION = "0.2.0"  # Phase 7：acoustic 維度改為 librosa source
-GENERATOR = "polan-annotator/phase7"
+SCHEMA_VERSION = "0.3.0"  # Phase 13-C：item 加 status + gold_locked metadata
+GENERATOR = "polan-annotator/phase13"
 DATASET_NAME = "polan_calibration_v0"
 
 # Phase 7：這 2 維 consensus 直接取自 audiofile.*_auto，不做 human aggregation。
@@ -231,8 +231,12 @@ def _build_item(
     anns: list[Annotation],
     dim_keys: list[str],
     multi_discrete_keys: set[str],
+    audio_status: str = "untouched",
 ) -> dict[str, Any]:
-    """組裝 items[] 的單一元素。`anns` 必須已過濾 is_complete=1 且非空。"""
+    """組裝 items[] 的單一元素。`anns` 必須已過濾 is_complete=1 且非空。
+
+    Phase 13-C：item 內嵌 status 欄位讓買方知道每筆品質等級。
+    """
     inds = [_annotation_to_individual(a, dim_keys) for a in anns]
     consensus, warnings, method = _aggregate_consensus(
         audio, inds, dim_keys, multi_discrete_keys,
@@ -240,6 +244,7 @@ def _build_item(
 
     item: dict[str, Any] = {
         "audio_file": audio.filename,
+        "status": audio_status,  # Phase 13-C: untouched/draft/cross_annotated/lockable/gold
         "audio_metadata": {
             "game_name": audio.game_name,
             "game_stage": audio.game_stage,
@@ -247,6 +252,8 @@ def _build_item(
             "duration_sec": audio.duration_sec,
             "bpm": audio.bpm,
             "sample_rate": audio.sample_rate,
+            "is_gold_locked": audio.is_gold_locked,
+            "gold_locked_at": audio.gold_locked_at.isoformat() if audio.gold_locked_at else None,
         },
         "consensus": consensus,
         "consensus_method": method,
@@ -338,13 +345,12 @@ def build_dataset(
         if not anns:
             # 整檔沒任何 is_complete=1 的 annotation → 不進 items，但仍計入 total_audio_files
             continue
-        # Phase 10：min_status 過濾(基於整體 annotation,不限 annotator_filter 範圍)
-        if min_status != "untouched":
-            audio_status = compute_audiofile_status(audio, session)
-            if not status_meets(audio_status, min_status):
-                filtered_by_status += 1
-                continue
-        items.append(_build_item(audio, anns, dim_keys, multi_discrete_keys))
+        # Phase 10/13-C：算 status 一次,給 filter 跟 item 兩處用
+        audio_status = compute_audiofile_status(audio, session)
+        if min_status != "untouched" and not status_meets(audio_status, min_status):
+            filtered_by_status += 1
+            continue
+        items.append(_build_item(audio, anns, dim_keys, multi_discrete_keys, audio_status))
 
     annotators_in_export = sorted({a.annotator_id for a in annotations})
 

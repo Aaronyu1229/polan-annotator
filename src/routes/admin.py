@@ -25,7 +25,9 @@ from src.annotators_loader import (
     set_status,
 )
 from src.audiofile_status import (
+    bulk_load_annotations_by_audio,
     compute_audiofile_status,
+    compute_status_from_preload,
     gold_lock_prerequisites,
     status_summary,
 )
@@ -331,7 +333,7 @@ def lockable_list(
 ) -> list[dict[str, Any]]:
     """列出所有 status=lockable 的音檔(達 gold prereq 但 Amber 未鎖)。
 
-    給 Amber 看「可一鍵鎖 gold 的清單」。
+    Phase 13-A:bulk pre-load 避免 N+1。
     Sort by max_spread asc — spread 最小的最穩,優先鎖。
     """
     _require_admin(current_user)
@@ -339,16 +341,12 @@ def lockable_list(
     from src.audiofile_status import per_dim_spread  # noqa: PLC0415
 
     audios = session.exec(select(AudioFile)).all()
+    by_audio = bulk_load_annotations_by_audio(session)
     items: list[dict[str, Any]] = []
     for audio in audios:
-        if compute_audiofile_status(audio, session) != "lockable":
+        anns = by_audio.get(audio.id, [])
+        if compute_status_from_preload(audio, anns) != "lockable":
             continue
-        anns = session.exec(
-            select(Annotation).where(
-                Annotation.audio_file_id == audio.id,
-                Annotation.is_complete == True,  # noqa: E712
-            )
-        ).all()
         spreads = per_dim_spread(anns)
         valid_spreads = {k: v for k, v in spreads.items() if v is not None}
         max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
@@ -363,7 +361,6 @@ def lockable_list(
             "max_spread_dim": max_dim,
             "max_spread_value": max_val,
         })
-    # spread 最穩的(最小)優先 — 安心一鍵鎖
     items.sort(key=lambda x: (x["max_spread_value"] or 0))
     return items
 
@@ -377,7 +374,7 @@ def reconcile_list(
 ) -> list[dict[str, Any]]:
     """列出所有 status=cross_annotated 的音檔 + 每筆 max spread 維度。
 
-    給 Amber 看哪些待仲裁(spread > 0.20 且尚未 gold-locked)。
+    Phase 13-A:bulk pre-load 避免 N+1。
     Sort by max_spread desc — 差距大的優先處理。
     """
     _require_admin(current_user)
@@ -385,16 +382,12 @@ def reconcile_list(
     from src.audiofile_status import per_dim_spread  # noqa: PLC0415
 
     audios = session.exec(select(AudioFile)).all()
+    by_audio = bulk_load_annotations_by_audio(session)
     items: list[dict[str, Any]] = []
     for audio in audios:
-        if compute_audiofile_status(audio, session) != "cross_annotated":
+        anns = by_audio.get(audio.id, [])
+        if compute_status_from_preload(audio, anns) != "cross_annotated":
             continue
-        anns = session.exec(
-            select(Annotation).where(
-                Annotation.audio_file_id == audio.id,
-                Annotation.is_complete == True,  # noqa: E712
-            )
-        ).all()
         spreads = per_dim_spread(anns)
         valid_spreads = {k: v for k, v in spreads.items() if v is not None}
         max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
@@ -410,7 +403,6 @@ def reconcile_list(
             "max_spread_value": max_val,
             "amber_already_annotated": any(a.annotator_id == "amber" for a in anns),
         })
-    # max spread 大的優先處理
     items.sort(key=lambda x: (x["max_spread_value"] or 0), reverse=True)
     return items
 

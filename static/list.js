@@ -79,6 +79,13 @@ if (navCalibration) {
   navCalibration.href = `/calibration?annotator=${encodeURIComponent(annotator)}`
 }
 
+// Phase 13-D:reference (amber) 自己不該看「我的報告」 — 她是 ground truth
+const navMyReport = document.getElementById('nav-my-report')
+if (navMyReport && annotator && annotator !== 'amber' && annotator !== 'guest') {
+  navMyReport.href = `/calibration/report?annotator=${encodeURIComponent(annotator)}`
+  navMyReport.classList.remove('hidden')
+}
+
 const NEW_ANNOTATOR_OPTION = '__new__'
 
 // sessionStorage key 以 annotator 隔離，避免切人後舊 session 干擾
