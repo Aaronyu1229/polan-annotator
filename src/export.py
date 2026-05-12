@@ -27,9 +27,13 @@ from sqlmodel import Session, select
 from src.dimensions_loader import list_dimension_ids, load_dimensions
 from src.models import AudioFile, Annotation
 
-SCHEMA_VERSION = "0.1.0"
-GENERATOR = "polan-annotator/phase4"
+SCHEMA_VERSION = "0.2.0"  # Phase 7：acoustic 維度改為 librosa source
+GENERATOR = "polan-annotator/phase7"
 DATASET_NAME = "polan_calibration_v0"
+
+# Phase 7：這 2 維 consensus 直接取自 audiofile.*_auto，不做 human aggregation。
+# 對應 dimensions_config.json 的 auto_compute: true 標記。
+LIBROSA_DIMENSION_FIELDS: tuple[str, ...] = ("tonal_noise_ratio", "spectral_density")
 
 # 10 個維度 key 的標準順序；由 dimensions_config.json 決定，不在這裡硬編碼。
 # 用函式而非 module-level 呼叫，避免 import-time side effect。
@@ -156,6 +160,7 @@ def _annotation_to_individual(ann: Annotation, dim_keys: list[str]) -> dict[str,
 
 
 def _aggregate_consensus(
+    audio: AudioFile,
     inds: list[dict[str, Any]],
     dim_keys: list[str],
     multi_discrete_keys: set[str],
@@ -163,12 +168,21 @@ def _aggregate_consensus(
     """從 individual_annotations 推 consensus、warnings、consensus_method。
 
     回 (consensus_block, warnings_list, consensus_method)。
+
+    Phase 7：LIBROSA_DIMENSION_FIELDS 兩維直接取 audio.*_auto，不做 human aggregation。
+    這 2 維本質是音檔的物理屬性，由 librosa deterministic 計算。
     """
     warnings: list[str] = []
 
-    # dimensions：連續取 mean、multi_discrete 取 union
+    # dimensions：連續取 mean、multi_discrete 取 union、acoustic 取 librosa
     dims: dict[str, Any] = {}
     for k in dim_keys:
+        if k == "tonal_noise_ratio":
+            dims[k] = audio.tonal_noise_ratio_auto
+            continue
+        if k == "spectral_density":
+            dims[k] = audio.spectral_density_auto
+            continue
         if k in multi_discrete_keys:
             # loop_capability：union 所有 annotator 的選項；空 list → []
             dims[k] = _union_ordered([ind["dimensions"][k] for ind in inds])
@@ -189,8 +203,16 @@ def _aggregate_consensus(
     worldview_values = [ind["worldview_tag"] for ind in inds if ind["worldview_tag"]]
     worldview_tag, _ = _mode_or_tie(worldview_values, tie_value=None)
 
+    # Phase 7：每維度的 source 標明 — 讓買方 parser 知道哪些是 human consensus、
+    # 哪些是 librosa deterministic 計算。對 ICC 解讀與下游模型訓練都很重要。
+    dimension_sources = {
+        k: "librosa_v1" if k in LIBROSA_DIMENSION_FIELDS else "human_consensus"
+        for k in dim_keys
+    }
+
     consensus = {
         "dimensions": dims,
+        "dimension_sources": dimension_sources,
         "source_type": source_type,
         "function_roles": function_roles,
         "genre_tag": genre_tag,
@@ -212,7 +234,9 @@ def _build_item(
 ) -> dict[str, Any]:
     """組裝 items[] 的單一元素。`anns` 必須已過濾 is_complete=1 且非空。"""
     inds = [_annotation_to_individual(a, dim_keys) for a in anns]
-    consensus, warnings, method = _aggregate_consensus(inds, dim_keys, multi_discrete_keys)
+    consensus, warnings, method = _aggregate_consensus(
+        audio, inds, dim_keys, multi_discrete_keys,
+    )
 
     item: dict[str, Any] = {
         "audio_file": audio.filename,
@@ -227,8 +251,9 @@ def _build_item(
         "consensus": consensus,
         "consensus_method": method,
         "individual_annotations": inds,
-        # auto_computed 是 librosa 建議值（AudioFile.*_auto），**不等於** consensus 裡
-        # 人工標註的 tonal_noise_ratio / spectral_density。兩者並列方便買方比對。
+        # Phase 7 起 consensus.dimensions 的 acoustic 兩維就是 librosa 值（透過 dimension_sources
+        # 標明）。這個區塊保留作為向後相容（Schema v0.1 buyers）+ 顯式冗餘。
+        # individual_annotations 內保留歷史 human acoustic 值，可用於「人類聽覺偏誤」研究。
         "auto_computed": {
             "tonal_noise_ratio_suggested": audio.tonal_noise_ratio_auto,
             "spectral_density_suggested": audio.spectral_density_auto,

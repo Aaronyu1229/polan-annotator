@@ -137,6 +137,60 @@ def test_post_empty_loop_capability_marks_is_complete_false(client, in_memory_en
     assert r.json()["is_complete"] is False
 
 
+def test_post_phase7_payload_without_acoustic_still_is_complete(client, in_memory_engine):
+    """Phase 7 起 tonal_noise_ratio / spectral_density 由 librosa 寫 AudioFile，
+    不再列為人類標註的必填維度。新前端會 omit 這 2 欄，仍應 is_complete=True。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload.pop("tonal_noise_ratio")
+    payload.pop("spectral_density")
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+
+def test_post_phase7_payload_with_null_acoustic_still_is_complete(client, in_memory_engine):
+    """過渡期：舊前端仍會送 null 給 acoustic 兩維，必須仍允許 is_complete=True。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["tonal_noise_ratio"] = None
+    payload["spectral_density"] = None
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200
+    assert r.json()["is_complete"] is True
+
+
+def test_phase7_resave_preserves_existing_acoustic_when_payload_omits(client, in_memory_engine):
+    """關鍵向後相容：既有 annotation 有 human acoustic 值（如 258 筆歷史資料），
+    Phase 7 client 重存時不送這 2 欄，DB 既有值必須保留不被清成 None。
+
+    這保護「人類聽覺偏誤」研究素材不會在使用者重編歷史標註時被悄悄銷毀。
+    """
+    audio_id = _make_audio(in_memory_engine)
+
+    # Step 1：模擬「Phase 6 舊 client」存入有 acoustic 值的標註（258 筆歷史資料情境）
+    legacy_payload = _complete_payload(audio_id)
+    legacy_payload["tonal_noise_ratio"] = 0.73
+    legacy_payload["spectral_density"] = 0.41
+    r = client.post("/api/annotations", json=legacy_payload)
+    assert r.status_code == 200
+
+    # Step 2：模擬「Phase 7 新 client」重存同筆 annotation，body 完全不含 acoustic 兩欄
+    phase7_payload = _complete_payload(audio_id)
+    phase7_payload.pop("tonal_noise_ratio")
+    phase7_payload.pop("spectral_density")
+    phase7_payload["valence"] = 0.99  # 故意改一個其他維度，證實 update path 有跑
+    r = client.post("/api/annotations", json=phase7_payload)
+    assert r.status_code == 200
+
+    # Step 3：驗 DB — acoustic 值仍為原 0.73 / 0.41，valence 已更新
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
+        assert ann.tonal_noise_ratio == 0.73, "歷史 human acoustic 值必須保留"
+        assert ann.spectral_density == 0.41, "歷史 human acoustic 值必須保留"
+        assert ann.valence == 0.99, "其他維度 update 仍正常運作"
+
+
 def test_post_invalid_loop_capability_value_returns_400(client, in_memory_engine):
     audio_id = _make_audio(in_memory_engine)
     payload = _complete_payload(audio_id)
