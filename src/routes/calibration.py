@@ -168,3 +168,24 @@ def calibration_annotate(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS 
 @page_router.get("/calibration/compare/{audio_id}", include_in_schema=False)
 def calibration_compare(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS 從 path 取
     return FileResponse(STATIC_DIR / "calibration-compare.html")
+
+
+# ─── Phase 9：校準完成報告 ─────────────────────────────────
+
+@api_router.get("/report")
+def calibration_report(
+    annotator: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """回 annotator 的 per-dim MAE / Pearson r / systematic offset。
+
+    刻意不揭露 reference(amber) 的具體 per-item 值 — 即使在 report 也只給聚合統計。
+    """
+    from src.calibration_feedback import build_calibration_report  # noqa: PLC0415
+    return build_calibration_report(session, annotator)
+
+
+@page_router.get("/calibration/report", include_in_schema=False)
+def calibration_report_page() -> FileResponse:
+    """Phase 9：校準完成報告頁。annotator 在 query string 帶。"""
+    return FileResponse(STATIC_DIR / "calibration-report.html")

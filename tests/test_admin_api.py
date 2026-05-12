@@ -308,3 +308,85 @@ def test_dimension_review_excludes_incomplete_annotations(
     assert data["total_amber_annotations"] == 0  # is_complete=False 不算
     for dim in data["dimensions"]:
         assert dim["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 9: POST /api/annotations 對 pending 回 calibration_feedback
+# ---------------------------------------------------------------------------
+
+def test_post_returns_calibration_feedback_for_pending_on_calibration_audio(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """vvgosick(pending) 標 amber 已 done 的音檔 → response 含 calibration_feedback。"""
+    audio_id = _make_audio(in_memory_engine)
+    _make_amber_completed_annotation(in_memory_engine, audio_id)  # amber 全標 0.5
+    payload = _complete_payload(audio_id)  # vvgosick valence 0.7 (delta 0.2 yellow)
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "calibration_feedback" in data
+    # 7 個 human 維度都該有 feedback
+    expected_dims = {
+        "valence", "arousal", "emotional_warmth", "tension_direction",
+        "temporal_position", "event_significance", "world_immersion",
+    }
+    assert set(data["calibration_feedback"].keys()) == expected_dims
+    # 每個值是合法 color
+    for color in data["calibration_feedback"].values():
+        assert color in {"green", "yellow", "red"}
+    # ⚠️ 不該洩露 amber 的具體值
+    assert "reference_values" not in data
+    assert "amber_values" not in data
+
+
+def test_post_no_calibration_feedback_for_active_annotator(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """yyslin1024 active 就算標 calibration audio,response 也不該有 calibration_feedback。"""
+    audio_id = _make_audio(in_memory_engine)
+    _make_amber_completed_annotation(in_memory_engine, audio_id)
+    payload = _complete_payload(audio_id, annotator_id="yyslin1024")
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200, r.text
+    assert "calibration_feedback" not in r.json()
+
+
+def test_post_no_calibration_feedback_for_unknown_annotator(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """歷史 guest 等未在 config 的 id 也不該收到 feedback。"""
+    audio_id = _make_audio(in_memory_engine)
+    _make_amber_completed_annotation(in_memory_engine, audio_id)
+    payload = _complete_payload(audio_id, annotator_id="guest")
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200, r.text
+    assert "calibration_feedback" not in r.json()
+
+
+# ---------------------------------------------------------------------------
+# Phase 9: GET /api/calibration/report
+# ---------------------------------------------------------------------------
+
+def test_report_endpoint_returns_structured_data(client, in_memory_engine, tmp_annotators_config):
+    """report endpoint 對 vvgosick 該回 dimensions / total_overlap。"""
+    audio_id = _make_audio(in_memory_engine)
+    _make_amber_completed_annotation(in_memory_engine, audio_id)
+    # vvgosick 標一筆
+    client.post("/api/annotations", json=_complete_payload(audio_id))
+
+    r = client.get("/api/calibration/report?annotator=vvgosick")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["annotator_id"] == "vvgosick"
+    assert data["is_reference"] is False
+    assert data["total_overlap"] == 1
+    assert data["reference_total"] == 1
+    assert data["completed_calibration"] is True
+    # valence 該有 verdict
+    assert "valence" in data["dimensions"]
+
+
+def test_report_endpoint_for_reference_returns_is_reference(client, in_memory_engine, tmp_annotators_config):
+    r = client.get("/api/calibration/report?annotator=amber")
+    assert r.status_code == 200
+    assert r.json()["is_reference"] is True
