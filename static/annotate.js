@@ -936,6 +936,10 @@ async function submitAnnotation({ goNext }) {
     const data = await res.json()
     draftStatus.textContent = data.is_complete ? '已提交 ✓' : '已儲存（半成品）'
     localStorage.removeItem(DRAFT_KEY)
+    // Phase 9：校準訓練模式收到 feedback,在每維滑桿旁渲染三色徽章
+    if (data.calibration_feedback) {
+      renderCalibrationFeedback(data.calibration_feedback)
+    }
     if (goNext) {
       if (IS_CALIBRATION) {
         // 校準模式：直接跳比對頁，不走 next_audio_id
@@ -953,6 +957,30 @@ async function submitAnnotation({ goNext }) {
   } catch (err) {
     showError(`網路錯誤：${err.message}`)
   }
+}
+
+// Phase 9：渲染校準三色徽章。刻意不揭露 reference 的具體值,只給「接近/略偏/顯著偏離」三色。
+function renderCalibrationFeedback(feedback) {
+  const TEXT = {
+    green:  { emoji: '🟢', label: '接近', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+    yellow: { emoji: '🟡', label: '略偏', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300' },
+    red:    { emoji: '🔴', label: '顯著偏離', cls: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
+  }
+  Object.entries(feedback).forEach(([dim, color]) => {
+    const t = TEXT[color]
+    if (!t) return
+    // 找到該維度的容器(data-dim-box) 加徽章
+    const box = document.querySelector(`[data-dim-box="${dim}"]`)
+    if (!box) return
+    // 清掉舊徽章(若 user 連續存)
+    box.querySelectorAll('.calibration-badge').forEach(e => e.remove())
+    const badge = document.createElement('span')
+    badge.className = `calibration-badge inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded text-xs font-medium ${t.cls}`
+    badge.title = '相對於 reference annotator 的差距程度。具體值不揭露以避免 anchoring bias。'
+    badge.textContent = `${t.emoji} ${t.label}`
+    // 插在容器頂部
+    box.insertBefore(badge, box.firstChild)
+  })
 }
 
 function showError(msg) {
