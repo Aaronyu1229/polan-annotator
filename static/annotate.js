@@ -33,10 +33,11 @@ function consumeJustSavedFlag() {
 
 consumeJustSavedFlag()
 
+// Phase 7：tonal_noise_ratio / spectral_density 由 librosa 自動寫 AudioFile，
+// 不在標註頁顯示為滑桿（避免對其他主觀維度造成 priming bias）。標註員只標 8 個。
 const DIM_ORDER_LEFT = ['valence', 'arousal', 'emotional_warmth', 'tension_direction']
 const DIM_ORDER_RIGHT = [
-  'temporal_position', 'event_significance', 'loop_capability',
-  'tonal_noise_ratio', 'spectral_density', 'world_immersion',
+  'temporal_position', 'event_significance', 'loop_capability', 'world_immersion',
 ]
 const ALL_DIMS = [...DIM_ORDER_LEFT, ...DIM_ORDER_RIGHT]
 
@@ -911,8 +912,7 @@ async function submitAnnotation({ goNext }) {
     loop_capability: Array.isArray(state.values.loop_capability)
       ? state.values.loop_capability
       : [],
-    tonal_noise_ratio: state.values.tonal_noise_ratio ?? null,
-    spectral_density: state.values.spectral_density ?? null,
+    // Phase 7：acoustic 兩維由 librosa 寫 AudioFile，前端不再送
     world_immersion: state.values.world_immersion ?? null,
     source_type: [...state.sourceTypes],
     function_roles: [...state.functionRoles],

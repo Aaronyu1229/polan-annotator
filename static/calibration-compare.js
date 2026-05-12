@@ -8,7 +8,8 @@ const AUDIO_ID = pathParts[2]
 const qs = new URLSearchParams(window.location.search)
 const ANNOTATOR = qs.get('annotator') || 'guest'
 
-// 9 個連續維度（loop_capability 是 multi_discrete，跳過）
+// Phase 7：acoustic 兩維由 librosa 寫 AudioFile，不參與人類比對；標註員只比 7 個主觀維度。
+// loop_capability 是 multi_discrete，仍跳過。
 const COMPARE_DIMS = [
   ['valence',           'Valence 情緒正負向'],
   ['arousal',           'Arousal 喚醒程度'],
@@ -16,8 +17,6 @@ const COMPARE_DIMS = [
   ['tension_direction', 'Tension Direction 張力方向'],
   ['temporal_position', 'Temporal Position 時序位置'],
   ['event_significance','Event Significance 事件重要性'],
-  ['tonal_noise_ratio', 'Tonal-Noise Ratio 樂音/噪音比'],
-  ['spectral_density',  'Spectral Density 聲音密度'],
   ['world_immersion',   'World Immersion 世界沉浸感'],
 ]
 
