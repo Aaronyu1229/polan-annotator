@@ -33,6 +33,12 @@ class AudioFile(SQLModel, table=True):
     # 三段式品牌主題曲 flag：temporal_position 的 filename auto-suggest 要跳過這些
     is_brand_theme: bool = Field(default=False)
     discovered_at: datetime = Field(default_factory=_utcnow)
+    # Phase 10 gold lock：Amber 認證該檔可商用(Sample Pack / Standard / Enterprise)。
+    # 其他狀態(untouched / draft / cross_annotated / lockable)由 annotation count 即時推導，
+    # 不存 DB；gold 是「人工認證後不變」狀態,需要持久化。
+    is_gold_locked: bool = Field(default=False)
+    gold_locked_at: Optional[datetime] = None
+    gold_locked_by: Optional[str] = None  # 通常是 admin annotator_id
 
 
 class Annotation(SQLModel, table=True):

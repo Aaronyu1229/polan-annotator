@@ -24,6 +24,11 @@ from src.annotators_loader import (
     list_pending_annotators,
     set_status,
 )
+from src.audiofile_status import (
+    compute_audiofile_status,
+    gold_lock_prerequisites,
+    status_summary,
+)
 from src.db import get_session
 from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
@@ -197,3 +202,121 @@ def dimension_review_data(
         "total_amber_annotations": len(rows),
         "dimensions": result,
     }
+
+
+# ─── Phase 10：AudioFile gold lock ─────────────────────────────────
+
+@router.post("/audio/{audio_id}/lock_gold")
+def lock_audio_gold(
+    audio_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """admin 把某筆音檔標記為 gold(可商用)。
+
+    驗 prereq:≥2 人標 + 每維 max-min spread ≤ GOLD_MAX_SPREAD。
+    不符回 409 帶 reasons。
+    """
+    _require_admin(current_user)
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
+
+    prereq = gold_lock_prerequisites(audio, session)
+    if not prereq["eligible"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Gold lock prerequisites not met",
+                "prereq": prereq,
+            },
+        )
+
+    from src.models import _utcnow  # noqa: PLC0415 — 避免循環 import
+    audio.is_gold_locked = True
+    audio.gold_locked_at = _utcnow()
+    audio.gold_locked_by = current_user.get("annotator_id") or current_user.get("email")
+    session.add(audio)
+    session.commit()
+    session.refresh(audio)
+
+    log.info(
+        "admin %s gold-locked audio %s (%s)",
+        audio.gold_locked_by, audio.id, audio.filename,
+    )
+    return {
+        "audio_id": audio.id,
+        "filename": audio.filename,
+        "is_gold_locked": True,
+        "gold_locked_at": audio.gold_locked_at.isoformat() if audio.gold_locked_at else None,
+        "gold_locked_by": audio.gold_locked_by,
+    }
+
+
+@router.post("/audio/{audio_id}/unlock_gold")
+def unlock_audio_gold(
+    audio_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """admin 撤銷某筆音檔的 gold 認證(Amber 改變主意)。
+
+    不驗 prereq — 撤銷永遠允許。
+    """
+    _require_admin(current_user)
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
+
+    if not audio.is_gold_locked:
+        raise HTTPException(status_code=409, detail="此音檔未鎖,無需 unlock")
+
+    audio.is_gold_locked = False
+    audio.gold_locked_at = None
+    audio.gold_locked_by = None
+    session.add(audio)
+    session.commit()
+
+    log.info(
+        "admin %s gold-unlocked audio %s (%s)",
+        current_user.get("annotator_id"), audio.id, audio.filename,
+    )
+    return {
+        "audio_id": audio.id,
+        "filename": audio.filename,
+        "is_gold_locked": False,
+    }
+
+
+@router.get("/audio/{audio_id}/status")
+def get_audio_status(
+    audio_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001 — 純 auth gate
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """單筆音檔目前的 status + prereq 細節。給 admin UI 用。"""
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
+
+    return {
+        "audio_id": audio.id,
+        "filename": audio.filename,
+        "status": compute_audiofile_status(audio, session),
+        "is_gold_locked": audio.is_gold_locked,
+        "gold_locked_at": audio.gold_locked_at.isoformat() if audio.gold_locked_at else None,
+        "gold_locked_by": audio.gold_locked_by,
+        "prereq_check": gold_lock_prerequisites(audio, session),
+    }
+
+
+@router.get("/audio_status_summary")
+def audio_status_summary_endpoint(
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001 — 純 auth gate
+    session: Session = Depends(get_session),
+) -> dict[str, int]:
+    """Dashboard 5 卡用:5 種狀態的計數 + total。
+
+    刻意對所有 logged-in user 公開(不限 admin)— 團隊成員都該看到資料集品質分布。
+    """
+    return status_summary(session)

@@ -21,6 +21,7 @@ async function loadAll() {
     loadIcc(includeFixture),
     loadOverlap(includeFixture),
     loadPendingAnnotators(),  // Phase 8 — 待校準 widget(admin only)
+    loadStatusCards(),        // Phase 10 — 資料品質狀態分布
   ])
   // progress 依 annotator 個別查 — 用 ICC endpoint 回的 annotators
   // 在 loadIcc 裡 trigger
@@ -41,6 +42,64 @@ async function showAdminLinks() {
   }
 }
 showAdminLinks()
+
+// Phase 10：5 張資料狀態卡(全 logged-in user 可看)
+async function loadStatusCards() {
+  const wrap = $('status-cards')
+  try {
+    const res = await fetch('/api/admin/audio_status_summary')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const total = data.total || 0
+    $('status-total').textContent = `共 ${total} 筆`
+    // Tailwind CDN JIT 需要看到完整 class 字串才會 generate;不能用 ${color}-50 動態組
+    const cards = [
+      {
+        key: 'untouched', label: '未標',
+        cls: 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800',
+        labelCls: 'text-slate-700 dark:text-slate-300',
+        numCls: 'text-slate-900 dark:text-slate-200',
+      },
+      {
+        key: 'draft', label: '初標',
+        cls: 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-900',
+        labelCls: 'text-sky-700 dark:text-sky-300',
+        numCls: 'text-sky-900 dark:text-sky-200',
+      },
+      {
+        key: 'cross_annotated', label: '多人交叉',
+        cls: 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900',
+        labelCls: 'text-indigo-700 dark:text-indigo-300',
+        numCls: 'text-indigo-900 dark:text-indigo-200',
+      },
+      {
+        key: 'lockable', label: '可鎖未鎖',
+        cls: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900',
+        labelCls: 'text-amber-700 dark:text-amber-300',
+        numCls: 'text-amber-900 dark:text-amber-200',
+      },
+      {
+        key: 'gold', label: '🏆 Gold',
+        cls: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900',
+        labelCls: 'text-emerald-700 dark:text-emerald-300',
+        numCls: 'text-emerald-900 dark:text-emerald-200',
+      },
+    ]
+    wrap.innerHTML = cards.map(c => {
+      const n = data[c.key] || 0
+      const pct = total > 0 ? Math.round((n / total) * 100) : 0
+      return `
+        <div class="p-3 rounded border ${c.cls}">
+          <div class="text-xs mb-1 ${c.labelCls}">${c.label}</div>
+          <div class="text-2xl font-semibold font-mono ${c.numCls}">${n}</div>
+          <div class="text-xs ${c.labelCls}">${pct}%</div>
+        </div>
+      `
+    }).join('')
+  } catch (err) {
+    wrap.innerHTML = `<div class="text-sm text-red-600 col-span-5">載入狀態統計失敗:${escapeHtml(err.message)}</div>`
+  }
+}
 
 // Phase 8：列出 pending_calibration 的人 + 認可按鈕。403 = 非 admin,靜默隱藏 section。
 async function loadPendingAnnotators() {

@@ -333,6 +333,66 @@ def test_calibration_endpoint_only_contains_amber(client, in_memory_engine):
 
 
 # ---------------------------------------------------------------------------
+# Phase 10: min_status filter
+# ---------------------------------------------------------------------------
+
+def test_export_min_status_gold_excludes_unlocked(client, in_memory_engine):
+    """min_status=gold 只回 is_gold_locked=True 的音檔。"""
+    with Session(in_memory_engine) as s:
+        audio_a = _make_audio(s, "A_Base Game.wav")
+        audio_b = _make_audio(s, "B_Base Game.wav")
+        # 兩個 audio 都有 amber + bob 兩人共標(緊 spread)
+        _make_annotation(s, audio_a.id, "amber")
+        _make_annotation(s, audio_a.id, "bob")
+        _make_annotation(s, audio_b.id, "amber")
+        _make_annotation(s, audio_b.id, "bob")
+        # 只 lock A
+        audio_a.is_gold_locked = True
+        s.add(audio_a); s.commit()
+
+    r = client.get("/api/export/dataset.json?min_status=gold")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["min_status"] == "gold"
+    filenames = [it["audio_file"] for it in data["items"]]
+    assert filenames == ["A_Base Game.wav"]
+
+
+def test_export_min_status_cross_includes_lockable_and_gold(client, in_memory_engine):
+    """min_status=cross_annotated 該含 lockable + gold,但不含 untouched / draft。"""
+    with Session(in_memory_engine) as s:
+        audio_draft = _make_audio(s, "D_Base Game.wav")
+        audio_cross = _make_audio(s, "C_Base Game.wav")
+        # draft: 1 人
+        _make_annotation(s, audio_draft.id, "amber")
+        # cross: 2 人緊 spread(會被算成 lockable,但 >= cross_annotated)
+        _make_annotation(s, audio_cross.id, "amber")
+        _make_annotation(s, audio_cross.id, "bob")
+
+    r = client.get("/api/export/dataset.json?min_status=cross_annotated")
+    assert r.status_code == 200
+    filenames = [it["audio_file"] for it in r.json()["items"]]
+    assert filenames == ["C_Base Game.wav"]
+
+
+def test_export_invalid_min_status_returns_400(client, in_memory_engine):
+    r = client.get("/api/export/dataset.json?min_status=invalid_state")
+    assert r.status_code == 400
+
+
+def test_export_default_min_status_is_untouched_backward_compat(client, in_memory_engine):
+    """無 min_status param → 預設 untouched(全部,行為跟 Phase 4 一致)。"""
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber")
+    r = client.get("/api/export/dataset.json")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["min_status"] == "untouched"
+    assert len(data["items"]) == 1
+
+
+# ---------------------------------------------------------------------------
 # Phase 7：acoustic 兩維由 librosa 寫 AudioFile，consensus 直取不做 human aggregation
 # ---------------------------------------------------------------------------
 
