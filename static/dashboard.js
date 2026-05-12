@@ -26,6 +26,22 @@ async function loadAll() {
   // 在 loadIcc 裡 trigger
 }
 
+// Phase 8.5：admin 才能看到「維度定義 Review」連結。/api/me 取 is_admin。
+async function showAdminLinks() {
+  try {
+    const res = await fetch('/api/me')
+    if (!res.ok) return
+    const me = await res.json()
+    if (me.is_admin) {
+      const link = $('review-dims-link')
+      if (link) link.classList.remove('hidden')
+    }
+  } catch {
+    // 靜默 — 非 admin / 未登入都不顯示
+  }
+}
+showAdminLinks()
+
 // Phase 8：列出 pending_calibration 的人 + 認可按鈕。403 = 非 admin,靜默隱藏 section。
 async function loadPendingAnnotators() {
   const section = $('pending-section')

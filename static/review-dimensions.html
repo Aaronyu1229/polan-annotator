@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>維度定義 Review — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <main class="max-w-5xl mx-auto p-6">
+    <header class="mb-6">
+      <div class="flex items-baseline justify-between mb-2">
+        <h1 class="text-2xl font-semibold">維度定義 Review</h1>
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-amber-500">← Dashboard</a>
+      </div>
+      <p class="text-sm text-slate-600 dark:text-slate-400">
+        Phase 8.5 — 給 Amber 一站式檢視 4 個 <code>amber_confirmed: false</code> 維度
+        的當前定義 + 自己標的 14 筆值。若覺得定義文字或標的值要調整,直接編輯
+        <code>src/dimensions_config.json</code>(只有你能改這 4 個維度的文字),
+        push 後 GitHub Actions 自動部署。
+      </p>
+      <p class="text-xs text-slate-500 mt-2">
+        💡 排序方式:每個維度的 14 筆從小到大,你看「最低真的最低嗎、最高真的最高嗎、
+        中段順序合理嗎」。覺得順序怪 → 可能值要改;覺得高低錨點離預期太遠 → 定義可能要改。
+      </p>
+    </header>
+
+    <div id="status" class="text-sm text-slate-500 dark:text-slate-400 mb-4">載入中…</div>
+    <div id="content" class="space-y-8"></div>
+
+    <footer class="mt-12 text-xs text-slate-500 dark:text-slate-500 border-t border-slate-200 dark:border-slate-700 pt-4">
+      <p><strong>下一步指引</strong>:</p>
+      <ol class="list-decimal list-inside space-y-1 mt-2">
+        <li>逐維度看 14 筆值是否符合你想的「低→高」遞進</li>
+        <li>若某筆值跟你期待差很多 → 開該音檔重聽 → 改 annotation(現有標註頁)</li>
+        <li>若整體看下來定義文字本身有 ambiguity → 改
+          <code class="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs">src/dimensions_config.json</code>
+          的 <code>definition</code> / <code>low_anchor</code> / <code>high_anchor</code> 文字</li>
+        <li>確認該維度定義 OK 後,把 <code>amber_confirmed</code> 從 <code>false</code> 改 <code>true</code></li>
+        <li>commit + push → GitHub Actions 自動部署 → review 頁面上的 ⚠️ icon 自動消失</li>
+      </ol>
+    </footer>
+  </main>
+
+  <script type="module" src="/static/auth.js"></script>
+  <script type="module" src="/static/review-dimensions.js"></script>
+</body>
+</html>
