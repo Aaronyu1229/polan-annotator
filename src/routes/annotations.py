@@ -210,6 +210,10 @@ def upsert_annotation(
     if audio is None:
         raise HTTPException(status_code=404, detail=f"找不到音檔：{payload.audio_id}")
 
+    # Phase 8：pending_calibration 標註員只能存取 Amber 已 is_complete 的音檔
+    from src.middleware import enforce_annotator_access  # noqa: PLC0415 — 避免循環 import
+    enforce_annotator_access(payload.annotator_id, payload.audio_id, session)
+
     is_complete, error = _check_completeness(payload)
     if error:
         raise HTTPException(status_code=400, detail=error)
