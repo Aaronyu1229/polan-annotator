@@ -256,7 +256,7 @@ def test_empty_database_does_not_crash(in_memory_engine):
     assert data["total_annotations"] == 0
     assert data["annotators"] == []
     # schema_version / dimension_schema 仍在，買方 parser 不會炸
-    assert data["schema_version"] == "0.1.0"
+    assert data["schema_version"] == "0.2.0"
     assert "valence" in data["dimension_schema"]
 
 
@@ -308,7 +308,7 @@ def test_dataset_endpoint_returns_valid_envelope(client, in_memory_engine):
     r = client.get("/api/export/dataset.json")
     assert r.status_code == 200
     data = r.json()
-    assert data["schema_version"] == "0.1.0"
+    assert data["schema_version"] == "0.2.0"
     assert data["total_annotated"] == 1
     # function_roles 在 HTTP body 裡應該是真的 array，不是 escape string
     roles = data["items"][0]["consensus"]["function_roles"]
@@ -330,3 +330,74 @@ def test_calibration_endpoint_only_contains_amber(client, in_memory_engine):
     # bob 的那檔整個不進 items
     filenames = [it["audio_file"] for it in data["items"]]
     assert filenames == ["A_Base Game.wav"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 7：acoustic 兩維由 librosa 寫 AudioFile，consensus 直取不做 human aggregation
+# ---------------------------------------------------------------------------
+
+def test_acoustic_consensus_uses_librosa_not_human_aggregation(in_memory_engine):
+    """consensus.dimensions.tonal_noise_ratio / spectral_density 必須來自 audio.*_auto。
+
+    刻意讓 annotation 裡的 human acoustic 值跟 audio.*_auto 顯著衝突，驗 librosa 勝出。
+    這 2 維是音檔的物理屬性，不能被人類主觀標註覆蓋。
+    """
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        # 模擬 librosa 已 cache 的結果（實際路徑：上傳時 ensure_cached 寫入）
+        audio.tonal_noise_ratio_auto = 0.85
+        audio.spectral_density_auto = 0.42
+        s.add(audio)
+        s.commit()
+        s.refresh(audio)
+        # 兩個 human annotator 的 acoustic 標註值跟 librosa 完全不同
+        _make_annotation(
+            s, audio.id, "amber",
+            dims={"tonal_noise_ratio": 0.1, "spectral_density": 0.9},
+        )
+        _make_annotation(
+            s, audio.id, "bob",
+            dims={"tonal_noise_ratio": 0.2, "spectral_density": 0.8},
+        )
+        data = build_dataset(s)
+
+    consensus_dims = data["items"][0]["consensus"]["dimensions"]
+    assert consensus_dims["tonal_noise_ratio"] == 0.85, "必須取 audio.*_auto，不取 human mean"
+    assert consensus_dims["spectral_density"] == 0.42, "必須取 audio.*_auto，不取 human mean"
+    # 但 individual_annotations 保留 human 值作為「人類聽覺偏誤」研究素材
+    inds = data["items"][0]["individual_annotations"]
+    assert {ind["dimensions"]["tonal_noise_ratio"] for ind in inds} == {0.1, 0.2}
+
+
+def test_consensus_dimension_sources_metadata_present(in_memory_engine):
+    """每維度標明 source — 買方 parser / SITI 審查員可看 librosa_v1 vs human_consensus。"""
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber")
+        data = build_dataset(s)
+
+    sources = data["items"][0]["consensus"]["dimension_sources"]
+    assert sources["tonal_noise_ratio"] == "librosa_v1"
+    assert sources["spectral_density"] == "librosa_v1"
+    assert sources["valence"] == "human_consensus"
+    assert sources["arousal"] == "human_consensus"
+    assert sources["loop_capability"] == "human_consensus"
+
+
+def test_acoustic_null_when_audio_auto_not_cached(in_memory_engine):
+    """audio.*_auto 為 None 時（尚未 backfill），consensus 也是 None — 不 fallback 到 human。
+
+    這是刻意設計：force backfill 跑完才能匯出。半途資料更糟。
+    """
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        # 不設 audio.*_auto，模擬尚未跑 backfill
+        _make_annotation(
+            s, audio.id, "amber",
+            dims={"tonal_noise_ratio": 0.5, "spectral_density": 0.5},
+        )
+        data = build_dataset(s)
+
+    consensus_dims = data["items"][0]["consensus"]["dimensions"]
+    assert consensus_dims["tonal_noise_ratio"] is None
+    assert consensus_dims["spectral_density"] is None
