@@ -150,4 +150,14 @@ def upload_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "upload.html")
 
 
+@app.get("/admin/review-dimensions", include_in_schema=False)
+def review_dimensions_page() -> FileResponse:
+    """Phase 8.5：admin-only 維度定義 review 頁。
+
+    Amber 看自己 14 筆 × 4 個 amber_confirmed:false 維度,判斷定義是否要 refine。
+    無 save 功能 — 改 dimensions_config.json 由 Amber 自己編。
+    """
+    return FileResponse(STATIC_DIR / "review-dimensions.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

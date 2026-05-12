@@ -25,8 +25,9 @@ from src.annotators_loader import (
     set_status,
 )
 from src.db import get_session
+from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
-from src.models import Annotation
+from src.models import Annotation, AudioFile
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 log = logging.getLogger("polan.routes.admin")
@@ -127,4 +128,72 @@ def approve_calibration(
         "annotator_id": annotator_id,
         "status": "active",
         "approved_by": current_user.get("email") or current_user.get("annotator_id"),
+    }
+
+
+# ─── Phase 8.5：dimension definition review tool ───────────────────────────
+
+@router.get("/dimension-review")
+def dimension_review_data(
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """給 Amber 一站式檢視所有 amber_confirmed:false 維度 + 自己的標註值。
+
+    用途:Amber 看自己 14 筆 × 4 個未確認維度,評估「定義文字 OK 嗎」「自己標的值 OK 嗎」,
+    決定哪些維度的定義需要 refine。實際修改 dimensions_config.json 由 Amber 自己編
+    (CLAUDE.md 規則 #8：唯一資料來源)。
+    """
+    _require_admin(current_user)
+
+    dims = load_dimensions()
+    # 只取 amber 還沒 confirm 的維度,這些需要 review
+    unconfirmed_ids = [
+        dim_id for dim_id, spec in dims.items()
+        if spec.get("amber_confirmed", True) is False
+    ]
+
+    # 一次撈 amber 所有 is_complete annotation + 對應 AudioFile
+    rows = session.exec(
+        select(Annotation, AudioFile)
+        .join(AudioFile, Annotation.audio_file_id == AudioFile.id)
+        .where(
+            Annotation.annotator_id == REFERENCE_ANNOTATOR,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+
+    result = []
+    for dim_id in unconfirmed_ids:
+        spec = dims[dim_id]
+        items = []
+        for ann, audio in rows:
+            value = getattr(ann, dim_id, None)
+            if value is None:
+                continue
+            items.append({
+                "audio_id": audio.id,
+                "filename": audio.filename,
+                "game_name": audio.game_name,
+                "game_stage": audio.game_stage,
+                "value": float(value),
+            })
+        # 從小到大排,Amber 直覺看「最低的真的最低嗎、最高的真的最高嗎、中段順序合理嗎」
+        items.sort(key=lambda x: x["value"])
+        result.append({
+            "dim_id": dim_id,
+            "label_zh": spec.get("label_zh", dim_id),
+            "category": spec.get("category", ""),
+            "definition": spec.get("definition", ""),
+            "low_anchor": spec.get("low_anchor", ""),
+            "high_anchor": spec.get("high_anchor", ""),
+            "amber_confirmed": spec.get("amber_confirmed", False),
+            "todo_amber": spec.get("todo_amber", ""),
+            "items": items,
+        })
+
+    return {
+        "reference_annotator": REFERENCE_ANNOTATOR,
+        "total_amber_annotations": len(rows),
+        "dimensions": result,
     }
