@@ -67,6 +67,12 @@ async function loadPendingAnnotators() {
       const profileLabel = it.annotator_profile === 'TBD_pending_amber_confirm'
         ? '<span class="text-xs px-2 py-0.5 bg-yellow-200 dark:bg-yellow-900 rounded">待 Amber 分類</span>'
         : `<span class="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">${escapeHtml(it.annotator_profile)}</span>`
+      const reportLink = prog.completed > 0
+        ? `<a href="/calibration/report?annotator=${encodeURIComponent(it.id)}" target="_blank"
+              class="text-xs text-amber-600 dark:text-amber-400 hover:underline" title="開啟對 amber 的校準對齊度報告">
+            📊 查看報告 ↗
+          </a>`
+        : ''
       return `
         <div class="flex items-center gap-3 p-2 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900" data-annotator="${escapeAttr(it.id)}">
           <div class="flex-1 min-w-0">
@@ -75,8 +81,9 @@ async function loadPendingAnnotators() {
               <span class="text-xs text-slate-500">(${escapeHtml(it.id)})</span>
               ${profileLabel}
             </div>
-            <div class="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              校準進度:${prog.completed} / ${prog.calibration_set_size}(${pct}%)
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-3">
+              <span>校準進度:${prog.completed} / ${prog.calibration_set_size}(${pct}%)</span>
+              ${reportLink}
             </div>
           </div>
           <button

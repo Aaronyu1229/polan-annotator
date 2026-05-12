@@ -282,8 +282,30 @@ def upsert_annotation(
 
     next_id = _next_audio_id_for(session, payload.annotator_id, payload.audio_id)
 
-    return {
+    response: dict[str, Any] = {
         "annotation_id": annotation_id,
         "is_complete": is_complete,
         "next_audio_id": next_id,
     }
+
+    # Phase 9：pending_calibration 標註員存校準音檔時,回應加每維三色徽章。
+    # 刻意不回 reference 的具體值,避免 anchoring bias。
+    if is_complete:
+        from src.annotators_loader import get_annotator, AnnotatorsConfigError  # noqa: PLC0415
+        from src.calibration_feedback import (  # noqa: PLC0415
+            compute_calibration_feedback,
+            get_reference_annotation,
+        )
+        try:
+            spec = get_annotator(payload.annotator_id)
+        except AnnotatorsConfigError:
+            spec = None
+        if spec and spec.get("status") == "pending_calibration":
+            my_ann = session.get(Annotation, annotation_id)
+            ref_ann = get_reference_annotation(session, payload.audio_id)
+            if my_ann is not None and ref_ann is not None:
+                response["calibration_feedback"] = compute_calibration_feedback(
+                    my_ann, ref_ann,
+                )
+
+    return response
