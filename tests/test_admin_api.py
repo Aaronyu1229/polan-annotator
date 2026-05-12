@@ -390,3 +390,97 @@ def test_report_endpoint_for_reference_returns_is_reference(client, in_memory_en
     r = client.get("/api/calibration/report?annotator=amber")
     assert r.status_code == 200
     assert r.json()["is_reference"] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 10: AudioFile gold lock endpoints
+# ---------------------------------------------------------------------------
+
+def _make_two_complete_annotations(engine, audio_id: str, valence_a=0.5, valence_b=0.5):
+    """模擬 2 位 annotator 都已 is_complete 標,給 gold prereq 通關。"""
+    for ann_id, valence in [("amber", valence_a), ("yyslin1024", valence_b)]:
+        with Session(engine) as s:
+            s.add(Annotation(
+                audio_file_id=audio_id, annotator_id=ann_id,
+                valence=valence, arousal=0.5, emotional_warmth=0.5,
+                tension_direction=0.5, temporal_position=0.5,
+                event_significance=0.5, world_immersion=0.5,
+                loop_capability=json.dumps([1.0]),
+                source_type=json.dumps(["ambience"]),
+                function_roles=json.dumps(["atmosphere"]),
+                genre_tag=json.dumps([]), style_tag=json.dumps([]),
+                is_complete=True,
+            ))
+            s.commit()
+
+
+def test_lock_gold_success_when_prereq_met(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine)
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)  # spread 0.05 OK
+    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    assert r.status_code == 200, r.text
+    assert r.json()["is_gold_locked"] is True
+    assert r.json()["gold_locked_by"]
+
+
+def test_lock_gold_409_when_only_one_annotator(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine)
+    # 只有 amber 一個人標
+    with Session(in_memory_engine) as s:
+        s.add(Annotation(
+            audio_file_id=audio_id, annotator_id="amber",
+            valence=0.5, arousal=0.5, emotional_warmth=0.5,
+            tension_direction=0.5, temporal_position=0.5,
+            event_significance=0.5, world_immersion=0.5,
+            loop_capability=json.dumps([1.0]),
+            source_type=json.dumps(["ambience"]),
+            function_roles=json.dumps(["atmosphere"]),
+            genre_tag=json.dumps([]), style_tag=json.dumps([]),
+            is_complete=True,
+        )); s.commit()
+    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    assert r.status_code == 409
+    body = r.json()
+    assert "2 位" in str(body["detail"])
+
+
+def test_lock_gold_409_when_spread_too_wide(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine)
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)  # spread 0.8 > 0.20
+    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    assert r.status_code == 409
+    assert "spread" in str(r.json()["detail"]).lower()
+
+
+def test_unlock_gold_reverts_state(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine)
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
+    client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    r = client.post(f"/api/admin/audio/{audio_id}/unlock_gold?annotator=amber")
+    assert r.status_code == 200, r.text
+    assert r.json()["is_gold_locked"] is False
+
+
+def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_config):
+    """summary endpoint 該回 5 種狀態的 count + total。"""
+    _make_audio(in_memory_engine, "A1_X.wav")  # untouched
+    a2 = _make_audio(in_memory_engine, "A2_X.wav")
+    with Session(in_memory_engine) as s:
+        s.add(Annotation(
+            audio_file_id=a2, annotator_id="amber",
+            valence=0.5, arousal=0.5, emotional_warmth=0.5,
+            tension_direction=0.5, temporal_position=0.5,
+            event_significance=0.5, world_immersion=0.5,
+            loop_capability=json.dumps([1.0]),
+            source_type=json.dumps(["ambience"]),
+            function_roles=json.dumps(["atmosphere"]),
+            genre_tag=json.dumps([]), style_tag=json.dumps([]),
+            is_complete=True,
+        )); s.commit()
+
+    r = client.get("/api/admin/audio_status_summary?annotator=amber")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total"] == 2
+    assert data["untouched"] == 1
+    assert data["draft"] == 1

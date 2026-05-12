@@ -14,6 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
+from src.audiofile_status import _STATUS_ORDER
 from src.db import get_session
 from src.export import build_dataset, count_completed_for
 
@@ -21,10 +22,22 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 
 _CALIBRATION_ANNOTATOR = "amber"
 
+# 合法 min_status 值,給 Query validator 用
+_VALID_MIN_STATUS = tuple(_STATUS_ORDER.keys())  # untouched / draft / cross_annotated / lockable / gold
+
 
 @router.get("/dataset.json")
-def export_dataset(session: Session = Depends(get_session)) -> dict:
-    return build_dataset(session)
+def export_dataset(
+    min_status: str = Query("untouched", description="只回 status ≥ 此值的音檔"),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Phase 10:min_status 過濾 — gold=只 gold / lockable=gold+lockable / ... / untouched=全部。"""
+    if min_status not in _VALID_MIN_STATUS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"min_status={min_status!r} 不合法,合法值:{list(_VALID_MIN_STATUS)}",
+        )
+    return build_dataset(session, min_status=min_status)
 
 
 @router.get("/calibration_set.json")

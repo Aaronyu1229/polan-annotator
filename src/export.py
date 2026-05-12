@@ -292,6 +292,7 @@ def _build_dimension_schema() -> dict[str, Any]:
 def build_dataset(
     session: Session,
     annotator_filter: Optional[str] = None,
+    min_status: str = "untouched",
 ) -> dict[str, Any]:
     """產生一份完整 dataset JSON 結構（dict，call site 負責序列化）。
 
@@ -299,11 +300,20 @@ def build_dataset(
         None  → 全員 annotation，items 裡每檔的 consensus 為多人共識。
         str   → 只保留 annotator_id == 該值的 annotation，consensus 直接 = 該 annotator 值。
 
+    min_status (Phase 10):
+        "untouched"       → 全部音檔(有 annotation 才進 items,跟 Phase 4 行為一致)
+        "draft"           → 跳過 untouched
+        "cross_annotated" → 跳過 untouched / draft
+        "lockable"        → 跳過 untouched / draft / cross_annotated
+        "gold"            → 只回 is_gold_locked=True
+
     個別 endpoint 各自決定呼叫方式：
         /api/export/dataset.json          → build_dataset(session)
         /api/export/calibration_set.json  → build_dataset(session, "amber")
         /api/export/individual.json       → build_dataset(session, "<id>")（404 由 route 層判斷）
     """
+    from src.audiofile_status import compute_audiofile_status, status_meets  # noqa: PLC0415
+
     dim_keys = _dimension_keys()
     multi_discrete_keys = _multi_discrete_dim_keys()
 
@@ -322,11 +332,18 @@ def build_dataset(
         by_audio.setdefault(a.audio_file_id, []).append(a)
 
     items: list[dict[str, Any]] = []
+    filtered_by_status = 0
     for audio in audios:
         anns = by_audio.get(audio.id, [])
         if not anns:
             # 整檔沒任何 is_complete=1 的 annotation → 不進 items，但仍計入 total_audio_files
             continue
+        # Phase 10：min_status 過濾(基於整體 annotation,不限 annotator_filter 範圍)
+        if min_status != "untouched":
+            audio_status = compute_audiofile_status(audio, session)
+            if not status_meets(audio_status, min_status):
+                filtered_by_status += 1
+                continue
         items.append(_build_item(audio, anns, dim_keys, multi_discrete_keys))
 
     annotators_in_export = sorted({a.annotator_id for a in annotations})
@@ -336,9 +353,11 @@ def build_dataset(
         "generated_at": datetime.now(UTC).isoformat(),
         "generator": GENERATOR,
         "dataset_name": DATASET_NAME,
+        "min_status": min_status,
         "total_audio_files": len(audios),
         "total_annotated": len(items),
         "total_annotations": len(annotations),
+        "filtered_by_status": filtered_by_status,
         "annotators": annotators_in_export,
         "dimension_schema": _build_dimension_schema(),
         "items": items,
