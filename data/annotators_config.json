@@ -1,0 +1,34 @@
+{
+  "amber": {
+    "name": "Amber",
+    "email": "polanmusic2025@gmail.com",
+    "annotator_profile": "music_professional",
+    "status": "active",
+    "is_admin": true,
+    "joined_at": "2025-12-15"
+  },
+  "yyslin1024": {
+    "name": "養心 (嗚嗚)",
+    "email": "yyslin1024@gmail.com",
+    "annotator_profile": "TBD_pending_amber_confirm",
+    "status": "active",
+    "is_admin": false,
+    "joined_at": "2026-02-01"
+  },
+  "vvgosick": {
+    "name": "老公",
+    "email": "vvgosick@gmail.com",
+    "annotator_profile": "TBD_pending_amber_confirm",
+    "status": "pending_calibration",
+    "is_admin": false,
+    "joined_at": "2026-05-12"
+  },
+  "guest": {
+    "name": "Guest (歷史測試帳號)",
+    "email": "",
+    "annotator_profile": "general_audience",
+    "status": "archived",
+    "is_admin": false,
+    "joined_at": "2026-01-01"
+  }
+}
