@@ -20,9 +20,86 @@ async function loadAll() {
   await Promise.all([
     loadIcc(includeFixture),
     loadOverlap(includeFixture),
+    loadPendingAnnotators(),  // Phase 8 — 待校準 widget(admin only)
   ])
   // progress 依 annotator 個別查 — 用 ICC endpoint 回的 annotators
   // 在 loadIcc 裡 trigger
+}
+
+// Phase 8：列出 pending_calibration 的人 + 認可按鈕。403 = 非 admin,靜默隱藏 section。
+async function loadPendingAnnotators() {
+  const section = $('pending-section')
+  const list = $('pending-list')
+  try {
+    const res = await fetch('/api/admin/annotators/pending')
+    if (res.status === 403) {
+      section.classList.add('hidden')
+      return
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const items = await res.json()
+    if (!items.length) {
+      section.classList.add('hidden')
+      return
+    }
+    section.classList.remove('hidden')
+    list.innerHTML = items.map(it => {
+      const prog = it.calibration_progress || { completed: 0, calibration_set_size: 0 }
+      const pct = prog.calibration_set_size > 0
+        ? Math.round((prog.completed / prog.calibration_set_size) * 100)
+        : 0
+      const profileLabel = it.annotator_profile === 'TBD_pending_amber_confirm'
+        ? '<span class="text-xs px-2 py-0.5 bg-yellow-200 dark:bg-yellow-900 rounded">待 Amber 分類</span>'
+        : `<span class="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-700 rounded">${escapeHtml(it.annotator_profile)}</span>`
+      return `
+        <div class="flex items-center gap-3 p-2 rounded bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900" data-annotator="${escapeAttr(it.id)}">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium">${escapeHtml(it.name || it.id)}</span>
+              <span class="text-xs text-slate-500">(${escapeHtml(it.id)})</span>
+              ${profileLabel}
+            </div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              校準進度:${prog.completed} / ${prog.calibration_set_size}(${pct}%)
+            </div>
+          </div>
+          <button
+            type="button"
+            data-approve="${escapeAttr(it.id)}"
+            class="px-3 py-1.5 text-sm font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+            ${prog.completed === 0 ? 'disabled title="尚未標任何校準音檔"' : ''}
+          >✓ 認可校準通過</button>
+        </div>
+      `
+    }).join('')
+    list.querySelectorAll('button[data-approve]').forEach(btn => {
+      btn.addEventListener('click', () => approveAnnotator(btn.dataset.approve, btn))
+    })
+  } catch (err) {
+    section.classList.remove('hidden')
+    list.innerHTML = `<div class="text-sm text-red-600">載入待校準清單失敗:${escapeHtml(err.message)}</div>`
+  }
+}
+
+async function approveAnnotator(annotatorId, btn) {
+  if (!confirm(`確定認可 ${annotatorId} 校準通過?完成後該標註員將可標全部音檔。`)) return
+  btn.disabled = true
+  btn.textContent = '處理中…'
+  try {
+    const res = await fetch(`/api/admin/annotators/${encodeURIComponent(annotatorId)}/approve`, {
+      method: 'POST',
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+      throw new Error(err.detail || `HTTP ${res.status}`)
+    }
+    await loadPendingAnnotators()  // 刷新清單 — 通過後該人會從 list 消失
+    await loadAll()  // 同步更新進度區塊
+  } catch (err) {
+    alert(`認可失敗:${err.message}`)
+    btn.disabled = false
+    btn.textContent = '✓ 認可校準通過'
+  }
 }
 
 async function loadIcc(includeFixture) {

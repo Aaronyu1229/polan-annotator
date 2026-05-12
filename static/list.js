@@ -12,6 +12,69 @@ const DASHBOARD = document.getElementById('dashboard-card')
 const params = new URLSearchParams(window.location.search)
 const annotator = params.get('annotator') || 'guest'
 
+// Phase 8：第一次登入觸發 welcome modal,pending_calibration 強制引導至校準頁。
+maybeShowWelcomeModal(annotator)
+
+async function maybeShowWelcomeModal(annotatorId) {
+  const seenKey = `welcome_seen:${annotatorId}`
+  let me
+  try {
+    const res = await fetch('/api/me')
+    if (!res.ok) return  // 401/403:不渲染 modal,讓 auth.js 走 redirect
+    me = await res.json()
+  } catch {
+    return
+  }
+
+  const isPending = me.status === 'pending_calibration'
+  const alreadySeen = localStorage.getItem(seenKey) === '1'
+  // pending 每次都顯示直到 Amber 認可(防止使用者 dismiss 後忘記校準)
+  if (alreadySeen && !isPending) return
+
+  const modal = document.getElementById('welcome-modal')
+  const title = document.getElementById('welcome-title')
+  const body = document.getElementById('welcome-body')
+  const primary = document.getElementById('welcome-primary')
+  const secondary = document.getElementById('welcome-secondary')
+  if (!modal) return
+
+  const displayName = me.display_name || me.name || annotatorId
+  if (isPending) {
+    title.textContent = `${displayName},歡迎加入珀瀾標註團隊 🎧`
+    body.innerHTML = `
+      <p>你目前的狀態是 <span class="px-1.5 py-0.5 bg-amber-200 dark:bg-amber-900 rounded text-xs font-medium">pending_calibration(待校準)</span>。</p>
+      <p><strong>第一步:先到校準頁標完 Amber 已示範的音檔。</strong>校準是為了讓你跟其他標註員對齊維度理解,確保資料一致性。</p>
+      <p>校準完成後,Amber 會在 Dashboard 認可你的標註,你就能標全部 1311 筆音檔。</p>
+      <p>標註前請先閱讀:
+        <a href="https://dolcenforte.com/tension-guide" target="_blank" rel="noopener" class="text-amber-600 hover:underline">Tension 維度規範</a>
+        (其他 6 個維度的定義在標註頁滑桿旁有解說)。</p>
+      <p class="text-xs text-slate-500">有問題請 Line/Slack 找 Amber。</p>
+    `
+    primary.textContent = '前往校準頁 →'
+    primary.onclick = () => {
+      localStorage.setItem(seenKey, '1')
+      window.location.href = `/calibration?annotator=${encodeURIComponent(annotatorId)}`
+    }
+    secondary.classList.remove('hidden')
+    secondary.textContent = '稍後再說'
+    secondary.onclick = () => modal.classList.add('hidden')
+  } else {
+    title.textContent = `${displayName},歡迎使用珀瀾標註工具 🎧`
+    body.innerHTML = `
+      <p>左側清單是所有 ${escapeHtml(String(1311))} 筆音檔,點開即可標註。</p>
+      <p>右上角有 <strong>📊 Dashboard</strong> 看跨標註員 ICC 跟進度。</p>
+      <p>每首標完按「儲存並下一個」會自動跳到下個未標檔案。</p>
+    `
+    primary.textContent = '開始標註'
+    primary.onclick = () => {
+      localStorage.setItem(seenKey, '1')
+      modal.classList.add('hidden')
+    }
+    secondary.classList.add('hidden')
+  }
+  modal.classList.remove('hidden')
+}
+
 // Phase 3：校準連結帶上當前 annotator
 const navCalibration = document.getElementById('nav-calibration')
 if (navCalibration) {

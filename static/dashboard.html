@@ -20,6 +20,13 @@
 
   <main class="max-w-6xl mx-auto px-6 py-6 space-y-6">
 
+    <!-- 0. 待校準標註員（Phase 8）— 只有 admin 看得到內容 -->
+    <section id="pending-section" class="bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-300 dark:border-amber-800 p-4 hidden">
+      <h2 class="text-base font-semibold mb-2">待校準標註員</h2>
+      <p class="text-xs text-slate-600 dark:text-slate-400 mb-3">新進標註員須先標完 Amber 已 is_complete 的音檔(校準集),Amber 確認 ICC 合理後按「✓ 認可」解鎖標全部音檔。</p>
+      <div id="pending-list" class="space-y-2"></div>
+    </section>
+
     <!-- 1. 各標註員進度 -->
     <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
       <h2 class="text-base font-semibold mb-3">各標註員進度</h2>
