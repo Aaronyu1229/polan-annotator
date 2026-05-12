@@ -320,3 +320,121 @@ def audio_status_summary_endpoint(
     刻意對所有 logged-in user 公開(不限 admin)— 團隊成員都該看到資料集品質分布。
     """
     return status_summary(session)
+
+
+# ─── Phase 11：仲裁(reconciliation)— Amber 看 cross_annotated 並更新自己 annotation ─
+
+@router.get("/reconcile/list")
+def reconcile_list(
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> list[dict[str, Any]]:
+    """列出所有 status=cross_annotated 的音檔 + 每筆 max spread 維度。
+
+    給 Amber 看哪些待仲裁(spread > 0.20 且尚未 gold-locked)。
+    Sort by max_spread desc — 差距大的優先處理。
+    """
+    _require_admin(current_user)
+
+    from src.audiofile_status import per_dim_spread  # noqa: PLC0415
+
+    audios = session.exec(select(AudioFile)).all()
+    items: list[dict[str, Any]] = []
+    for audio in audios:
+        if compute_audiofile_status(audio, session) != "cross_annotated":
+            continue
+        anns = session.exec(
+            select(Annotation).where(
+                Annotation.audio_file_id == audio.id,
+                Annotation.is_complete == True,  # noqa: E712
+            )
+        ).all()
+        spreads = per_dim_spread(anns)
+        valid_spreads = {k: v for k, v in spreads.items() if v is not None}
+        max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
+        max_val = valid_spreads.get(max_dim) if max_dim else None
+        items.append({
+            "audio_id": audio.id,
+            "filename": audio.filename,
+            "game_name": audio.game_name,
+            "game_stage": audio.game_stage,
+            "duration_sec": audio.duration_sec,
+            "annotators": sorted({a.annotator_id for a in anns}),
+            "max_spread_dim": max_dim,
+            "max_spread_value": max_val,
+            "amber_already_annotated": any(a.annotator_id == "amber" for a in anns),
+        })
+    # max spread 大的優先處理
+    items.sort(key=lambda x: (x["max_spread_value"] or 0), reverse=True)
+    return items
+
+
+@router.get("/reconcile/{audio_id}")
+def reconcile_detail(
+    audio_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """單筆仲裁所需資料:audio metadata + 所有 annotation。
+
+    儲存走 POST /api/annotations(annotator_id="amber") — 不另開 save endpoint。
+    """
+    _require_admin(current_user)
+
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
+
+    anns = session.exec(
+        select(Annotation).where(
+            Annotation.audio_file_id == audio_id,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+
+    def _decode(s):
+        if not s:
+            return []
+        try:
+            import json as _json  # noqa: PLC0415
+            v = _json.loads(s)
+            return v if isinstance(v, list) else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    annotations_data = [
+        {
+            "annotator_id": a.annotator_id,
+            "valence": a.valence,
+            "arousal": a.arousal,
+            "emotional_warmth": a.emotional_warmth,
+            "tension_direction": a.tension_direction,
+            "temporal_position": a.temporal_position,
+            "event_significance": a.event_significance,
+            "world_immersion": a.world_immersion,
+            "loop_capability": _decode(a.loop_capability),
+            "source_type": _decode(a.source_type),
+            "function_roles": _decode(a.function_roles),
+            "genre_tag": _decode(a.genre_tag),
+            "worldview_tag": a.worldview_tag,
+            "style_tag": _decode(a.style_tag),
+            "notes": a.notes,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        }
+        for a in anns
+    ]
+
+    return {
+        "audio": {
+            "id": audio.id,
+            "filename": audio.filename,
+            "game_name": audio.game_name,
+            "game_stage": audio.game_stage,
+            "duration_sec": audio.duration_sec,
+            "is_brand_theme": audio.is_brand_theme,
+            "tonal_noise_ratio_auto": audio.tonal_noise_ratio_auto,
+            "spectral_density_auto": audio.spectral_density_auto,
+        },
+        "annotations": annotations_data,
+        "status": compute_audiofile_status(audio, session),
+    }

@@ -88,13 +88,17 @@ async function loadStatusCards() {
     wrap.innerHTML = cards.map(c => {
       const n = data[c.key] || 0
       const pct = total > 0 ? Math.round((n / total) * 100) : 0
-      return `
-        <div class="p-3 rounded border ${c.cls}">
-          <div class="text-xs mb-1 ${c.labelCls}">${c.label}</div>
-          <div class="text-2xl font-semibold font-mono ${c.numCls}">${n}</div>
-          <div class="text-xs ${c.labelCls}">${pct}%</div>
-        </div>
+      // Phase 11:cross_annotated 卡片若 > 0 可點到仲裁列表(後端會 403 擋非 admin)
+      const isClickable = c.key === 'cross_annotated' && n > 0
+      const inner = `
+        <div class="text-xs mb-1 ${c.labelCls}">${c.label}${isClickable ? ' →' : ''}</div>
+        <div class="text-2xl font-semibold font-mono ${c.numCls}">${n}</div>
+        <div class="text-xs ${c.labelCls}">${pct}%</div>
       `
+      if (isClickable) {
+        return `<a href="/admin/reconcile" title="點開待仲裁清單" class="block p-3 rounded border cursor-pointer hover:shadow ${c.cls}">${inner}</a>`
+      }
+      return `<div class="p-3 rounded border ${c.cls}">${inner}</div>`
     }).join('')
   } catch (err) {
     wrap.innerHTML = `<div class="text-sm text-red-600 col-span-5">載入狀態統計失敗:${escapeHtml(err.message)}</div>`
