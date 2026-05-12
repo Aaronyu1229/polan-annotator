@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" font-family="-apple-system, 'Helvetica Neue', 'PingFang TC', sans-serif">
+  <defs>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.15"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#7d8a82"/>
+    </marker>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="900" height="480" fill="#fbf6ee"/>
+
+  <!-- 標題 -->
+  <text x="450" y="40" text-anchor="middle" font-size="20" font-weight="600" fill="#3a4a3e">珀瀾標註系統 — 怎麼運作的</text>
+
+  <!-- 員工瀏覽器 -->
+  <g filter="url(#soft)">
+    <rect x="30" y="170" width="170" height="120" rx="14" fill="#ffffff" stroke="#d4c8b3" stroke-width="1.5"/>
+    <rect x="30" y="170" width="170" height="22" rx="14" fill="#e9e0cb"/>
+    <circle cx="44" cy="181" r="3" fill="#d68585"/>
+    <circle cx="56" cy="181" r="3" fill="#d4b87e"/>
+    <circle cx="68" cy="181" r="3" fill="#7dceaA"/>
+    <line x1="55" y1="220" x2="175" y2="220" stroke="#cbb89a" stroke-width="2" stroke-linecap="round"/>
+    <line x1="55" y1="240" x2="155" y2="240" stroke="#cbb89a" stroke-width="2" stroke-linecap="round"/>
+    <line x1="55" y1="260" x2="170" y2="260" stroke="#cbb89a" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <text x="115" y="320" text-anchor="middle" font-size="14" fill="#3a4a3e" font-weight="500">員工 / Amber</text>
+  <text x="115" y="338" text-anchor="middle" font-size="12" fill="#7d8a82">瀏覽器</text>
+
+  <!-- Cloudflare 雲（含 shield） -->
+  <g filter="url(#soft)">
+    <path d="M 285 215 Q 270 215 265 230 Q 245 230 245 250 Q 245 270 270 270 L 360 270 Q 385 270 385 250 Q 385 232 365 230 Q 365 210 340 210 Q 320 195 305 210 Q 295 205 285 215 Z"
+          fill="#fff5d6" stroke="#e3c860" stroke-width="1.5"/>
+    <!-- 盾牌 icon -->
+    <path d="M 315 232 L 315 250 Q 315 258 322 263 Q 329 258 329 250 L 329 232 Q 322 230 315 232 Z"
+          fill="#7dceaA" stroke="#3a8b65" stroke-width="1.2"/>
+    <path d="M 318 246 L 322 250 L 327 243" fill="none" stroke="#fbf6ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="315" y="320" text-anchor="middle" font-size="14" fill="#3a4a3e" font-weight="500">Cloudflare</text>
+  <text x="315" y="338" text-anchor="middle" font-size="12" fill="#7d8a82">把關（OTP 登入）</text>
+
+  <!-- VPS Server box -->
+  <g filter="url(#soft)">
+    <rect x="430" y="180" width="180" height="130" rx="12" fill="#ffffff" stroke="#d4c8b3" stroke-width="1.5"/>
+    <text x="520" y="206" text-anchor="middle" font-size="13" fill="#5a6b5d" font-weight="600">VPS</text>
+    <text x="520" y="222" text-anchor="middle" font-size="10" fill="#9aa599">DigitalOcean SGP</text>
+    <!-- 應用程式方塊 -->
+    <rect x="450" y="232" width="68" height="32" rx="6" fill="#a8c8e1" opacity="0.7"/>
+    <text x="484" y="252" text-anchor="middle" font-size="11" fill="#1f3a52" font-weight="500">App</text>
+    <!-- DB 圓柱 -->
+    <ellipse cx="565" cy="237" rx="22" ry="6" fill="#d4a5a5"/>
+    <rect x="543" y="237" width="44" height="20" fill="#d4a5a5"/>
+    <ellipse cx="565" cy="257" rx="22" ry="6" fill="#b88a8a"/>
+    <text x="565" y="282" text-anchor="middle" font-size="10" fill="#5a6b5d">SQLite</text>
+  </g>
+  <text x="520" y="338" text-anchor="middle" font-size="12" fill="#7d8a82">服務 + 資料庫</text>
+
+  <!-- R2 backup 雲 -->
+  <g filter="url(#soft)">
+    <path d="M 720 100 Q 705 100 700 115 Q 685 115 685 132 Q 685 148 705 148 L 800 148 Q 820 148 820 132 Q 820 117 803 115 Q 803 100 783 100 Q 766 88 752 100 Q 740 95 720 100 Z"
+          fill="#e6f0e1" stroke="#9bb39a" stroke-width="1.5"/>
+    <text x="752" y="136" text-anchor="middle" font-size="13" fill="#3a4a3e" font-weight="500">R2</text>
+  </g>
+  <text x="752" y="180" text-anchor="middle" font-size="12" fill="#7d8a82">雲端備份（每秒）</text>
+
+  <!-- 監控標 -->
+  <g>
+    <rect x="700" y="220" width="160" height="92" rx="12" fill="#ffffff" stroke="#d4c8b3" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="780" y="244" text-anchor="middle" font-size="12" fill="#5a6b5d" font-weight="500">看著它的兩個眼睛</text>
+    <text x="780" y="270" text-anchor="middle" font-size="11" fill="#7d8a82">UptimeRobot — 掛了通知</text>
+    <text x="780" y="290" text-anchor="middle" font-size="11" fill="#7d8a82">Sentry — 出 error 通知</text>
+  </g>
+
+  <!-- 箭頭：員工 → CF -->
+  <line x1="200" y1="230" x2="245" y2="245" stroke="#7d8a82" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- 箭頭：CF → VPS -->
+  <line x1="385" y1="245" x2="430" y2="245" stroke="#7d8a82" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- 箭頭：VPS → R2（向上彎） -->
+  <path d="M 565 232 Q 600 200 690 145" stroke="#7d8a82" stroke-width="2" fill="none" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <!-- 監控箭頭（雙向虛線） -->
+  <path d="M 610 245 L 700 250" stroke="#9aa599" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/>
+
+  <!-- footer 說明 -->
+  <text x="450" y="430" text-anchor="middle" font-size="13" fill="#5a6b5d">
+    <tspan x="450" dy="0">員工的瀏覽器先被 Cloudflare 攔下、要他輸入 email + OTP。</tspan>
+    <tspan x="450" dy="20">通過後才連進 VPS 的標註系統。寫進去的資料每秒同步到 R2 雲端，永不丟。</tspan>
+  </text>
+</svg>

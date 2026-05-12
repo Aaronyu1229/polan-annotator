@@ -1,0 +1,1320 @@
+分類報告 — 共 1312 檔
+
+
+=== BGM (154 檔) ===
+  [>20s  ] 1000_bgm.wav
+  [5-20s ] 1212_bgm.mp3
+  [5-20s ] 4to1_bgm.mp3
+  [5-20s ] 4to1_bgm.wav
+  [>20s  ] BG BGM.wav
+  [>20s  ] BG BGM1.wav
+  [>20s  ] BG BGM2.wav
+  [>20s  ] BG BGM_0225.wav
+  [>20s  ] BG BGM_1016.wav
+  [>20s  ] BG BGM_ver.2.wav
+  [>20s  ] BG_BGM#1.wav
+  [>20s  ] BG_BGM(1).mp3
+  [>20s  ] BG_BGM.mp3
+  [>20s  ] BG_BGM.wav
+  [>20s  ] BG_BGM_Ver.A_full.wav
+  [>20s  ] BG_BGM_no.wav
+  [>20s  ] BG_BGM_original.wav
+  [>20s  ] Balloon Fiesta_Base Game.wav
+  [>20s  ] Balloon Fiesta_Free Game.wav
+  [>20s  ] Balloon Fiesta_Winning Panel.wav
+  [5-20s ] Big Win.wav
+  [5-20s ] Big Win_1020.wav
+  [5-20s ] Big Win_1022.wav
+  [5-20s ] Big win#1.wav
+  [>20s  ] Dg_bgm.wav
+  [>20s  ] Dg_bgm2.wav
+  [>20s  ] Ebingo_mini game BGM_mixing.ogg
+  [5-20s ] Epic Win.wav
+  [>20s  ] FG BGM.wav
+  [>20s  ] FG BGM_1016.wav
+  [>20s  ] FG BGM_1205.wav
+  [>20s  ] FG_BGM#1.wav
+  [>20s  ] FG_BGM(1).mp3
+  [>20s  ] FG_BGM.mp3
+  [>20s  ] FG_BGM.wav
+  [>20s  ] Game Brand Theme Music_寶利發_AI Virtual Voice.wav
+  [>20s  ] Game Brand Theme Music_金斗雲_AI Virtual Voice.wav
+  [>20s  ] Game Brand Theme Music_金鑫_AI Virtual Voice.wav
+  [>20s  ] Goddess Realm_Free Game.wav
+  [>20s  ] Golden Piggy_Base Game.wav
+  [>20s  ] Golden Piggy_Free Game.wav
+  [>20s  ] Haunted Spirit_Free Game.wav
+  [>20s  ] Haunted Spirit_Main Game.wav
+  [>20s  ] JPG_BGM(1).mp3
+  [>20s  ] JPG_BGM.mp3
+  [>20s  ] Kingdom of Apollo_Base Game.wav
+  [>20s  ] Kingdom of Apollo_Free Game.wav
+  [>20s  ] Ll_bgm.wav
+  [5-20s ] Ll_bgm2.wav
+  [>20s  ] LockKeyMeowMeow_Free Game.wav
+  [>20s  ] LockKeyMeowMeow_Main Game.wav
+  [>20s  ] MG_BGM_b.wav
+  [<5s   ] Max Win End.wav
+  [>20s  ] Max Win.wav
+  [5-20s ] Mega Win.wav
+  [5-20s ] Mega Win_1020.wav
+  [>20s  ] Midnight Racing_Base Game.wav
+  [>20s  ] Midnight Racing_Free Game.wav
+  [>20s  ] Midnight Racing_Winning Panel.wav
+  [>20s  ] NG_BGM(1).mp3
+  [>20s  ] NG_BGM(2).mp3
+  [>20s  ] NG_BGM.mp3
+  [>20s  ] NG_BGM.wav
+  [>20s  ] New Year Prosperity_Base Game.wav
+  [>20s  ] New Year Prosperity_Free Game.wav
+  [>20s  ] Normal_BGM(1).wav
+  [>20s  ] Normal_BGM(2).wav
+  [>20s  ] Normal_BGM.wav
+  [>20s  ] Penguin Party Time_Base Game.wav
+  [>20s  ] Penguin Party Time_Free Game.wav
+  [>20s  ] Penguin Party Time_Winning Panel.wav
+  [>20s  ] REEL_BGM.mp3
+  [>20s  ] SFG_BGM.mp3
+  [>20s  ] Sheep UFO_Base Game.wav
+  [>20s  ] Sheep UFO_Free Game.wav
+  [>20s  ] Sheep UFO_Winning Panel.wav
+  [>20s  ] Sparkling Sweetheart_Base Game.wav
+  [>20s  ] Sparkling Sweetheart_Free Game.wav
+  [5-20s ] Super Win.wav
+  [5-20s ] Super Win_1020.wav
+  [5-20s ] Transition.wav
+  [5-20s ] Transition_1020.wav
+  [>20s  ] Treasure Dragon_Bonus Game.wav
+  [>20s  ] Treasure Dragon_Free Game.wav
+  [5-20s ] Ultra Win.wav
+  [>20s  ] Volcano Goddess_Base Game.wav
+  [>20s  ] Volcano Goddess_Free Game.wav
+  [>20s  ] Wealth God_s Blessing_Free Game.wav
+  [5-20s ] Win End.wav
+  [5-20s ] Win End_1020.wav
+  [5-20s ] Win End_1022.wav
+  [>20s  ] Zeus_NG_BGM.wav
+  [5-20s ] bgm.mp3
+  [5-20s ] bgm.wav
+  [>20s  ] bigCatch_bgm.wav
+  [>20s  ] blackjack_bgm.wav
+  [>20s  ] blackjack_room_bgm.wav
+  [<5s   ] carrot_big win.mp3
+  [<5s   ] carrot_big win_v1.mp3
+  [<5s   ] carrot_super win.mp3
+  [<5s   ] carrot_super win_v1.mp3
+  [>20s  ] cgfBgm.wav
+  [>20s  ] chineseNewYear_bgm.wav
+  [>20s  ] chineseValentine_bgm.wav
+  [>20s  ] chinesepoker_bgm#1.wav
+  [>20s  ] chinesepoker_bgm.wav
+  [>20s  ] chinesepoker_room_bgm#1.wav
+  [>20s  ] chinesepoker_room_bgm.wav
+  [>20s  ] christmas_bgm.wav
+  [>20s  ] dragonBoatFestival_bgm.wav
+  [>20s  ] fantacity_bgm3.wav
+  [>20s  ] fgBgm(1).wav
+  [>20s  ] fgBgm.wav
+  [>20s  ] goat_bgm.wav
+  [>20s  ] goldenPiggy_V1_bgm.wav
+  [>20s  ] goldenPiggy_V2_bgm_ melody.wav
+  [>20s  ] goldenPiggy_V2_bgm_ rhythm.wav
+  [5-20s ] labor_bgm.mp3
+  [5-20s ] lanternFestival_bgm.mp3
+  [>20s  ] lanternFestival_bgm.wav
+  [>20s  ] lobby_bgm.mp3
+  [>20s  ] loop_bgm.mp3
+  [5-20s ] main bgm.mp3
+  [5-20s ] mm02_bgm.mp3
+  [5-20s ] mm04_bgm.wav
+  [5-20s ] mm06_bgm.mp3
+  [>20s  ] mm07_bgm.wav
+  [5-20s ] mm08_bgm.wav
+  [>20s  ] monkey_bgm.wav
+  [5-20s ] national_bgm.wav
+  [>20s  ] newYear_bgm.mp3
+  [>20s  ] ngBgm(1).wav
+  [>20s  ] ngBgm.wav
+  [>20s  ] okey_room_bgm#1.wav
+  [>20s  ] okey_room_bgm.wav
+  [5-20s ] spin bgm.mp3
+  [5-20s ] valentine_bgm.wav
+  [5-20s ] 休閒輕快BGM_1.ogg
+  [5-20s ] 休閒風格BGM_2.ogg
+  [>20s  ] 元素狂潮_FG_BGM.wav
+  [>20s  ] 南美印加_BG_BGM.wav
+  [>20s  ] 合成魔法_FG_BGM_rough mix.wav
+  [>20s  ] 尋寶奇航_FG_BGM.wav
+  [>20s  ] 海盜風格BGM_1.ogg
+  [>20s  ] 海盜風格BGM_2.ogg
+  [>20s  ] 海盜風格BGM_3.ogg
+  [>20s  ] 瘋狂野牛_FG_BGM.wav
+  [>20s  ] 秘境冒險_FG_BGM_peak-0.1.wav
+  [>20s  ] 秘境冒險_NG_BGM.wav
+  [>20s  ] 聖誕節_BG_BGM_MIX2.wav
+  [>20s  ] 聖誕節_FG_BGM_mix.wav
+  [>20s  ] 聖誕節_NG_BGM_MIX2.wav
+  [5-20s ] 財富連連_Base Game_BGM.wav
+  [5-20s ] 辣翻天結算BGM_V2.wav
+
+=== SFX (1112 檔) ===
+  [<5s   ] 0_points_F(1).mp3
+  [<5s   ] 0_points_F.mp3
+  [<5s   ] 0_points_F_en.mp3
+  [<5s   ] 0_points_M.mp3
+  [<5s   ] 0_points_M_en.mp3
+  [<5s   ] 10003_dragon_appear.wav
+  [<5s   ] 10003_dragon_appear_v1.wav
+  [<5s   ] 10003_dragon_fire.wav
+  [<5s   ] 10003_fg_extraGame.wav
+  [<5s   ] 10003_fg_extraGame_V1.wav
+  [<5s   ] 10003_fg_extraGame_end.wav
+  [<5s   ] 10003_fg_extraGame_end_V1.wav
+  [<5s   ] 10003_window.wav
+  [<5s   ] 10005_fg_extraGame.wav
+  [<5s   ] 10005_fg_extraGame_end.wav
+  [<5s   ] 10005_locked.wav
+  [<5s   ] 10005_locked_v1.wav
+  [<5s   ] 10005_unlocked.wav
+  [<5s   ] 10005_unlocked_v1.wav
+  [<5s   ] 10005_window.wav
+  [<5s   ] 10007_fg_extraGame.wav
+  [<5s   ] 10007_fg_extraGame_V1.wav
+  [<5s   ] 10007_fg_extraGame_V2.wav
+  [<5s   ] 10007_fg_extraGame_end.wav
+  [<5s   ] 10007_locked.wav
+  [<5s   ] 10007_unlocked.wav
+  [<5s   ] 10009_locked.wav
+  [<5s   ] 10009_unlocked.wav
+  [5-20s ] 10009_window.wav
+  [>20s  ] 1000_ambience.wav
+  [<5s   ] 1000_reel.wav
+  [<5s   ] 1000_riser.wav
+  [<5s   ] 1000_spin.wav
+  [<5s   ] 1000_stop.wav
+  [<5s   ] 1000_win.wav
+  [<5s   ] 1000_winEnd.wav
+  [<5s   ] 1000_winSFX.ogg
+  [<5s   ] 10_15_20 piont result.mp3
+  [>20s  ] 1111_amb.wav
+  [5-20s ] 1111_showNumber1.wav
+  [5-20s ] 1111_showNumber2.wav
+  [5-20s ] 1111_showNumber3.wav
+  [5-20s ] 1111_showNumber4.wav
+  [5-20s ] 1212_showNumbers1.mp3
+  [5-20s ] 1212_showNumbers2.mp3
+  [5-20s ] 1212_showNumbers3.mp3
+  [<5s   ] 1_points_F(1).mp3
+  [<5s   ] 1_points_F.mp3
+  [<5s   ] 1_points_F_en.mp3
+  [<5s   ] 1_points_M.mp3
+  [<5s   ] 1_points_M_en.mp3
+  [<5s   ] 2 piont result.mp3
+  [<5s   ] 2_points_F(1).mp3
+  [<5s   ] 2_points_F.mp3
+  [<5s   ] 2_points_F_en.mp3
+  [<5s   ] 2_points_M.mp3
+  [<5s   ] 2_points_M_en.mp3
+  [5-20s ] 30 piont result.mp3
+  [<5s   ] 3_points_F#1.mp3
+  [<5s   ] 3_points_F.mp3
+  [<5s   ] 3_points_F_en.mp3
+  [<5s   ] 3_points_M.mp3
+  [<5s   ] 3_points_M_en.mp3
+  [5-20s ] 40 piont result.mp3
+  [<5s   ] 4_points_F(1).mp3
+  [<5s   ] 4_points_F.mp3
+  [<5s   ] 4_points_F_en.mp3
+  [<5s   ] 4_points_M.mp3
+  [<5s   ] 4_points_M_en.mp3
+  [<5s   ] 5_8 piont result.mp3
+  [<5s   ] 5_points_F(1).mp3
+  [<5s   ] 5_points_F.mp3
+  [<5s   ] 5_points_F_en.mp3
+  [<5s   ] 5_points_M.mp3
+  [<5s   ] 5_points_M_en.mp3
+  [<5s   ] 6_points_F(1).mp3
+  [<5s   ] 6_points_F.mp3
+  [<5s   ] 6_points_F_en.mp3
+  [<5s   ] 6_points_M.mp3
+  [<5s   ] 6_points_M_en.mp3
+  [<5s   ] 7_points_F(1).mp3
+  [<5s   ] 7_points_F.mp3
+  [<5s   ] 7_points_F_en.mp3
+  [<5s   ] 7_points_M.mp3
+  [<5s   ] 7_points_M_en.mp3
+  [<5s   ] 8_points_F(1).mp3
+  [<5s   ] 8_points_F.mp3
+  [<5s   ] 8_points_F_en.mp3
+  [<5s   ] 8_points_M.mp3
+  [<5s   ] 8_points_M_en.mp3
+  [<5s   ] 9_points_F(1).mp3
+  [<5s   ] 9_points_F.mp3
+  [<5s   ] 9_points_F_en.mp3
+  [<5s   ] 9_points_M.mp3
+  [<5s   ] 9_points_M_en.mp3
+  [5-20s ] Activation Prize.mp3
+  [<5s   ] Alien_Fly.wav
+  [<5s   ] Alien_effect.wav
+  [<5s   ] Alien_expression_01.wav
+  [<5s   ] Alien_expression_02.wav
+  [<5s   ] Alien_expression_03.wav
+  [<5s   ] AllRunningLight.mp3
+  [<5s   ] AllRunningLight.wav
+  [<5s   ] AllRunningLight_win.mp3
+  [<5s   ] AllRunningLight_win.wav
+  [>20s  ] BG_ver.2_0130.wav
+  [5-20s ] Background Music 2(1).mp3
+  [5-20s ] Background Music 2(2).mp3
+  [5-20s ] Background Music 2.mp3
+  [5-20s ] Background Music 3.mp3
+  [5-20s ] Background Music(1).mp3
+  [>20s  ] Background Music(1).ogg
+  [>20s  ] Background Music(2).ogg
+  [5-20s ] Background Music.mp3
+  [>20s  ] Background Music.ogg
+  [<5s   ] Beer.wav
+  [>20s  ] Betting Page - Background Music.mp3
+  [5-20s ] BigWin(1).wav
+  [5-20s ] BigWin.wav
+  [5-20s ] BigWin_1.wav
+  [<5s   ] BigWin_Sushi drop.wav
+  [5-20s ] Bonus Total Win(1).mp3
+  [5-20s ] Bonus Total Win.mp3
+  [5-20s ] Bonus Total win_v2.mp3
+  [<5s   ] Bonus1.wav
+  [<5s   ] Bonus2.wav
+  [<5s   ] Bonus3.wav
+  [5-20s ] Bonus4.wav
+  [<5s   ] Boom.wav
+  [<5s   ] Boom_new.1.wav
+  [<5s   ] Boom_new.wav
+  [>20s  ] Carmen Overture(0512S).wav
+  [<5s   ] Cat_Appear.wav
+  [<5s   ] Cat_Hit1.wav
+  [<5s   ] Cat_Hit2.wav
+  [<5s   ] Chinese_plzBet.wav
+  [<5s   ] Click the button(1).mp3
+  [<5s   ] Click the button.mp3
+  [<5s   ] Coin flip.mp3
+  [<5s   ] Count Down_2(1).mp3
+  [<5s   ] DEAL(2).mp3
+  [<5s   ] Deal to table(1).mp3
+  [<5s   ] Deal to table.mp3
+  [<5s   ] Deal#1.mp3
+  [<5s   ] Deal#1.wav
+  [<5s   ] Deal(1).mp3
+  [<5s   ] Deal(3).mp3
+  [<5s   ] Deal.wav
+  [<5s   ] Deal_en.mp3
+  [<5s   ] Dg_deal.wav
+  [<5s   ] Dg_dealturn.wav
+  [<5s   ] Dg_fullhouse.wav
+  [<5s   ] Dg_hit.wav
+  [<5s   ] Dg_money.wav
+  [<5s   ] Dg_open.wav
+  [<5s   ] Dg_shine.wav
+  [<5s   ] Drumer.wav
+  [<5s   ] EXTRA BALL.mp3
+  [>20s  ] Ebingo_Background Music.ogg
+  [<5s   ] Electron.wav
+  [<5s   ] English_action.wav
+  [<5s   ] English_betSuccess.wav
+  [<5s   ] English_drawingWinnings.wav
+  [<5s   ] English_plzBet.wav
+  [<5s   ] Entry Landing Sound.mp3
+  [<5s   ] Extra&over(1).mp3
+  [<5s   ] Extra&over.mp3
+  [5-20s ] FG 轉場.wav
+  [>20s  ] FG.wav
+  [5-20s ] FG轉場.wav
+  [<5s   ] Fader UI.mp3
+  [>20s  ] Fantacity_Bigwin1.wav
+  [>20s  ] Fantacity_Bigwin2.wav
+  [<5s   ] FreeGame_close door.wav
+  [<5s   ] FreeGame_open door.wav
+  [>20s  ] Funk俏皮(0407S).wav
+  [>20s  ] Fusion俏皮(0323S).wav
+  [5-20s ] GRAND_CN_v1.wav
+  [<5s   ] GRAND_EN.wav
+  [<5s   ] GRAND_EN_v1.wav
+  [<5s   ] Gold coin flipped - Prize.mp3
+  [<5s   ] H1_dragon.wav
+  [<5s   ] H2_dragon.wav
+  [5-20s ] H3_dragon.wav
+  [<5s   ] H4_dragon.wav
+  [<5s   ] Icon.wav
+  [<5s   ] Licensing 2.mp3
+  [<5s   ] Licensing.mp3
+  [<5s   ] Ll_airplane.wav
+  [<5s   ] Ll_boom.wav
+  [<5s   ] Ll_buttom.wav
+  [<5s   ] Ll_choose.wav
+  [<5s   ] Ll_countdown.wav
+  [<5s   ] Ll_deal.wav
+  [<5s   ] Ll_go.wav
+  [<5s   ] Ll_lose.wav
+  [<5s   ] Ll_no.wav
+  [<5s   ] Ll_open.wav
+  [<5s   ] Ll_shuttle.wav
+  [<5s   ] Ll_win.wav
+  [<5s   ] Ll_yes.wav
+  [5-20s ] Loading Icon(1).mp3
+  [5-20s ] Loading Icon.mp3
+  [<5s   ] Lucky Ball(1).mp3
+  [<5s   ] Lucky Ball.mp3
+  [<5s   ] MAJOR_CN.wav
+  [5-20s ] MAJOR_CN_v1.wav
+  [<5s   ] MAJOR_EN.wav
+  [<5s   ] MAJOR_EN_v1.wav
+  [<5s   ] MAX Button.wav
+  [>20s  ] MG_remix.wav
+  [<5s   ] MINI_CN.wav
+  [<5s   ] MINI_CN_v2.wav
+  [<5s   ] MINI_EN.wav
+  [<5s   ] MINI_EN_v2.wav
+  [<5s   ] MINOR_CN.wav
+  [5-20s ] MINOR_CN_v2.wav
+  [<5s   ] MINOR_EN.wav
+  [<5s   ] MINOR_EN_v1.wav
+  [<5s   ] MINUS & plus.mp3
+  [<5s   ] MaybeBonus(1).wav
+  [<5s   ] MaybeBonus.wav
+  [<5s   ] Mechanics close.mp3
+  [<5s   ] Mechanics open.mp3
+  [<5s   ] New Game.mp3
+  [<5s   ] Normal_Connect(1).wav
+  [<5s   ] Normal_Connect.wav
+  [5-20s ] Normal_Symbol_Connect.wav
+  [<5s   ] Opening narration”BLUE WIN“.mp3
+  [<5s   ] Opening narration”CLUBS WIN“.mp3
+  [<5s   ] Opening narration”COINS WIN“.mp3
+  [<5s   ] Opening narration”CUPS WIN“.mp3
+  [<5s   ] Opening narration”RED WIN“.mp3
+  [<5s   ] Opening narration”Repeat“.mp3
+  [<5s   ] Opening narration”SWORDS WIN“.mp3
+  [<5s   ] Opening narration”Start Bet“.mp3
+  [<5s   ] Opening narration”Stop Bet“.mp3
+  [5-20s ] PICK A BALL.mp3
+  [<5s   ] Pop-ups.mp3
+  [<5s   ] REBET(1).mp3
+  [<5s   ] Rebet.mp3
+  [<5s   ] Rebet_Spin.mp3
+  [<5s   ] Refresh.mp3
+  [5-20s ] Riser(1).mp3
+  [5-20s ] Riser(2).mp3
+  [<5s   ] Score Running.wav
+  [<5s   ] Shoo.wav
+  [<5s   ] ShooBoom.wav
+  [<5s   ] Shoo_new.wav
+  [<5s   ] Sound of steel ball dropping.mp3
+  [<5s   ] Sound of steel ball rolling.mp3
+  [<5s   ] Special_Symbol_Connect.wav
+  [<5s   ] Spin.mp3
+  [<5s   ] SpinStop1.wav
+  [<5s   ] SpinStop2.wav
+  [<5s   ] Start.mp3
+  [<5s   ] Stop_Spin.wav
+  [<5s   ] Tie.mp3
+  [5-20s ] Total Win.mp3
+  [<5s   ] Total chips return(1).mp3
+  [<5s   ] Total chips return.mp3
+  [<5s   ] Trigger the first chip to bet.mp3
+  [<5s   ] Turbo switch.mp3
+  [<5s   ] WILD_longer.wav
+  [5-20s ] Welcome(1).mp3
+  [5-20s ] Welcome.mp3
+  [<5s   ] Wild_Connect.wav
+  [<5s   ] Wild_Jackpot_Connect.wav
+  [<5s   ] Wild_Koi_Connect.wav
+  [<5s   ] Wild_Neko_Connect.wav
+  [<5s   ] Wild_Taiko_Connect.wav
+  [5-20s ] Win.mp3
+  [<5s   ] Wing Flap Sound(1).mp3
+  [<5s   ] Wing Flap Sound(2).mp3
+  [<5s   ] YOU WIN(1).mp3
+  [<5s   ] add_extraGame.mp3
+  [<5s   ] add_extra_fg(1).mp3
+  [<5s   ] add_extra_fg.mp3
+  [<5s   ] add_extra_fg_v1(1).mp3
+  [<5s   ] add_extra_fg_v1.mp3
+  [<5s   ] andarbahar_cut#1.mp3
+  [<5s   ] andarbahar_cut.mp3
+  [<5s   ] andarbahar_deal#1.mp3
+  [<5s   ] andarbahar_deal.mp3
+  [<5s   ] andarbahar_flip#1.mp3
+  [<5s   ] andarbahar_flip.mp3
+  [<5s   ] andarbahar_light#1.mp3
+  [<5s   ] andarbahar_light.mp3
+  [<5s   ] andarbahar_show#1.mp3
+  [<5s   ] andarbahar_show.mp3
+  [<5s   ] banker_pays_all_en.mp3
+  [<5s   ] banker_takes_all_en.mp3
+  [<5s   ] betConfirm.mp3
+  [<5s   ] betConfirm.wav
+  [<5s   ] betall.mp3
+  [5-20s ] bg_connect.wav
+  [<5s   ] bg_drop_v1.wav
+  [5-20s ] bg_pass.wav
+  [5-20s ] bg_ready.wav
+  [<5s   ] bg_totalWin_v1.wav
+  [<5s   ] big(1).mp3
+  [<5s   ] big.mp3
+  [<5s   ] bigCatch_0.wav
+  [<5s   ] bigCatch_1.wav
+  [<5s   ] bigCatch_2.wav
+  [<5s   ] bigCatch_3.wav
+  [<5s   ] bigCatch_4.wav
+  [<5s   ] bigCatch_5.wav
+  [<5s   ] bigCatch_6.wav
+  [<5s   ] bigCatch_7.wav
+  [<5s   ] bigCatch_8.wav
+  [<5s   ] bigCatch_9.wav
+  [5-20s ] bigCatch_showNumber1.wav
+  [5-20s ] bigCatch_showNumber2.wav
+  [<5s   ] big_en.mp3
+  [5-20s ] bigwin#1.mp3
+  [5-20s ] bigwin.mp3
+  [<5s   ] bingo.wav
+  [<5s   ] blackjack_bet_done_F.wav
+  [<5s   ] blackjack_bet_done_M.wav
+  [<5s   ] blackjack_blackjack.wav
+  [<5s   ] blackjack_boom#1.wav
+  [<5s   ] blackjack_boom.wav
+  [<5s   ] blackjack_deal#1.wav
+  [<5s   ] blackjack_deal.wav
+  [<5s   ] blackjack_deal_turn#1.wav
+  [<5s   ] blackjack_deal_turn.wav
+  [<5s   ] blackjack_double_F.wav
+  [<5s   ] blackjack_double_M.wav
+  [<5s   ] blackjack_hit_F.wav
+  [<5s   ] blackjack_hit_M.wav
+  [<5s   ] blackjack_put_chips#1.wav
+  [<5s   ] blackjack_put_chips.wav
+  [<5s   ] blackjack_split_F.wav
+  [<5s   ] blackjack_split_M.wav
+  [<5s   ] blackjack_stand_F.wav
+  [<5s   ] blackjack_stand_M.wav
+  [5-20s ] bomb.wav
+  [<5s   ] bomb_V1.wav
+  [<5s   ] bonus_bingo.wav
+  [<5s   ] btn_extra&over.mp3
+  [<5s   ] btn_generic.mp3
+  [<5s   ] btn_jackpotrank.mp3
+  [<5s   ] btn_minus&plus.mp3
+  [<5s   ] btn_pause.mp3
+  [<5s   ] btn_refresh.mp3
+  [<5s   ] btn_start.mp3
+  [<5s   ] btn_turbo.mp3
+  [<5s   ] bubble.mp3
+  [<5s   ] button_7.mp3
+  [<5s   ] button_7.wav
+  [<5s   ] button_bar.mp3
+  [<5s   ] button_bar.wav
+  [<5s   ] button_bell.mp3
+  [<5s   ] button_bell.wav
+  [<5s   ] button_cherry.mp3
+  [<5s   ] button_cherry.wav
+  [<5s   ] button_lemon.mp3
+  [<5s   ] button_lemon.wav
+  [<5s   ] button_orange.mp3
+  [<5s   ] button_orange.wav
+  [<5s   ] button_star.mp3
+  [<5s   ] button_star.wav
+  [<5s   ] button_watermelon.mp3
+  [<5s   ] button_watermelon.wav
+  [<5s   ] card off shelf.mp3
+  [<5s   ] cards appear behind.mp3
+  [<5s   ] carot_middle win.mp3
+  [<5s   ] carot_middle win_v1.mp3
+  [<5s   ] carrot_add.mp3
+  [<5s   ] carrot_all up.mp3
+  [<5s   ] carrot_click.mp3
+  [<5s   ] carrot_collect.mp3
+  [<5s   ] carrot_drop.mp3
+  [<5s   ] carrot_drop_v1.mp3
+  [<5s   ] carrot_fly.mp3
+  [<5s   ] carrot_fly_v1.mp3
+  [<5s   ] carrot_shine.mp3
+  [<5s   ] carrot_small win.mp3
+  [<5s   ] carrot_small win_v1.mp3
+  [<5s   ] cgfCompleted.wav
+  [<5s   ] chineseNewYear_showNumber.wav
+  [5-20s ] chineseValentine_showNumber1.wav
+  [5-20s ] chineseValentine_showNumber2.wav
+  [<5s   ] chinese_action.mp3
+  [<5s   ] chinese_action.wav
+  [<5s   ] chinese_betSuccess.mp3
+  [<5s   ] chinese_betSuccess.wav
+  [<5s   ] chinese_drawingWinnings.mp3
+  [<5s   ] chinese_drawingWinnings.wav
+  [<5s   ] chip betting(1).mp3
+  [<5s   ] chip betting.mp3
+  [<5s   ] chip betting金币(1).mp3
+  [<5s   ] chip betting金币.mp3
+  [<5s   ] chip betting金币_v2.mp3
+  [<5s   ] chip confirmation(1).mp3
+  [<5s   ] chip confirmation(2).mp3
+  [<5s   ] chip confirmation.mp3
+  [<5s   ] chip fail(1).mp3
+  [<5s   ] chip fail(2).mp3
+  [<5s   ] chip fail.mp3
+  [<5s   ] chips return.mp3
+  [<5s   ] chips returning.mp3
+  [<5s   ] chipsReturn#1.mp3
+  [<5s   ] chipsReturn.mp3
+  [<5s   ] choose chips(1).mp3
+  [<5s   ] choose chips(2).mp3
+  [<5s   ] choose chips.mp3
+  [<5s   ] choose_present.wav
+  [<5s   ] christmas_os1.wav
+  [<5s   ] christmas_os2.wav
+  [<5s   ] christmas_os3.wav
+  [5-20s ] christmas_showNumber.wav
+  [<5s   ] clean up.mp3
+  [<5s   ] click button(1).mp3
+  [<5s   ] click button(2).mp3
+  [<5s   ] click button.mp3
+  [<5s   ] click chips(1).mp3
+  [<5s   ] click chips.mp3
+  [<5s   ] click(1).mp3
+  [<5s   ] click.mp3
+  [<5s   ] close the cards.mp3
+  [<5s   ] coin.mp3
+  [<5s   ] coins.mp3
+  [<5s   ] coins1_Stop.wav
+  [<5s   ] coins2_Stop.wav
+  [<5s   ] coins3_Stop.wav
+  [<5s   ] coins4_Stop.wav
+  [<5s   ] coins5_Stop.wav
+  [5-20s ] coins_shower#1.mp3
+  [5-20s ] coins_shower.mp3
+  [<5s   ] collect.wav
+  [<5s   ] cornucopia.mp3
+  [<5s   ] count down(1).mp3
+  [<5s   ] count down.mp3
+  [<5s   ] count.wav
+  [<5s   ] countDown#1.wav
+  [<5s   ] countDown.mp3
+  [<5s   ] countDown.wav
+  [<5s   ] countDown_0.mp3
+  [<5s   ] countDown_0.wav
+  [<5s   ] countDown_1.mp3
+  [<5s   ] countDown_1_en.mp3
+  [<5s   ] countDown_2.mp3
+  [<5s   ] countDown_2_en.mp3
+  [<5s   ] countDown_3.mp3
+  [<5s   ] countDown_3_en.mp3
+  [<5s   ] countDown_4_1#1.mp3
+  [<5s   ] countDown_4_1.mp3
+  [<5s   ] countDown_5#1.mp3
+  [<5s   ] countDown_5-1.mp3
+  [<5s   ] countDown_5-1.wav
+  [<5s   ] countDown_5.mp3
+  [<5s   ] countDown_en.mp3
+  [<5s   ] countDown_go.mp3
+  [<5s   ] countDown_go_en.mp3
+  [<5s   ] crazyBus_1.mp3
+  [<5s   ] crazyBus_2.mp3
+  [<5s   ] crazyBus_3.mp3
+  [<5s   ] crazyBus_4.mp3
+  [<5s   ] crazyBus_5.mp3
+  [<5s   ] crazyBus_6.mp3
+  [<5s   ] crazyBus_7.mp3
+  [<5s   ] crazyBus_8.mp3
+  [<5s   ] crazyBus_9.mp3
+  [<5s   ] cut card.mp3
+  [<5s   ] deal(4).mp3
+  [<5s   ] deal.mp3
+  [<5s   ] dealTurn#1.wav
+  [<5s   ] dealTurn.mp3
+  [<5s   ] dealTurn.wav
+  [<5s   ] dealTurn_en.mp3
+  [<5s   ] dealTurn_short#1.mp3
+  [<5s   ] dealTurn_short.mp3
+  [<5s   ] deal_turn.mp3
+  [<5s   ] deal_turn_en.mp3
+  [5-20s ] dinosaur_window.mp3
+  [5-20s ] dinosaur_window.wav
+  [<5s   ] dragonBoatFestival_back.wav
+  [<5s   ] dragonBoatFestival_showNumber.wav
+  [<5s   ] drop to the stack.mp3
+  [5-20s ] easter_bunny_window.mp3
+  [5-20s ] easter_bunny_window_v1.mp3
+  [<5s   ] egg_collect.mp3
+  [<5s   ] egg_collect_v1.mp3
+  [<5s   ] egg_collect_v2.mp3
+  [<5s   ] end#1.mp3
+  [<5s   ] end.mp3
+  [<5s   ] event_coinflip.mp3
+  [<5s   ] event_coinflips_extra ball.mp3
+  [<5s   ] event_coinflips_luckybonus.mp3
+  [<5s   ] event_coinflips_minigame.mp3
+  [<5s   ] event_coingrade_minigame.mp3
+  [<5s   ] event_jackpot_1.mp3
+  [<5s   ] event_jackpot_2.mp3
+  [<5s   ] event_jackpot_3.mp3
+  [<5s   ] event_luckyball.mp3
+  [<5s   ] event_luckybonus.mp3
+  [<5s   ] event_luckybonus_open.mp3
+  [<5s   ] event_luckybonus_prepare.mp3
+  [<5s   ] event_minigame.mp3
+  [<5s   ] event_pattern1.mp3
+  [<5s   ] event_pattern2.mp3
+  [<5s   ] event_pattern3.mp3
+  [<5s   ] event_pattern4.mp3
+  [<5s   ] event_pattern5.mp3
+  [<5s   ] event_pattern6.mp3
+  [5-20s ] event_pattern7.mp3
+  [5-20s ] event_pattern8.mp3
+  [5-20s ] event_pickball.mp3
+  [5-20s ] event_youwin.mp3
+  [<5s   ] extraGame.mp3
+  [<5s   ] extraGame.wav
+  [5-20s ] extraGame_1.mp3
+  [5-20s ] extraGame_end(1).mp3
+  [5-20s ] extraGame_end.mp3
+  [5-20s ] extraGame_end.wav
+  [5-20s ] extraGame_end_v1.mp3
+  [<5s   ] fgBigOddEff.wav
+  [<5s   ] fgForecast.wav
+  [<5s   ] fgFree_Spins_Number.wav
+  [<5s   ] fgFree_Spins_Word.wav
+  [<5s   ] fgGameOver1.wav
+  [<5s   ] fgGameOver2.wav
+  [<5s   ] fgIcon.wav
+  [<5s   ] fgInto_Message.wav
+  [<5s   ] fgInto_SceneChange.wav
+  [<5s   ] fgOdd1.wav
+  [<5s   ] fgOdd2.wav
+  [<5s   ] fgSPreelStop.wav
+  [<5s   ] fg_extraGame(1).mp3
+  [5-20s ] fg_extraGame(1).wav
+  [<5s   ] fg_extraGame.mp3
+  [5-20s ] fg_extraGame.wav
+  [<5s   ] fg_extraGame_end(1).mp3
+  [<5s   ] fg_extraGame_end.mp3
+  [<5s   ] fg_extraGame_end.wav
+  [<5s   ] fg_levelUp.wav
+  [<5s   ] fg_pass.wav
+  [5-20s ] fg_ready.wav
+  [<5s   ] fgmg_pass_ng.mp3
+  [<5s   ] fgmg_pass_ng.wav
+  [<5s   ] flop.mp3
+  [<5s   ] fold_1_en.mp3
+  [<5s   ] fold_2_en.mp3
+  [<5s   ] fold_3_en.mp3
+  [5-20s ] gameStart.wav
+  [<5s   ] gameStop.wav
+  [5-20s ] game_BigWin.wav
+  [5-20s ] game_BigWin_music.wav
+  [5-20s ] game_Ending.wav
+  [5-20s ] game_MegaWin.wav
+  [5-20s ] game_MegaWin_music.wav
+  [>20s  ] game_Riser.wav
+  [5-20s ] game_SuperWin.wav
+  [5-20s ] game_SuperWin_music.wav
+  [<5s   ] game_UI#1.mp3
+  [<5s   ] game_UI.mp3
+  [<5s   ] game_UI.wav
+  [<5s   ] game_betDown.wav
+  [<5s   ] game_betUp.wav
+  [<5s   ] game_click#1.mp3
+  [<5s   ] game_click(1).mp3
+  [<5s   ] game_click.mp3
+  [<5s   ] game_click_en.mp3
+  [<5s   ] game_maxBet.wav
+  [<5s   ] game_spin.wav
+  [<5s   ] game_start#1.wav
+  [<5s   ] game_start.wav
+  [<5s   ] game_start_en.mp3
+  [<5s   ] ghost_drop.wav
+  [<5s   ] glodBug_collect(1).mp3
+  [<5s   ] glodBug_collect.mp3
+  [5-20s ] goat_showNumber1.wav
+  [5-20s ] goat_showNumber2.wav
+  [<5s   ] goldenPiggy_V1_showNumber.wav
+  [<5s   ] goldenPiggy_V1_showNumber_zero.wav
+  [<5s   ] goldenPiggy_V1_spinCoin.wav
+  [5-20s ] goldenPiggy_V2_showNumber.wav
+  [>20s  ] grand jackpot(1).wav
+  [>20s  ] grand jackpot.wav
+  [<5s   ] guest_putChip#1.mp3
+  [<5s   ] guest_putChip.mp3
+  [>20s  ] halloween_amb.wav
+  [5-20s ] halloween_showNumber1.wav
+  [5-20s ] halloween_showNumber2.wav
+  [5-20s ] halloween_showNumber3.wav
+  [5-20s ] halloween_showNumber4.wav
+  [5-20s ] halloween_showNumber5.wav
+  [5-20s ] halloween_showNumber6.wav
+  [5-20s ] halloween_showNumber7.wav
+  [5-20s ] halloween_showNumber8.wav
+  [5-20s ] halloween_showNumber9.wav
+  [5-20s ] jackpot-win.mp3
+  [<5s   ] jpg_get point.mp3
+  [<5s   ] jpg_pass.mp3
+  [5-20s ] labor_showNumbers.mp3
+  [5-20s ] lanternFestival_showNumber.wav
+  [5-20s ] lanternFestival_showNumbers.mp3
+  [<5s   ] leopard(1).mp3
+  [<5s   ] leopard.mp3
+  [<5s   ] leopard_en.mp3
+  [<5s   ] lightening.mp3
+  [5-20s ] loading page.mp3
+  [5-20s ] loading.mp3
+  [5-20s ] loading.wav
+  [<5s   ] loading_v1.mp3
+  [<5s   ] lobby_UI#1.mp3
+  [<5s   ] lobby_UI.mp3
+  [<5s   ] lobby_UI_choose#1.mp3
+  [<5s   ] lobby_UI_choose.mp3
+  [<5s   ] locked(1).wav
+  [<5s   ] locked.wav
+  [<5s   ] locked_v1.wav
+  [<5s   ] login.wav
+  [>20s  ] loop_minigame.mp3
+  [>20s  ] major jackpot.wav
+  [<5s   ] mega round popup.mp3
+  [5-20s ] megawin#1.mp3
+  [5-20s ] megawin.mp3
+  [<5s   ] mg_click.wav
+  [<5s   ] mg_click_v1.wav
+  [<5s   ] mg_contDown.wav
+  [<5s   ] mg_dragon.wav
+  [<5s   ] mg_dragon_attack.wav
+  [<5s   ] mg_dragon_hurt.wav
+  [<5s   ] mg_eatMeat.wav
+  [<5s   ] mg_failed.wav
+  [<5s   ] mg_fallingStars.wav
+  [<5s   ] mg_levelUp.wav
+  [<5s   ] mg_pass.wav
+  [<5s   ] mg_pass_v1.wav
+  [<5s   ] mg_run.wav
+  [<5s   ] mg_start.wav
+  [<5s   ] mg_timesUp.wav
+  [5-20s ] mg_win.wav
+  [<5s   ] mg_win_appear.wav
+  [>20s  ] minor jackpot.wav
+  [<5s   ] mm02_showNumbers.mp3
+  [<5s   ] mm02_singleCard.mp3
+  [<5s   ] mm04_reset.wav
+  [<5s   ] mm04_showNumber.wav
+  [<5s   ] mm06_manyFists.mp3
+  [<5s   ] mm06_manyPunches.mp3
+  [<5s   ] mm06_manySlaps.mp3
+  [<5s   ] mm06_oneFist.mp3
+  [<5s   ] mm06_onePunch.mp3
+  [<5s   ] mm06_oneSlap.mp3
+  [5-20s ] mm07_showNumber.wav
+  [<5s   ] mm08_swooshAndShowNumber.wav
+  [<5s   ] money.wav
+  [5-20s ] monkey_showNumber.wav
+  [>20s  ] moonFestival_amb.wav
+  [5-20s ] moonFestival_showNumber1.wav
+  [5-20s ] moonFestival_showNumber2.wav
+  [5-20s ] moonFestival_showNumber3.wav
+  [5-20s ] moonFestival_showNumber4.wav
+  [<5s   ] multiple bets_2.mp3
+  [<5s   ] multiple.mp3
+  [<5s   ] national_open010203.wav
+  [<5s   ] national_open04.wav
+  [<5s   ] national_open05.wav
+  [5-20s ] newYear_showNumbers.mp3
+  [<5s   ] ngFrame.wav
+  [<5s   ] ngLine(1).wav
+  [<5s   ] ngLine.wav
+  [<5s   ] ngLineNumber.wav
+  [<5s   ] ngOdd1.wav
+  [<5s   ] ngOdd2.wav
+  [<5s   ] ngPrize1.wav
+  [<5s   ] ngPrize2.wav
+  [<5s   ] ngRoll.wav
+  [<5s   ] ngSPreelStop1.wav
+  [<5s   ] ngSPreelStop2.wav
+  [<5s   ] ngSPreelStop3.wav
+  [<5s   ] ngStart.wav
+  [<5s   ] ngStop(1).wav
+  [<5s   ] ngStop.wav
+  [5-20s ] ng_fg_pass.mp3
+  [5-20s ] ng_fg_pass.wav
+  [5-20s ] ng_mg_pass.mp3
+  [5-20s ] ng_mg_pass.wav
+  [<5s   ] no_10(1).mp3
+  [<5s   ] no_10.mp3
+  [<5s   ] no_11(1).mp3
+  [5-20s ] no_11.mp3
+  [<5s   ] no_12(1).mp3
+  [5-20s ] no_12.mp3
+  [<5s   ] no_13_1.mp3
+  [<5s   ] no_13_2.mp3
+  [<5s   ] no_13_3.mp3
+  [>20s  ] no_14(1).mp3
+  [>20s  ] no_15(1).mp3
+  [5-20s ] no_16(1).mp3
+  [5-20s ] no_17(1).mp3
+  [>20s  ] no_17.mp3
+  [>20s  ] no_18(2).mp3
+  [5-20s ] no_18.mp3
+  [5-20s ] no_19(2).mp3
+  [5-20s ] no_19.mp3
+  [>20s  ] no_2.mp3
+  [<5s   ] no_20.mp3
+  [<5s   ] no_21.mp3
+  [<5s   ] no_22(1).mp3
+  [5-20s ] no_22(2).mp3
+  [<5s   ] no_22.mp3
+  [<5s   ] no_23(1).mp3
+  [<5s   ] no_23.mp3
+  [<5s   ] no_24.mp3
+  [<5s   ] no_24_1.mp3
+  [<5s   ] no_24_2.mp3
+  [<5s   ] no_25(2).mp3
+  [<5s   ] no_25.mp3
+  [<5s   ] no_26(1).mp3
+  [<5s   ] no_26(2).mp3
+  [<5s   ] no_26.mp3
+  [<5s   ] no_27(1).mp3
+  [<5s   ] no_27.mp3
+  [<5s   ] no_28.mp3
+  [<5s   ] no_28_1.mp3
+  [<5s   ] no_28_2.mp3
+  [<5s   ] no_29.mp3
+  [<5s   ] no_29_1.mp3
+  [<5s   ] no_29_2.mp3
+  [<5s   ] no_3.mp3
+  [<5s   ] no_30(2).mp3
+  [<5s   ] no_30.mp3
+  [<5s   ] no_31(1).mp3
+  [<5s   ] no_31(2).mp3
+  [<5s   ] no_31.mp3
+  [<5s   ] no_32(1).mp3
+  [<5s   ] no_32.mp3
+  [<5s   ] no_33(1).mp3
+  [<5s   ] no_33(2).mp3
+  [<5s   ] no_33.mp3
+  [<5s   ] no_34(2).mp3
+  [<5s   ] no_34.mp3
+  [<5s   ] no_35(2).mp3
+  [<5s   ] no_35.mp3
+  [<5s   ] no_36(2).mp3
+  [<5s   ] no_36.mp3
+  [<5s   ] no_37(2).mp3
+  [5-20s ] no_37.mp3
+  [<5s   ] no_38.mp3
+  [<5s   ] no_39(1).mp3
+  [<5s   ] no_39.mp3
+  [<5s   ] no_4.mp3
+  [<5s   ] no_40(2).mp3
+  [<5s   ] no_40.mp3
+  [<5s   ] no_41(1).mp3
+  [5-20s ] no_41(2).mp3
+  [<5s   ] no_41.mp3
+  [<5s   ] no_42(1).mp3
+  [<5s   ] no_42.mp3
+  [<5s   ] no_43.mp3
+  [<5s   ] no_44.mp3
+  [<5s   ] no_45.mp3
+  [<5s   ] no_46.mp3
+  [<5s   ] no_5.mp3
+  [<5s   ] no_5_2.mp3
+  [<5s   ] no_6(1).mp3
+  [<5s   ] no_6.mp3
+  [<5s   ] no_7.mp3
+  [<5s   ] no_8.mp3
+  [<5s   ] no_9(1).mp3
+  [<5s   ] no_9(2).mp3
+  [<5s   ] no_9.mp3
+  [5-20s ] normalBigWin.wav
+  [<5s   ] normalSmallWin.wav
+  [<5s   ] okey_choose card#1.wav
+  [<5s   ] okey_choose card.wav
+  [<5s   ] okey_deal#1.wav
+  [<5s   ] okey_deal.wav
+  [<5s   ] okey_final card#1.wav
+  [<5s   ] okey_final card.wav
+  [<5s   ] okey_my_turn#1.wav
+  [<5s   ] okey_my_turn.wav
+  [<5s   ] okey_put cards#1.wav
+  [<5s   ] okey_put cards.wav
+  [<5s   ] okey_swipe#1.wav
+  [<5s   ] okey_swipe.wav
+  [<5s   ] okey_swipe2#1.wav
+  [<5s   ] okey_swipe2.wav
+  [<5s   ] okey_win#1.wav
+  [<5s   ] okey_win.wav
+  [<5s   ] opening(1).wav
+  [<5s   ] opening.wav
+  [<5s   ] opening_v1(1).wav
+  [<5s   ] opening_v1.wav
+  [5-20s ] pass in.mp3
+  [<5s   ] pass out.mp3
+  [<5s   ] pharaohScatter_collect.mp3
+  [<5s   ] pharaohScatter_collect_v1.mp3
+  [<5s   ] pharaohScatter_collect_v2.mp3
+  [<5s   ] pharaohScatter_drop.mp3
+  [<5s   ] pirate_laugh.wav
+  [<5s   ] pirate_sord.wav
+  [<5s   ] play&pause.mp3
+  [<5s   ] player_putChip#1.mp3
+  [<5s   ] player_putChip.mp3
+  [<5s   ] present_bingo.wav
+  [<5s   ] present_bingo_v2.wav
+  [<5s   ] present_drop.wav
+  [<5s   ] present_drop_v1.wav
+  [<5s   ] present_fly.wav
+  [<5s   ] present_fly_v2.wav
+  [<5s   ] present_fly_wheel.wav
+  [<5s   ] present_get_score.wav
+  [<5s   ] present_get_score_v1.wav
+  [<5s   ] present_straight_light.wav
+  [<5s   ] present_straight_light_v1.wav
+  [<5s   ] public_UI.wav
+  [<5s   ] put_chips.mp3
+  [<5s   ] put_chips_en.mp3
+  [>20s  ] rabbit_AMB.wav
+  [5-20s ] rabbit_showNumber1.wav
+  [5-20s ] rabbit_showNumber2.wav
+  [5-20s ] reel_whirling.wav
+  [<5s   ] reel_win.wav
+  [<5s   ] return.mp3
+  [<5s   ] return3.wav
+  [<5s   ] riser(1).wav
+  [<5s   ] riser(2).wav
+  [5-20s ] riser(3).mp3
+  [<5s   ] riser.mp3
+  [5-20s ] riser.wav
+  [<5s   ] riser_v1.mp3
+  [<5s   ] riser_v1.wav
+  [<5s   ] riser_v2(1).mp3
+  [<5s   ] riser_v2.mp3
+  [<5s   ] run score_01.mp3
+  [<5s   ] run score_02.mp3
+  [<5s   ] runLight_1.wav
+  [<5s   ] runLight_2.wav
+  [<5s   ] runLight_3.wav
+  [<5s   ] runLight_4.wav
+  [<5s   ] runLight_5.wav
+  [<5s   ] runLight_6.wav
+  [<5s   ] runScore_01(1).wav
+  [<5s   ] runScore_01(2).mp3
+  [<5s   ] runScore_01(2).wav
+  [<5s   ] runScore_01.wav
+  [<5s   ] runScore_01_V1(2).mp3
+  [<5s   ] runScore_01_v1(1).wav
+  [<5s   ] runScore_01_v1.wav
+  [<5s   ] runScore_01_v2.mp3
+  [<5s   ] runScore_01_v2.wav
+  [<5s   ] runScore_02(1).wav
+  [<5s   ] runScore_02(2).mp3
+  [<5s   ] runScore_02(2).wav
+  [<5s   ] runScore_02.wav
+  [<5s   ] runScore_02_V1(1).mp3
+  [<5s   ] runScore_02_V1(2).mp3
+  [<5s   ] runScore_02_v1(1).wav
+  [<5s   ] runScore_02_v1.wav
+  [<5s   ] runScore_02_v2.wav
+  [<5s   ] sangong_0_points_F#1.wav
+  [<5s   ] sangong_0_points_F.wav
+  [<5s   ] sangong_0_points_M.wav
+  [<5s   ] sangong_1_points_F#1.wav
+  [<5s   ] sangong_1_points_F.wav
+  [<5s   ] sangong_1_points_M.wav
+  [<5s   ] sangong_2_points_F#1.wav
+  [<5s   ] sangong_2_points_F.wav
+  [<5s   ] sangong_2_points_M.wav
+  [<5s   ] sangong_3_points_F#1.wav
+  [<5s   ] sangong_3_points_F.wav
+  [<5s   ] sangong_3_points_M.wav
+  [<5s   ] sangong_4_points_F#1.wav
+  [<5s   ] sangong_4_points_F.wav
+  [<5s   ] sangong_4_points_M.wav
+  [<5s   ] sangong_5_points_F#1.wav
+  [<5s   ] sangong_5_points_F.wav
+  [<5s   ] sangong_5_points_M.wav
+  [<5s   ] sangong_6_points_F#1.wav
+  [<5s   ] sangong_6_points_F.wav
+  [<5s   ] sangong_6_points_M.wav
+  [<5s   ] sangong_7_points_F#1.wav
+  [<5s   ] sangong_7_points_F.wav
+  [<5s   ] sangong_7_points_M.wav
+  [<5s   ] sangong_8_points_F#1.wav
+  [<5s   ] sangong_8_points_F.wav
+  [<5s   ] sangong_8_points_M.wav
+  [<5s   ] sangong_9_points_F#1.wav
+  [<5s   ] sangong_9_points_F.wav
+  [<5s   ] sangong_9_points_M.wav
+  [<5s   ] sangong_bankerChosen#1.wav
+  [<5s   ] sangong_bankerChosen.wav
+  [<5s   ] sangong_blast_nine_F#1.wav
+  [<5s   ] sangong_blast_nine_F.wav
+  [<5s   ] sangong_blast_nine_M.wav
+  [<5s   ] sangong_bomb_F#1.wav
+  [<5s   ] sangong_bomb_F.wav
+  [<5s   ] sangong_bomb_M.wav
+  [<5s   ] sangong_chipsRun#1.wav
+  [<5s   ] sangong_chipsRun.wav
+  [<5s   ] sangong_chooseBanker#1.wav
+  [<5s   ] sangong_chooseBanker.wav
+  [<5s   ] sangong_claimBanker_F#1.wav
+  [<5s   ] sangong_claimBanker_F.wav
+  [<5s   ] sangong_claimBanker_M.wav
+  [<5s   ] sangong_noClaim_F#1.wav
+  [<5s   ] sangong_noClaim_F.wav
+  [<5s   ] sangong_noClaim_M.wav
+  [<5s   ] sangong_three_toy_F#1.wav
+  [<5s   ] sangong_three_toy_F.wav
+  [<5s   ] sangong_three_toy_M.wav
+  [<5s   ] sangong_win#1.wav
+  [<5s   ] sangong_win.wav
+  [<5s   ] sangong_winAll#1.wav
+  [<5s   ] sangong_winAll.wav
+  [<5s   ] santa_bingo_pass.wav
+  [<5s   ] santa_bingo_pass_v1.wav
+  [<5s   ] santa_jump.wav
+  [5-20s ] santa_merry_Xmas.wav
+  [<5s   ] santa_show.wav
+  [<5s   ] scatter_collect(1).mp3
+  [<5s   ] scatter_collect.wav
+  [<5s   ] scatter_collect_finish(1).mp3
+  [<5s   ] scatter_collect_finish.wav
+  [<5s   ] scatter_collect_finish_v1.wav
+  [<5s   ] scatter_collect_v1.wav
+  [<5s   ] scatter_connect(1).wav
+  [<5s   ] scatter_connect(2).mp3
+  [<5s   ] scatter_connect(2).wav
+  [<5s   ] scatter_connect.mp3
+  [<5s   ] scatter_connect.wav
+  [<5s   ] scatter_connect_v1.wav
+  [<5s   ] scatter_drop(1).wav
+  [<5s   ] scatter_drop(2).mp3
+  [<5s   ] scatter_drop(2).wav
+  [<5s   ] scatter_drop.mp3
+  [<5s   ] scatter_drop.wav
+  [<5s   ] scatter_drop_v1(1).wav
+  [<5s   ] scatter_drop_v1.mp3
+  [<5s   ] scatter_drop_v1.wav
+  [<5s   ] scatter_drop_v2.wav
+  [<5s   ] screen_forward.mp3
+  [<5s   ] sfg_present_fly_v1.wav
+  [<5s   ] shuffle.mp3
+  [<5s   ] small card 1.5k.mp3
+  [<5s   ] small card 100.mp3
+  [<5s   ] small card 200.mp3
+  [<5s   ] small card 200_2.mp3
+  [<5s   ] small card 300.mp3
+  [<5s   ] small card 500.mp3
+  [<5s   ] small card effect.mp3
+  [<5s   ] small(1).mp3
+  [<5s   ] small.mp3
+  [<5s   ] small_en.mp3
+  [<5s   ] snagong_compensation_to_all#1.wav
+  [<5s   ] snagong_compensation_to_all.wav
+  [<5s   ] start_bet(1).mp3
+  [<5s   ] start_bet.mp3
+  [<5s   ] start_bet_en.mp3
+  [<5s   ] start_spin.wav
+  [<5s   ] stoneWall_close.mp3
+  [<5s   ] stoneWall_close_v1.mp3
+  [5-20s ] stoneWall_open.mp3
+  [<5s   ] stoneWall_open_v1.mp3
+  [<5s   ] stop(1).mp3
+  [<5s   ] stop(1).wav
+  [<5s   ] stop(2).mp3
+  [<5s   ] stop(2).wav
+  [<5s   ] stop(3).mp3
+  [<5s   ] stop.mp3
+  [<5s   ] stop.wav
+  [<5s   ] stop_bet(1).mp3
+  [<5s   ] stop_bet.mp3
+  [<5s   ] stop_bet_en.mp3
+  [<5s   ] stop_v1(1).mp3
+  [<5s   ] stop_v1.wav
+  [5-20s ] superwin#1.mp3
+  [5-20s ] superwin.mp3
+  [<5s   ] teenpatti_all_fold#1.wav
+  [<5s   ] teenpatti_all_fold.wav
+  [<5s   ] teenpatti_bet_limit#1.wav
+  [<5s   ] teenpatti_bet_limit.wav
+  [<5s   ] teenpatti_boom#1.wav
+  [<5s   ] teenpatti_boom.wav
+  [<5s   ] teenpatti_pk_show#1.wav
+  [<5s   ] teenpatti_pk_show.wav
+  [<5s   ] teenpatti_pk_start#1.wav
+  [<5s   ] teenpatti_pk_start.wav
+  [<5s   ] teenpatti_straight#1.wav
+  [<5s   ] teenpatti_straight.wav
+  [<5s   ] teenpatti_straight_flush#1.wav
+  [<5s   ] teenpatti_straight_flush.wav
+  [<5s   ] teenpatti_three of a kind#1.wav
+  [<5s   ] teenpatti_three of a kind.wav
+  [<5s   ] teenpatti_win#1.wav
+  [<5s   ] teenpatti_win.wav
+  [5-20s ] tiger_showNumber.wav
+  [<5s   ] times 2.mp3
+  [<5s   ] twoLight_do.wav
+  [<5s   ] twoLight_so.wav
+  [<5s   ] twoRunningLight.wav
+  [<5s   ] unlocked(1).wav
+  [<5s   ] unlocked.wav
+  [<5s   ] unlocked_v1.wav
+  [5-20s ] valentine_showNumbers.wav
+  [<5s   ] warn_window#1.mp3
+  [<5s   ] warn_window.mp3
+  [<5s   ] wheel_spin.wav
+  [<5s   ] wheel_stop.wav
+  [<5s   ] wheel_stop_v1.wav
+  [<5s   ] wheel_up.wav
+  [<5s   ] wild_dragon.wav
+  [<5s   ] wild_drop.wav
+  [<5s   ] wild_drop_v1.wav
+  [5-20s ] win_blue_red(1).mp3
+  [5-20s ] win_blue_red.mp3
+  [5-20s ] win_loop.wav
+  [<5s   ] win_oneshot.wav
+  [5-20s ] win_purple.mp3
+  [<5s   ] wishCandle_V3_0.wav
+  [<5s   ] wishCandle_V3_1.wav
+  [<5s   ] wishCandle_V3_2.wav
+  [<5s   ] wishCandle_V3_3.wav
+  [<5s   ] wishCandle_V3_4.wav
+  [<5s   ] wishCandle_V3_5.wav
+  [<5s   ] wishCandle_V3_6.wav
+  [<5s   ] wishCandle_V3_7.wav
+  [<5s   ] wishCandle_V3_8.wav
+  [<5s   ] wishCandle_V3_9.wav
+  [5-20s ] wishCandle_V3_showNumber1.wav
+  [<5s   ] wishCandle_V3_showNumber2.wav
+  [5-20s ] wishCandle_V3_showNumber3.wav
+  [5-20s ] wishCandle_V3_showNumber4.wav
+  [<5s   ] x2 Double _ Spin.mp3
+  [5-20s ] xmas_window.wav
+  [<5s   ] zeus_fire.wav
+  [<5s   ] zeus_fire_v1_volume up.wav
+  [5-20s ] 中獎_Lv1.mp3
+  [5-20s ] 中獎_Lv1.wav
+  [5-20s ] 中獎_Lv2.mp3
+  [5-20s ] 中獎_Lv2.wav
+  [<5s   ] 中獎_Lv3.mp3
+  [<5s   ] 中獎_Lv3.wav
+  [<5s   ] 中獎_Lv4.mp3
+  [<5s   ] 中獎_Lv4.wav
+  [<5s   ] 中獎_Lv5.mp3
+  [<5s   ] 中獎_Lv5.wav
+  [5-20s ] 中獎_Lv6.mp3
+  [5-20s ] 中獎_Lv6.wav
+  [5-20s ] 中獎_Lv7.mp3
+  [5-20s ] 中獎_Lv7.wav
+  [5-20s ] 中獎_Lv8.mp3
+  [5-20s ] 中獎_Lv8.wav
+  [>20s  ] 倒楣俏皮(0309S).wav
+  [>20s  ] 倒楣搖滾俏皮(0303S).wav
+  [>20s  ] 倒楣搖滾俏皮(0303S)加長.wav
+  [>20s  ] 南島俏皮(0331S).wav
+  [>20s  ] 埃及拉霸_仿神鬼傳奇壯闊版(0817S).wav
+  [>20s  ] 埃及拉霸_吹笛引蛇(0818S).wav
+  [>20s  ] 大愛儲備_輕快希望前進(0504S).wav
+  [>20s  ] 大摳呆俏皮(0908S).wav
+  [>20s  ] 大聖捕魚_BOSS.wav
+  [>20s  ] 天堂與地獄序曲(0601S).wav
+  [>20s  ] 宙斯_Bg_0513.ogg
+  [>20s  ] 宙斯_Fg_0513.ogg
+  [>20s  ] 宙斯_Ng_Mix_0504.ogg
+  [>20s  ] 尷尬俏皮(0309S).wav
+  [>20s  ] 尷尬俏皮(0322S).wav
+  [>20s  ] 快樂pizz(0413S).wav
+  [>20s  ] 思考轉溫馨感人(0429S).wav
+  [>20s  ] 恐怖的頭髮＿喜歡你＿B flat key_修改(1121S).wav
+  [>20s  ] 愛上哥們_尷尬俏皮(1001S).wav
+  [>20s  ] 愛上哥們_尷尬俏皮(1001S)速度降慢.wav
+  [>20s  ] 愛上花豹女_詭異的相遇(1011S).wav
+  [>20s  ] 搞笑俏皮(0326S).wav
+  [>20s  ] 搞笑俏皮(0706S).wav
+  [>20s  ] 料理決鬥俏皮(0126S) 30sec_日本配器音階.wav
+  [>20s  ] 料理決鬥俏皮(0126S) 50sec_日本配器音階.wav
+  [>20s  ] 晨操俏皮(0904S).wav
+  [5-20s ] 普通小獎_1-1_Slow.mp3
+  [5-20s ] 普通小獎_1-1_Slow.wav
+  [5-20s ] 普通小獎_1-2.mp3
+  [5-20s ] 普通小獎_1-2.wav
+  [5-20s ] 普通小獎_2-1_Slow.mp3
+  [5-20s ] 普通小獎_2-1_Slow.wav
+  [5-20s ] 普通小獎_2-2.mp3
+  [5-20s ] 普通小獎_2-2.wav
+  [<5s   ] 普通小獎_4-1. 沒贏.mp3
+  [<5s   ] 普通小獎_4-1. 沒贏.wav
+  [5-20s ] 普通小獎_4-2. 小贏(中1個送燈).mp3
+  [5-20s ] 普通小獎_4-2. 小贏(中1個送燈).wav
+  [5-20s ] 普通小獎_4-3. 中贏(中2個送燈).mp3
+  [5-20s ] 普通小獎_4-3. 中贏(中2個送燈).wav
+  [5-20s ] 普通小獎_4-4. 大贏(中3個送燈).mp3
+  [5-20s ] 普通小獎_4-4. 大贏(中3個送燈).wav
+  [5-20s ] 普通小獎_大贏.3-3_n2.mp3
+  [5-20s ] 普通小獎_大贏.3-3_n2.wav
+  [<5s   ] 普通小獎_小贏.3-2.mp3
+  [<5s   ] 普通小獎_小贏.3-2.wav
+  [<5s   ] 普通小獎_沒贏.3-1.mp3
+  [<5s   ] 普通小獎_沒贏.3-1.wav
+  [>20s  ] 李國銘_南島俏皮(0331S).wav
+  [>20s  ] 無理頭鬼祟俏皮(0302S).wav
+  [>20s  ] 異國俏皮(0702S).wav
+  [>20s  ] 終_衷(片尾曲).wav
+  [>20s  ] 老土俏皮(0901S).wav
+  [>20s  ] 被罵的俏皮(0904S).wav
+  [>20s  ] 誰是大廚.wav
+  [>20s  ] 谷風少年_白目國中生(1020S).wav
+  [>20s  ] 賊賊俏皮(0331S).wav
+  [>20s  ] 輕快浪漫(0730S).wav
+  [>20s  ] 輕鬆享用美食(0731S).wav
+  [>20s  ] 輕鬆俏皮(0615S).wav
+  [>20s  ] 輕鬆俏皮(0811S).wav
+  [>20s  ] 輕鬆可愛(0713S).wav
+  [>20s  ] 輕鬆溫馨(0729S).wav
+
+=== 未知 (46 檔) ===
+  [<5s   ] 0.mp3
+  [<5s   ] 1.mp3
+  [>20s  ] 11005101.wav
+  [5-20s ] 11005102.wav
+  [>20s  ] 11005103.wav
+  [5-20s ] 11005104.wav
+  [5-20s ] 11005105.wav
+  [5-20s ] 11005106.wav
+  [5-20s ] 11005107.wav
+  [<5s   ] 11005108.wav
+  [>20s  ] 11005109.wav
+  [>20s  ] 11008101.wav
+  [>20s  ] 11008102.wav
+  [5-20s ] 11008103.wav
+  [5-20s ] 11008104.wav
+  [5-20s ] 11008105.wav
+  [5-20s ] 11008106.wav
+  [5-20s ] 11008107.wav
+  [<5s   ] 11008108.wav
+  [>20s  ] 11008109.wav
+  [5-20s ] 11008241.wav
+  [<5s   ] 16.mp3
+  [<5s   ] 17.mp3
+  [<5s   ] 18.mp3
+  [<5s   ] 19.mp3
+  [<5s   ] 2.mp3
+  [<5s   ] 20.mp3
+  [<5s   ] 21.mp3
+  [<5s   ] 22.mp3
+  [<5s   ] 23.mp3
+  [<5s   ] 24.mp3
+  [<5s   ] 25.mp3
+  [<5s   ] 26.mp3
+  [<5s   ] 27.mp3
+  [<5s   ] 28.mp3
+  [<5s   ] 29.mp3
+  [<5s   ] 3.mp3
+  [<5s   ] 30.mp3
+  [<5s   ] 31.mp3
+  [<5s   ] 32.mp3
+  [<5s   ] 33.mp3
+  [<5s   ] 34.mp3
+  [<5s   ] 35.mp3
+  [<5s   ] 36.mp3
+  [<5s   ] 4.mp3
+  [<5s   ] 5.mp3
