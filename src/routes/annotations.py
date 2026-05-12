@@ -225,8 +225,15 @@ def upsert_annotation(
     now = _utcnow()
 
     if existing:
-        for field in CONTINUOUS_DIMENSION_FIELDS:
+        # Phase 7：acoustic 兩維由 librosa 寫 AudioFile，新 client 不送這兩欄 → payload 為 None。
+        # update path 對這兩維 skip None，避免清掉 258 筆歷史 human acoustic 值（人類聽覺偏誤研究素材）。
+        # 其他 7 個 human 維度仍無條件寫入（None 是合法草稿狀態）。
+        for field in HUMAN_CONTINUOUS_DIMENSION_FIELDS:
             setattr(existing, field, getattr(payload, field))
+        for field in ("tonal_noise_ratio", "spectral_density"):
+            new_value = getattr(payload, field)
+            if new_value is not None:
+                setattr(existing, field, new_value)
         existing.loop_capability = json.dumps(payload.loop_capability)
         existing.source_type = json.dumps(payload.source_type)
         existing.function_roles = json.dumps(payload.function_roles)
