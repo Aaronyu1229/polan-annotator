@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>可鎖 Gold 清單 — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <main class="max-w-5xl mx-auto p-6">
+    <header class="mb-6 flex items-baseline justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold">🏆 可鎖 Gold 清單</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          ≥ 2 人標 + 每維 max-min spread ≤ 0.20 的音檔。
+          按 spread 由小到大排,最穩的先鎖。
+        </p>
+      </div>
+      <a href="/dashboard" class="text-sm text-slate-500 hover:text-amber-500">← Dashboard</a>
+    </header>
+
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div id="meta" class="p-3 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">載入中…</div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 dark:bg-slate-900/70 text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+          <tr>
+            <th class="text-left p-3 font-medium">遊戲 / 段落</th>
+            <th class="text-left p-3 font-medium">標註員</th>
+            <th class="text-right p-3 font-medium">最大 spread</th>
+            <th class="text-left p-3 font-medium">維度</th>
+            <th class="text-right p-3 font-medium w-40">動作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+
+    <footer class="mt-4 text-xs text-slate-500 dark:text-slate-500 space-y-1">
+      <p>💡 鎖為 gold 後該檔進入 Sample Pack / 商用授權集合。</p>
+      <p>⚠️ 鎖了仍可 unlock,但每次操作會留 timestamp。</p>
+    </footer>
+  </main>
+
+  <script type="module" src="/static/auth.js"></script>
+  <script type="module" src="/static/lockable-list.js"></script>
+</body>
+</html>

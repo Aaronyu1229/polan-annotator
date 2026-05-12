@@ -592,3 +592,58 @@ def test_reconcile_save_via_annotations_post_updates_amber(
     data = r.json()
     amber_ann = next(a for a in data["annotations"] if a["annotator_id"] == "amber")
     assert amber_ann["valence"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Phase 12-A: lockable list endpoint
+# ---------------------------------------------------------------------------
+
+def test_lockable_list_returns_only_lockable(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """只回 status=lockable,不該含 cross / gold / draft。"""
+    # 1 lockable (tight spread)
+    a_lock = _make_audio(in_memory_engine, "L_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a_lock, 0.5, 0.55)
+    # 1 cross (wide spread) — 不該出現
+    a_cross = _make_audio(in_memory_engine, "C_X.wav")
+    _make_two_complete_annotations(in_memory_engine, a_cross, 0.1, 0.9)
+    # 1 draft — 不該出現
+    a_draft = _make_audio(in_memory_engine, "D_X.wav")
+    _make_amber_completed_annotation(in_memory_engine, a_draft)
+
+    r = client.get("/api/admin/lockable/list?annotator=amber")
+    assert r.status_code == 200, r.text
+    items = r.json()
+    filenames = [it["filename"] for it in items]
+    assert filenames == ["L_X.wav"]
+    assert items[0]["max_spread_value"] is not None
+    assert items[0]["max_spread_value"] <= 0.20  # gold threshold
+
+
+def test_lockable_list_requires_admin(client, in_memory_engine, tmp_annotators_config):
+    from src import main as main_module
+    from src.middleware import require_auth
+    main_module.app.dependency_overrides[require_auth] = lambda: {
+        "annotator_id": "vvgosick", "email": "x", "is_admin": False, "name": None,
+    }
+    try:
+        r = client.get("/api/admin/lockable/list")
+        assert r.status_code == 403
+    finally:
+        main_module.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_lockable_then_lock_gold_full_flow(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """全流程:lockable 清單看到 → POST lock_gold → 清單空。"""
+    audio_id = _make_audio(in_memory_engine, "F_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
+
+    r = client.get("/api/admin/lockable/list?annotator=amber")
+    assert len(r.json()) == 1
+    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    assert r.status_code == 200
+    r = client.get("/api/admin/lockable/list?annotator=amber")
+    assert len(r.json()) == 0  # 鎖完從 lockable 移到 gold

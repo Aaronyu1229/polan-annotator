@@ -322,6 +322,52 @@ def audio_status_summary_endpoint(
     return status_summary(session)
 
 
+# ─── Phase 12-A：lockable 清單(給 Amber 一鍵 lock gold)─────────────
+
+@router.get("/lockable/list")
+def lockable_list(
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> list[dict[str, Any]]:
+    """列出所有 status=lockable 的音檔(達 gold prereq 但 Amber 未鎖)。
+
+    給 Amber 看「可一鍵鎖 gold 的清單」。
+    Sort by max_spread asc — spread 最小的最穩,優先鎖。
+    """
+    _require_admin(current_user)
+
+    from src.audiofile_status import per_dim_spread  # noqa: PLC0415
+
+    audios = session.exec(select(AudioFile)).all()
+    items: list[dict[str, Any]] = []
+    for audio in audios:
+        if compute_audiofile_status(audio, session) != "lockable":
+            continue
+        anns = session.exec(
+            select(Annotation).where(
+                Annotation.audio_file_id == audio.id,
+                Annotation.is_complete == True,  # noqa: E712
+            )
+        ).all()
+        spreads = per_dim_spread(anns)
+        valid_spreads = {k: v for k, v in spreads.items() if v is not None}
+        max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
+        max_val = valid_spreads.get(max_dim) if max_dim else None
+        items.append({
+            "audio_id": audio.id,
+            "filename": audio.filename,
+            "game_name": audio.game_name,
+            "game_stage": audio.game_stage,
+            "duration_sec": audio.duration_sec,
+            "annotators": sorted({a.annotator_id for a in anns}),
+            "max_spread_dim": max_dim,
+            "max_spread_value": max_val,
+        })
+    # spread 最穩的(最小)優先 — 安心一鍵鎖
+    items.sort(key=lambda x: (x["max_spread_value"] or 0))
+    return items
+
+
 # ─── Phase 11：仲裁(reconciliation)— Amber 看 cross_annotated 並更新自己 annotation ─
 
 @router.get("/reconcile/list")

@@ -188,39 +188,144 @@ function renderDimensions() {
 
 function renderTags() {
   const wrap = $('tags-section')
-  // 收集每個 tag 種類的「其他人選了什麼」
+  // 收集每個 tag 種類的「其他人選了什麼」(union)
   const collect = (field) => {
     const all = new Set()
     state.annotations.filter(a => a.annotator_id !== 'amber').forEach(a => {
-      ;(a[field] || []).forEach(v => all.add(v))
+      const v = a[field]
+      if (Array.isArray(v)) v.forEach(x => all.add(x))
+      else if (v) all.add(v)
     })
     return [...all]
   }
-  const othersSourceTypes = collect('source_type')
-  const othersFunctionRoles = collect('function_roles')
-  const othersLoop = new Set()
-  state.annotations.filter(a => a.annotator_id !== 'amber').forEach(a => {
-    ;(a.loop_capability || []).forEach(v => othersLoop.add(v))
-  })
+  const othersST   = collect('source_type')
+  const othersFR   = collect('function_roles')
+  const othersLoop = collect('loop_capability').map(String)
+  const othersGenre = collect('genre_tag')
+  const othersWV   = collect('worldview_tag')
+  const othersStyle = collect('style_tag')
+
+  // Phase 12-B:Amber's genre/style chip-style selectable;worldview single select
+  state.selectedGenre = new Set(state.amberAnnotation?.genre_tag || [])
+  state.selectedStyle = new Set(state.amberAnnotation?.style_tag || [])
 
   wrap.innerHTML = `
     <div>
-      <div class="text-sm font-medium mb-1">Source Type(其他人提到的:${othersSourceTypes.length ? othersSourceTypes.join(', ') : '無'})</div>
+      <div class="text-sm font-medium mb-1">Source Type(其他人:${othersST.length ? othersST.join(', ') : '無'})</div>
       <input id="source-types-input" type="text" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono" placeholder="逗號分隔" value="${escapeAttr([...state.selectedSourceTypes].join(','))}">
     </div>
     <div>
-      <div class="text-sm font-medium mb-1">Function Roles(其他人提到的:${othersFunctionRoles.length ? othersFunctionRoles.join(', ') : '無'})</div>
+      <div class="text-sm font-medium mb-1">Function Roles(其他人:${othersFR.length ? othersFR.join(', ') : '無'})</div>
       <input id="function-roles-input" type="text" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono" placeholder="逗號分隔(必至少 1 個)" value="${escapeAttr([...state.selectedFunctionRoles].join(','))}">
     </div>
     <div>
-      <div class="text-sm font-medium mb-1">Loop Capability(其他人:${[...othersLoop].join(', ') || '無'})</div>
+      <div class="text-sm font-medium mb-1">Loop Capability(其他人:${othersLoop.join(', ') || '無'})</div>
       <input id="loop-input" type="text" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-mono" placeholder="逗號分隔 0.0 / 0.5 / 1.0" value="${escapeAttr([...state.selectedLoop].join(','))}">
     </div>
+
+    <!-- Phase 12-B:genre / worldview / style 加 chip 編輯 -->
+    <div>
+      <div class="text-sm font-medium mb-1">Genre tag(多選)</div>
+      ${renderOthersChips(othersGenre)}
+      <div id="genre-chips" class="flex flex-wrap gap-1 mb-1"></div>
+      <div class="flex gap-1">
+        <input id="genre-input" list="genre-suggest" type="text" class="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" placeholder="輸入後按 Enter">
+        <datalist id="genre-suggest"></datalist>
+        <button type="button" id="genre-add" class="px-2 text-sm bg-slate-200 dark:bg-slate-700 rounded hover:bg-amber-200 dark:hover:bg-amber-900">+</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="text-sm font-medium mb-1">Worldview tag(單選,可空)</div>
+      ${renderOthersChips(othersWV)}
+      <input id="worldview-input" list="worldview-suggest" type="text" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" placeholder="留空或選一個" value="${escapeAttr(state.worldview)}">
+      <datalist id="worldview-suggest"></datalist>
+    </div>
+
+    <div>
+      <div class="text-sm font-medium mb-1">Style tag(多選)</div>
+      ${renderOthersChips(othersStyle)}
+      <div id="style-chips" class="flex flex-wrap gap-1 mb-1"></div>
+      <div class="flex gap-1">
+        <input id="style-input" list="style-suggest" type="text" class="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" placeholder="輸入後按 Enter">
+        <datalist id="style-suggest"></datalist>
+        <button type="button" id="style-add" class="px-2 text-sm bg-slate-200 dark:bg-slate-700 rounded hover:bg-amber-200 dark:hover:bg-amber-900">+</button>
+      </div>
+    </div>
+
     <div>
       <div class="text-sm font-medium mb-1">Notes</div>
       <textarea id="notes-input" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" rows="2">${escapeHtml(state.notes)}</textarea>
     </div>
   `
+
+  // chip 渲染 + 互動
+  refreshChips('genre-chips', state.selectedGenre)
+  refreshChips('style-chips', state.selectedStyle)
+
+  // 從 server 撈 autocomplete suggestions(fail-safe)
+  fillSuggestions('genre',     'genre-suggest')
+  fillSuggestions('worldview', 'worldview-suggest')
+  fillSuggestions('style',     'style-suggest')
+
+  // 加 chip handlers
+  $('genre-add').addEventListener('click', () => {
+    addChipFromInput($('genre-input'), state.selectedGenre, 'genre-chips')
+  })
+  $('genre-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('genre-add').click() }
+  })
+  $('style-add').addEventListener('click', () => {
+    addChipFromInput($('style-input'), state.selectedStyle, 'style-chips')
+  })
+  $('style-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('style-add').click() }
+  })
+}
+
+function renderOthersChips(values) {
+  if (!values.length) {
+    return '<div class="text-xs text-slate-500 mb-1">(其他人:無)</div>'
+  }
+  return `<div class="text-xs mb-1">
+    <span class="text-slate-500 mr-1">其他人:</span>
+    ${values.map(v => `<span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 mr-1">${escapeHtml(v)}</span>`).join('')}
+  </div>`
+}
+
+function refreshChips(containerId, set) {
+  const wrap = $(containerId)
+  wrap.innerHTML = [...set].map(v => `
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-xs">
+      ${escapeHtml(v)}
+      <button type="button" data-remove="${escapeAttr(v)}" class="hover:text-rose-600">×</button>
+    </span>
+  `).join('')
+  wrap.querySelectorAll('button[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      set.delete(btn.dataset.remove)
+      refreshChips(containerId, set)
+    })
+  })
+}
+
+function addChipFromInput(inputEl, set, containerId) {
+  const v = inputEl.value.trim()
+  if (!v) return
+  set.add(v)
+  inputEl.value = ''
+  refreshChips(containerId, set)
+}
+
+async function fillSuggestions(field, datalistId) {
+  try {
+    const res = await fetch(`/api/tag-suggestions?field=${encodeURIComponent(field)}`)
+    if (!res.ok) return
+    const items = await res.json()
+    $(datalistId).innerHTML = items.map(it => `<option value="${escapeAttr(it.value)}">`).join('')
+  } catch {
+    // 靜默,autocomplete 不可用就讓 user 手打
+  }
 }
 
 $('save-btn').addEventListener('click', save)
@@ -232,6 +337,10 @@ async function save() {
   const loop = parseCommaList($('loop-input').value).map(s => parseFloat(s)).filter(n => !isNaN(n))
   const notes = $('notes-input').value.trim()
 
+  // Phase 12-B:從 chip UI 取 genre / style;worldview 從 input 取
+  const worldviewInput = $('worldview-input')
+  const worldview = worldviewInput ? worldviewInput.value.trim() : (state.worldview || '')
+
   const payload = {
     audio_id: AUDIO_ID,
     annotator_id: 'amber',
@@ -239,9 +348,9 @@ async function save() {
     loop_capability: loop,
     source_type: sourceTypes,
     function_roles: functionRoles,
-    genre_tag: state.amberAnnotation?.genre_tag || [],
-    worldview_tag: state.worldview || null,
-    style_tag: state.amberAnnotation?.style_tag || [],
+    genre_tag: [...(state.selectedGenre || [])],
+    worldview_tag: worldview || null,
+    style_tag: [...(state.selectedStyle || [])],
     notes: notes || null,
   }
 
