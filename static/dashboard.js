@@ -85,18 +85,24 @@ async function loadStatusCards() {
         numCls: 'text-emerald-900 dark:text-emerald-200',
       },
     ]
+    // Phase 11/12-A:cross 與 lockable 卡片若 > 0 可點到對應列表
+    const linkFor = (key, n) => {
+      if (n <= 0) return null
+      if (key === 'cross_annotated') return { href: '/admin/reconcile', title: '點開待仲裁清單' }
+      if (key === 'lockable')        return { href: '/admin/lockable',  title: '點開可鎖 gold 清單' }
+      return null
+    }
     wrap.innerHTML = cards.map(c => {
       const n = data[c.key] || 0
       const pct = total > 0 ? Math.round((n / total) * 100) : 0
-      // Phase 11:cross_annotated 卡片若 > 0 可點到仲裁列表(後端會 403 擋非 admin)
-      const isClickable = c.key === 'cross_annotated' && n > 0
+      const link = linkFor(c.key, n)
       const inner = `
-        <div class="text-xs mb-1 ${c.labelCls}">${c.label}${isClickable ? ' →' : ''}</div>
+        <div class="text-xs mb-1 ${c.labelCls}">${c.label}${link ? ' →' : ''}</div>
         <div class="text-2xl font-semibold font-mono ${c.numCls}">${n}</div>
         <div class="text-xs ${c.labelCls}">${pct}%</div>
       `
-      if (isClickable) {
-        return `<a href="/admin/reconcile" title="點開待仲裁清單" class="block p-3 rounded border cursor-pointer hover:shadow ${c.cls}">${inner}</a>`
+      if (link) {
+        return `<a href="${link.href}" title="${link.title}" class="block p-3 rounded border cursor-pointer hover:shadow ${c.cls}">${inner}</a>`
       }
       return `<div class="p-3 rounded border ${c.cls}">${inner}</div>`
     }).join('')

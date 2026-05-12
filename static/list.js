@@ -252,6 +252,8 @@ function renderRow(item) {
   const tag = item.is_brand_theme
     ? '<span class="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200 rounded">品牌主題</span>'
     : '<span class="text-xs px-2 py-0.5 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 rounded">遊戲音樂</span>'
+  // Phase 12-C:資料品質 status badge
+  const statusBadge = renderStatusBadge(item.status)
   const href = `/annotate/${encodeURIComponent(item.id)}?annotator=${encodeURIComponent(annotator)}`
   const rowTextClass = done
     ? 'text-slate-400 dark:text-slate-500'
@@ -264,9 +266,23 @@ function renderRow(item) {
         <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtml(item.game_stage || '')}</div>
       </td>
       <td class="p-3">${tag}</td>
+      <td class="p-3">${statusBadge}</td>
       <td class="p-3 text-right font-mono text-slate-500 dark:text-slate-400 text-xs">${formatDuration(item.duration_sec)}</td>
     </tr>
   `
+}
+
+// Phase 12-C:資料品質 status badge(對齊 Dashboard 5 卡顏色)
+function renderStatusBadge(status) {
+  const map = {
+    untouched:       { label: '未標', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+    draft:           { label: '初標', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' },
+    cross_annotated: { label: '交叉', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
+    lockable:        { label: '可鎖', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+    gold:            { label: '🏆 Gold', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+  }
+  const m = map[status] || map.untouched
+  return `<span class="text-xs px-2 py-0.5 rounded ${m.cls}">${m.label}</span>`
 }
 
 function updateProgress(items) {

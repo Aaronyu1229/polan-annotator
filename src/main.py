@@ -172,4 +172,10 @@ def reconcile_detail_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS
     return FileResponse(STATIC_DIR / "reconcile.html")
 
 
+@app.get("/admin/lockable", include_in_schema=False)
+def lockable_list_page() -> FileResponse:
+    """Phase 12-A：admin-only 可鎖 gold 清單頁。"""
+    return FileResponse(STATIC_DIR / "lockable-list.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

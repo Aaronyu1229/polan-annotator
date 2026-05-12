@@ -80,24 +80,45 @@ def list_audio(
     annotator: Optional[str] = Depends(optional_annotator),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
-    """回傳所有音檔，含 duration 與 is_annotated_by_current_annotator 旗標。
+    """回傳所有音檔,含 duration、is_annotated_by_current_annotator 旗標、status(Phase 12-C)。
 
-    只有對應 annotator 已存在且 is_complete=True 的 record 才算「已標」 —
-    半成品（is_complete=False）仍視為未標，使列表頁的 ✓ 旗標精準反映「完成」狀態。
+    status:Phase 10 五狀態,bulk compute 避免 N+1。
     """
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
     ).all()
 
+    # 一次撈所有 is_complete=True annotation,在 memory 分組
+    all_complete = session.exec(
+        select(Annotation).where(Annotation.is_complete == True)  # noqa: E712
+    ).all()
+    by_audio: dict[str, list[Annotation]] = {}
+    for ann in all_complete:
+        by_audio.setdefault(ann.audio_file_id, []).append(ann)
+
     completed_audio_ids: set[str] = set()
     if annotator:
-        completed = session.exec(
-            select(Annotation.audio_file_id).where(
-                Annotation.annotator_id == annotator,
-                Annotation.is_complete == True,  # noqa: E712 — SQLModel 不允許 is True
-            )
-        ).all()
-        completed_audio_ids = set(completed)
+        completed_audio_ids = {
+            ann.audio_file_id for ann in all_complete if ann.annotator_id == annotator
+        }
+
+    # Phase 12-C:bulk compute status per audio
+    from src.audiofile_status import per_dim_spread, GOLD_MAX_SPREAD  # noqa: PLC0415
+
+    def _compute_status_inline(audio: AudioFile) -> str:
+        if audio.is_gold_locked:
+            return "gold"
+        anns = by_audio.get(audio.id, [])
+        n = len({a.annotator_id for a in anns})  # 不同 annotator 數
+        if n == 0:
+            return "untouched"
+        if n == 1:
+            return "draft"
+        spreads = per_dim_spread(anns)
+        has_any_exceeds = any(
+            s is not None and s > GOLD_MAX_SPREAD for s in spreads.values()
+        )
+        return "cross_annotated" if has_any_exceeds else "lockable"
 
     return [
         {
@@ -108,6 +129,7 @@ def list_audio(
             "is_brand_theme": a.is_brand_theme,
             "duration_sec": a.duration_sec,
             "is_annotated_by_current_annotator": a.id in completed_audio_ids,
+            "status": _compute_status_inline(a),  # Phase 12-C
         }
         for a in audios
     ]
