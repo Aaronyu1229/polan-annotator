@@ -86,8 +86,17 @@ function initState() {
 }
 
 function renderHeader() {
-  $('audio-title').textContent = state.audio.filename
+  // Phase 13-E:Amber 沒標過 → 補標(她要新增 annotation);標過 → 仲裁(她要參考別人改自己)
+  const hasAmber = state.annotations.some(a => a.annotator_id === 'amber')
+  const titleEl = document.querySelector('h1')
+  if (titleEl) {
+    titleEl.innerHTML = hasAmber
+      ? `⚖️ 仲裁 <span id="audio-title" class="text-slate-500">${escapeHtml(state.audio.filename)}</span>`
+      : `✏️ 補標 <span id="audio-title" class="text-slate-500">${escapeHtml(state.audio.filename)}</span>`
+  }
+
   $('audio-meta').textContent =
+    (hasAmber ? '🔄 你已標過此檔,參考其他人值微調 · ' : '🆕 你還沒標過此檔,聽完音檔做自己的判斷 · ') +
     `${state.audio.game_name} / ${state.audio.game_stage} · ` +
     `${state.audio.duration_sec ? state.audio.duration_sec.toFixed(1) + 's' : '—'} · ` +
     `${state.annotations.length} 位標註員:${state.annotations.map(a => a.annotator_id).join(', ')}`

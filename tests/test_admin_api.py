@@ -647,3 +647,33 @@ def test_lockable_then_lock_gold_full_flow(
     assert r.status_code == 200
     r = client.get("/api/admin/lockable/list?annotator=amber")
     assert len(r.json()) == 0  # 鎖完從 lockable 移到 gold
+
+
+# ---------------------------------------------------------------------------
+# Phase 13-B: admin HTML page auth gate
+# ---------------------------------------------------------------------------
+
+def test_admin_html_page_redirects_non_admin(client, in_memory_engine, tmp_annotators_config):
+    """非 admin 開 /admin/* HTML 該 302 redirect 到 /。"""
+    from src import main as main_module
+    from src.middleware import require_auth
+
+    def _non_admin():
+        return {"annotator_id": "vvgosick", "email": "x", "is_admin": False, "name": None}
+
+    main_module.app.dependency_overrides[require_auth] = _non_admin
+    try:
+        for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions"]:
+            r = client.get(path, follow_redirects=False)
+            assert r.status_code == 302, f"{path} should redirect non-admin, got {r.status_code}"
+            assert r.headers.get("location") == "/"
+    finally:
+        main_module.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_admin_html_page_serves_html_to_admin(client, in_memory_engine, tmp_annotators_config):
+    """admin 開 /admin/* HTML 該回 200 HTML(dev mode 預設 is_admin=True)。"""
+    for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions"]:
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code == 200, f"{path} should serve HTML to admin"
+        assert "html" in r.headers.get("content-type", "").lower()
