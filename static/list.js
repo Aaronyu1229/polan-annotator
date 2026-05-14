@@ -86,8 +86,6 @@ if (navMyReport && annotator && annotator !== 'amber' && annotator !== 'guest') 
   navMyReport.classList.remove('hidden')
 }
 
-const NEW_ANNOTATOR_OPTION = '__new__'
-
 // sessionStorage key 以 annotator 隔離，避免切人後舊 session 干擾
 const SESSION_START_KEY = `session_started_at:${annotator}`
 const SESSION_COUNT_KEY = `session_completed_count:${annotator}`
@@ -121,24 +119,14 @@ async function populateAnnotatorSelect() {
   }
   // 確保當前 annotator 出現在選項裡（即使 DB 尚未紀錄過）
   const all = Array.from(new Set([annotator, ...known])).filter(Boolean).sort()
-  const options = [
-    ...all.map(a => `<option value="${escapeHtml(a)}"${a === annotator ? ' selected' : ''}>${escapeHtml(a)}</option>`),
-    `<option value="${NEW_ANNOTATOR_OPTION}">+ 新增…</option>`,
-  ]
-  ANNOTATOR_SELECT.innerHTML = options.join('')
+  ANNOTATOR_SELECT.innerHTML = all.map(a =>
+    `<option value="${escapeHtml(a)}"${a === annotator ? ' selected' : ''}>${escapeHtml(a)}</option>`
+  ).join('')
 }
 
 ANNOTATOR_SELECT.addEventListener('change', () => {
-  let next = ANNOTATOR_SELECT.value
-  if (next === NEW_ANNOTATOR_OPTION) {
-    const name = window.prompt('新增標註員 id（例如 amber、aaron）：', '')
-    if (!name || !name.trim()) {
-      ANNOTATOR_SELECT.value = annotator
-      return
-    }
-    next = name.trim()
-  }
-  if (next !== annotator) {
+  const next = ANNOTATOR_SELECT.value
+  if (next && next !== annotator) {
     const url = new URL(window.location.href)
     url.searchParams.set('annotator', next)
     window.location.href = url.toString()
