@@ -46,6 +46,11 @@ jobs:
             echo "→ pulling latest master"
             git fetch --all --prune
             git reset --hard origin/master
+            # 確保 data/ 擁有者對齊 container UID 1000:1000(Dockerfile USER app)。
+            # 否則 admin upload 會在 data/audio/ 建 .uploading.tmp 時 [Errno 13] Permission denied。
+            # idempotent — 已對齊則 no-op。
+            echo "→ ensuring data/ ownership matches container UID 1000:1000"
+            chown -R 1000:1000 "$APP_DIR/data"
             echo "→ pulling base images"
             docker compose pull litestream || true
             echo "→ rebuilding app image"
