@@ -110,6 +110,27 @@ function consumeJustSavedFlag() {
 }
 
 async function populateAnnotatorSelect() {
+  // Phase 6+ cloud 模式：身分由 OAuth/Cloudflare Access 決定,dropdown 切不動人。
+  // 顯示靜態文字避免誤導(原本 dropdown 在 cloud 切了會被 auth.js 強拉回原身分 + 後端忽略 ?annotator=)。
+  // dev 模式 (me.email=null) 走下面 fallback 維持原 dropdown 邏輯。
+  try {
+    const meRes = await fetch('/api/me')
+    if (meRes.ok) {
+      const me = await meRes.json()
+      if (me.email) {
+        ANNOTATOR_SELECT.classList.add('hidden')
+        const display = document.getElementById('annotator-display')
+        if (display) {
+          display.textContent = me.name || me.annotator_id || annotator
+          display.classList.remove('hidden')
+        }
+        return
+      }
+    }
+  } catch (err) {
+    console.warn('/api/me 偵測失敗,fallback 到 dropdown', err)
+  }
+
   let known = []
   try {
     const res = await fetch('/api/annotations/annotators')
