@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from src.db import get_session
@@ -24,10 +24,17 @@ router = APIRouter(prefix="/api/stats", tags=["stats"])
 @router.get("/progress")
 def progress(
     user: dict[str, Any] = Depends(require_auth),
+    annotator: Optional[str] = Query(
+        default=None,
+        description="查指定標註員進度（需 admin）；省略則查登入者自己。dashboard 各人進度條用",
+    ),
     tz: Optional[str] = Query(default=None, description="IANA TZ，例如 Asia/Taipei"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_progress(session, user["annotator_id"], tz_name=tz).to_dict()
+    target = (annotator or "").strip() or user["annotator_id"]
+    if target != user["annotator_id"] and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="僅 admin 可查看其他標註員進度")
+    return compute_progress(session, target, tz_name=tz).to_dict()
 
 
 @router.get("/icc")

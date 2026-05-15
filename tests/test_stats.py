@@ -177,3 +177,65 @@ def test_progress_different_annotators_isolated(in_memory_engine):
     assert bob.avg_duration_sec is not None and abs(bob.avg_duration_sec - 600) < 1
     # total_audio_files 共用
     assert amber.total_audio_files == bob.total_audio_files == 2
+
+
+# ─── /api/stats/progress route：?annotator= 查指定標註員（dashboard 各人進度條）──
+#
+# 模擬 cloud 模式：登入者 = amber(admin)，由 require_auth 給定，與 query string
+# 解耦。dashboard 對每位標註員打 ?annotator=X — route 必須回那個人的進度，
+# 不是登入者自己的。
+
+def _override_user(annotator_id: str, *, is_admin: bool):
+    from src import main as main_module
+    from src.middleware import require_auth
+
+    main_module.app.dependency_overrides[require_auth] = lambda: {
+        "annotator_id": annotator_id,
+        "email": None,
+        "is_admin": is_admin,
+        "name": None,
+    }
+
+
+def test_progress_route_respects_annotator_query(client, in_memory_engine):
+    """登入者 amber 標 2 首、vvgosick 標 1 首；?annotator=vvgosick 須回 1 不是 2。"""
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
+    a1 = _add_audio(in_memory_engine, "a1.wav")
+    a2 = _add_audio(in_memory_engine, "a2.wav")
+    _add_annotation(in_memory_engine, a1, "amber", created_at=now)
+    _add_annotation(in_memory_engine, a2, "amber", created_at=now)
+    _add_annotation(in_memory_engine, a1, "vvgosick", created_at=now)
+
+    _override_user("amber", is_admin=True)
+    r = client.get("/api/stats/progress?annotator=vvgosick&tz=UTC")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["annotator_id"] == "vvgosick"
+    assert body["completed_count"] == 1  # vvgosick 的，不是 amber 的 2
+
+
+def test_progress_route_defaults_to_self(client, in_memory_engine):
+    """省略 ?annotator= 時維持原行為：回登入者自己的進度。"""
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
+    a1 = _add_audio(in_memory_engine, "a1.wav")
+    a2 = _add_audio(in_memory_engine, "a2.wav")
+    _add_annotation(in_memory_engine, a1, "amber", created_at=now)
+    _add_annotation(in_memory_engine, a2, "amber", created_at=now)
+
+    _override_user("amber", is_admin=True)
+    r = client.get("/api/stats/progress?tz=UTC")
+    assert r.status_code == 200, r.text
+    assert r.json()["annotator_id"] == "amber"
+    assert r.json()["completed_count"] == 2
+
+
+def test_progress_route_non_admin_cannot_query_others(client, in_memory_engine):
+    """非 admin 查別人進度 → 403；查自己仍可。"""
+    _add_audio(in_memory_engine, "a1.wav")
+    _override_user("vvgosick", is_admin=False)
+
+    r = client.get("/api/stats/progress?annotator=amber&tz=UTC")
+    assert r.status_code == 403
+
+    r_self = client.get("/api/stats/progress?annotator=vvgosick&tz=UTC")
+    assert r_self.status_code == 200, r_self.text
