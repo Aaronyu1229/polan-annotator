@@ -26,6 +26,8 @@ const SELECTORS = {
   existingList: '#existing-list',
   existingCount: '#existing-count',
   existingRefresh: '#existing-refresh',
+  bulkDelete: '#bulk-delete-btn',
+  bulkClear: '#bulk-clear-btn',
 }
 
 const SUPPORTED_EXTS = ['.wav', '.mp3', '.ogg', '.m4a', '.flac']
@@ -347,6 +349,10 @@ async function uploadAll() {
 async function refreshExistingList() {
   // 重寫整段 innerHTML 前先拆播放器，否則正在播的列被取代會留下孤兒音
   teardownPreview()
+  // 重新載入清單即重置勾選（設計：不跨刷新記憶選取）
+  selectedIds.clear()
+  audioById.clear()
+  updateBulkBar()
   const list = $(SELECTORS.existingList)
   const count = $(SELECTORS.existingCount)
   // 刪除/刷新會整段重畫，捲動框內容被換掉會歸零跳回頂端 — 先記住位置
@@ -371,6 +377,7 @@ async function refreshExistingList() {
   }
   list.innerHTML = audios.map(renderExistingRow).join('')
   for (const a of audios) {
+    audioById.set(a.id, a)
     const btn = list.querySelector(`[data-action="delete-existing"][data-id="${a.id}"]`)
     if (btn) {
       btn.addEventListener('click', () => deleteExisting(a))
@@ -378,6 +385,14 @@ async function refreshExistingList() {
     const previewBtn = list.querySelector(`[data-action="preview"][data-id="${a.id}"]`)
     if (previewBtn) {
       previewBtn.addEventListener('click', () => togglePreview(a.id, previewBtn))
+    }
+    const selectBox = list.querySelector(`[data-action="select"][data-id="${a.id}"]`)
+    if (selectBox) {
+      selectBox.addEventListener('change', () => {
+        if (selectBox.checked) selectedIds.add(a.id)
+        else selectedIds.delete(a.id)
+        updateBulkBar()
+      })
     }
   }
   // 重畫完還原捲動位置，刪除後停在原地不要跳回最上面
@@ -392,6 +407,10 @@ function renderExistingRow(a) {
   return `
     <li class="p-3" data-existing="${a.id}">
       <div class="flex items-center gap-3">
+        <input type="checkbox" data-action="select" data-id="${a.id}"
+          title="勾選以批量刪除"
+          class="shrink-0 w-4 h-4 accent-red-600 cursor-pointer"
+          ${selectedIds.has(a.id) ? 'checked' : ''}>
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2">
             <span class="font-mono text-sm truncate" title="${escapeHtml(a.filename)}">
@@ -445,6 +464,85 @@ async function deleteExisting(audio) {
     return
   }
   await refreshExistingList()
+}
+
+// ─── 批量刪除（勾選式，無全選；序列化沿用單筆 DELETE）──────────
+
+const selectedIds = new Set()  // 當前清單已勾選的 audio id
+const audioById = new Map()    // id → audio，給失敗摘要顯示檔名
+
+function updateBulkBar() {
+  const n = selectedIds.size
+  const delBtn = $(SELECTORS.bulkDelete)
+  const clrBtn = $(SELECTORS.bulkClear)
+  if (delBtn) {
+    delBtn.textContent = `刪除勾選 (${n})`
+    delBtn.classList.toggle('hidden', n === 0)
+  }
+  if (clrBtn) clrBtn.classList.toggle('hidden', n === 0)
+}
+
+async function bulkDelete() {
+  const ids = Array.from(selectedIds)
+  if (ids.length === 0) return
+  const confirmText =
+    `確定刪除勾選的 ${ids.length} 首嗎？\n` +
+    `這會連同這些音檔所有標註資料一起刪，無法復原。`
+  if (!window.confirm(confirmText)) return
+
+  const delBtn = $(SELECTORS.bulkDelete)
+  if (delBtn) delBtn.disabled = true
+  let ok = 0
+  const failed = []
+  // 序列化逐筆刪，沿用既有單筆端點，不打爆 2GB 小主機
+  for (const id of ids) {
+    let res
+    try {
+      res = await fetch(`/api/audio/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+    } catch {
+      failed.push({ id, detail: '網路錯誤' })
+      continue
+    }
+    if (res.ok) {
+      ok += 1
+    } else {
+      let detail = `HTTP ${res.status}`
+      try {
+        const body = await res.json()
+        if (body && body.detail) detail = body.detail
+      } catch {}
+      failed.push({ id, detail })
+    }
+  }
+  if (delBtn) delBtn.disabled = false
+
+  if (failed.length > 0) {
+    const lines = failed
+      .map(f => `・${(audioById.get(f.id) || {}).filename || f.id}：${f.detail}`)
+      .join('\n')
+    window.alert(`成功刪 ${ok} 首，失敗 ${failed.length} 首：\n${lines}`)
+  }
+  selectedIds.clear()
+  await refreshExistingList()
+}
+
+function bindBulkActions() {
+  const delBtn = $(SELECTORS.bulkDelete)
+  const clrBtn = $(SELECTORS.bulkClear)
+  if (delBtn) delBtn.addEventListener('click', () => bulkDelete())
+  if (clrBtn) {
+    clrBtn.addEventListener('click', () => {
+      selectedIds.clear()
+      const list = $(SELECTORS.existingList)
+      if (list) {
+        list.querySelectorAll('[data-action="select"]').forEach(cb => { cb.checked = false })
+      }
+      updateBulkBar()
+    })
+  }
 }
 
 // ─── 拖放 / 檔案選擇 ───────────────────────────────────────
@@ -510,6 +608,7 @@ async function boot() {
   bindDropZone()
   bindUploadAll()
   bindExistingRefresh()
+  bindBulkActions()
   renderQueue()
   refreshExistingList()
 }

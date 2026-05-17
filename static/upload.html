@@ -86,10 +86,20 @@
             已上傳音檔
             <span id="existing-count" class="ml-1 text-slate-500 dark:text-slate-400 font-normal"></span>
           </h2>
-          <button id="existing-refresh" type="button"
-            class="px-2.5 py-1 text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded">
-            重新整理
-          </button>
+          <div class="flex items-center gap-2">
+            <button id="bulk-delete-btn" type="button"
+              class="hidden px-2.5 py-1 text-xs rounded font-medium bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
+              刪除勾選 (0)
+            </button>
+            <button id="bulk-clear-btn" type="button"
+              class="hidden px-2.5 py-1 text-xs rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100">
+              清除勾選
+            </button>
+            <button id="existing-refresh" type="button"
+              class="px-2.5 py-1 text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded">
+              重新整理
+            </button>
+          </div>
         </div>
         <ul id="existing-list" class="divide-y divide-slate-100 dark:divide-slate-700 max-h-[480px] overflow-y-auto">
           <li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">載入中…</li>
@@ -99,6 +109,6 @@
   </main>
 
   <script type="module" src="/static/auth.js?v=20260501c"></script>
-  <script type="module" src="/static/upload.js?v=20260517b"></script>
+  <script type="module" src="/static/upload.js?v=20260517c"></script>
 </body>
 </html>
