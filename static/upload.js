@@ -349,6 +349,8 @@ async function refreshExistingList() {
   teardownPreview()
   const list = $(SELECTORS.existingList)
   const count = $(SELECTORS.existingCount)
+  // 刪除/刷新會整段重畫，捲動框內容被換掉會歸零跳回頂端 — 先記住位置
+  const prevScroll = list.scrollTop
   list.innerHTML = '<li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">載入中…</li>'
   let res
   try {
@@ -378,6 +380,8 @@ async function refreshExistingList() {
       previewBtn.addEventListener('click', () => togglePreview(a.id, previewBtn))
     }
   }
+  // 重畫完還原捲動位置，刪除後停在原地不要跳回最上面
+  requestAnimationFrame(() => { list.scrollTop = prevScroll })
 }
 
 function renderExistingRow(a) {
