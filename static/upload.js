@@ -48,6 +48,61 @@ function formatBytes(n) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+// ─── 試聽（單一實例原生播放器）─────────────────────────────
+// 抽查上傳檔用。同時只掛一個 <audio>，避免清單上千列重渲染留下
+// 「看不到卻還在播」的孤兒音，也保證不會多列同時出聲。
+
+let activePreview = null  // { audioId, slotEl, btnEl, audioEl } | null
+
+function teardownPreview() {
+  if (!activePreview) return
+  const { slotEl, btnEl, audioEl } = activePreview
+  activePreview = null  // 先清，讓 audioEl error handler 視為已拆、不誤報失敗
+  try {
+    audioEl.pause()
+    audioEl.removeAttribute('src')
+    audioEl.load()
+  } catch { /* 元素可能已隨 innerHTML 重寫被移除 */ }
+  slotEl.innerHTML = ''
+  slotEl.classList.add('hidden')
+  if (btnEl) btnEl.textContent = '▶ 試聽'
+}
+
+function togglePreview(audioId, btnEl) {
+  // 同一列再點 → 收起（toggle）
+  if (activePreview && activePreview.audioId === audioId) {
+    teardownPreview()
+    return
+  }
+  // 換列 → 先拆舊的，確保單一實例
+  teardownPreview()
+
+  const slotEl = document.querySelector(`[data-player-slot="${audioId}"]`)
+  if (!slotEl) return
+
+  const audioEl = document.createElement('audio')
+  audioEl.controls = true
+  audioEl.autoplay = true
+  audioEl.preload = 'auto'
+  audioEl.className = 'w-full'
+  audioEl.src = `/api/audio/${encodeURIComponent(audioId)}/stream`
+
+  audioEl.addEventListener('error', () => {
+    // teardown 造成的 error 不算失敗（此時 activePreview 已非本元素）
+    if (!activePreview || activePreview.audioEl !== audioEl) return
+    slotEl.innerHTML =
+      '<p class="text-xs text-red-600 dark:text-red-400">試聽失敗（檔案讀取錯誤），可再點一次重試</p>'
+    if (btnEl) btnEl.textContent = '▶ 試聽'
+    activePreview = null
+  })
+
+  slotEl.innerHTML = ''
+  slotEl.appendChild(audioEl)
+  slotEl.classList.remove('hidden')
+  if (btnEl) btnEl.textContent = '✕ 收起'
+  activePreview = { audioId, slotEl, btnEl, audioEl }
+}
+
 // ─── auth gate ─────────────────────────────────────────────
 
 async function gateAdmin() {
@@ -290,6 +345,8 @@ async function uploadAll() {
 // ─── 已上傳音檔清單 + 刪除 ─────────────────────────────────
 
 async function refreshExistingList() {
+  // 重寫整段 innerHTML 前先拆播放器，否則正在播的列被取代會留下孤兒音
+  teardownPreview()
   const list = $(SELECTORS.existingList)
   const count = $(SELECTORS.existingCount)
   list.innerHTML = '<li class="p-6 text-sm text-slate-500 dark:text-slate-400 text-center">載入中…</li>'
@@ -316,6 +373,10 @@ async function refreshExistingList() {
     if (btn) {
       btn.addEventListener('click', () => deleteExisting(a))
     }
+    const previewBtn = list.querySelector(`[data-action="preview"][data-id="${a.id}"]`)
+    if (previewBtn) {
+      previewBtn.addEventListener('click', () => togglePreview(a.id, previewBtn))
+    }
   }
 }
 
@@ -325,24 +386,31 @@ function renderExistingRow(a) {
     ? '<span class="text-emerald-600 dark:text-emerald-400 text-xs shrink-0" title="你已標">✓</span>'
     : ''
   return `
-    <li class="p-3 flex items-center gap-3" data-existing="${a.id}">
-      <div class="flex-1 min-w-0">
-        <div class="flex items-baseline gap-2">
-          <span class="font-mono text-sm truncate" title="${escapeHtml(a.filename)}">
-            ${escapeHtml(a.filename)}
-          </span>
-          <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0">${dur}</span>
+    <li class="p-3" data-existing="${a.id}">
+      <div class="flex items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-2">
+            <span class="font-mono text-sm truncate" title="${escapeHtml(a.filename)}">
+              ${escapeHtml(a.filename)}
+            </span>
+            <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0">${dur}</span>
+          </div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            ${escapeHtml(a.game_name)} — ${escapeHtml(a.game_stage)}
+          </div>
         </div>
-        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-          ${escapeHtml(a.game_name)} — ${escapeHtml(a.game_stage)}
-        </div>
+        ${tick}
+        <button type="button" data-action="preview" data-id="${a.id}"
+          class="px-2.5 py-1 text-xs rounded font-medium bg-amber-500 hover:bg-amber-600 text-slate-900 shrink-0">
+          ▶ 試聽
+        </button>
+        <button type="button" data-action="delete-existing" data-id="${a.id}"
+          class="px-2.5 py-1 text-xs rounded font-medium bg-red-50 hover:bg-red-100 text-red-700
+                 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
+          刪除
+        </button>
       </div>
-      ${tick}
-      <button type="button" data-action="delete-existing" data-id="${a.id}"
-        class="px-2.5 py-1 text-xs rounded font-medium bg-red-50 hover:bg-red-100 text-red-700
-               dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
-        刪除
-      </button>
+      <div data-player-slot="${a.id}" class="hidden mt-2"></div>
     </li>
   `
 }
