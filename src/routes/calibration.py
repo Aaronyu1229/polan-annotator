@@ -175,14 +175,23 @@ def calibration_compare(audio_id: str) -> FileResponse:  # noqa: ARG001 — JS �
 @api_router.get("/report")
 def calibration_report(
     annotator: str,
+    user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """回 annotator 的 per-dim MAE / Pearson r / systematic offset。
+    """annotator 的完整校準報告。
 
-    刻意不揭露 reference(amber) 的具體 per-item 值 — 即使在 report 也只給聚合統計。
+    scatter_data / top_deviations 含 reference(amber) 逐題值，
+    只在 admin 視角回（保 multi-perspective 中立性）。
     """
-    from src.calibration_feedback import build_calibration_report  # noqa: PLC0415
-    return build_calibration_report(session, annotator)
+    from src.calibration_feedback import (  # noqa: PLC0415
+        build_calibration_report_detailed,
+    )
+
+    return build_calibration_report_detailed(
+        session,
+        annotator,
+        include_reference_detail=bool(user.get("is_admin")),
+    )
 
 
 @page_router.get("/calibration/report", include_in_schema=False)
