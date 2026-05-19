@@ -215,3 +215,86 @@ def test_report_completed_calibration_flag(in_memory_engine):
     assert report["completed_calibration"] is True
     assert report["total_overlap"] == 2
     assert report["reference_total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# build_calibration_report_detailed — 核心(無 scatter/top)
+# ---------------------------------------------------------------------------
+
+from src.calibration_feedback import build_calibration_report_detailed
+
+
+def test_detailed_reference_returns_minimal(in_memory_engine):
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "amber", include_reference_detail=True)
+    assert r["is_reference"] is True
+    assert r["dimensions"] == []
+    assert r["overall"] is None
+    assert r["recommendations"] is None
+    assert r["calibration_progress"] == "0/0"
+    assert "scatter_data" not in r
+
+
+def test_detailed_no_overlap_minimal(in_memory_engine):
+    aid = _save_audio(in_memory_engine, "A_Base Game.wav")
+    _save_annotation(in_memory_engine, aid, "amber")
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+    assert r["is_reference"] is False
+    assert r["calibration_progress"] == "0/1"
+    assert r["dimensions"] == []
+    assert r["overall"] is None
+
+
+def test_detailed_dimensions_list_has_subjective_and_objective(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.5)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.7)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+
+    names = {d["name"]: d for d in r["dimensions"]}
+    # 7 subjective + 3 objective(loop_capability / tonal_noise_ratio / spectral_density)
+    assert names["valence"]["category"] == "subjective"
+    assert names["valence"]["overlap_count"] == 3
+    assert names["valence"]["mae"] == 0.2
+    assert names["valence"]["status"] == "warning"  # 0.2 > 0.15
+    for objective in ("loop_capability", "tonal_noise_ratio", "spectral_density"):
+        assert names[objective]["category"] == "objective"
+        assert names[objective]["status"] == "no_data"
+        assert names[objective]["mae"] is None
+    assert names["valence"]["display_name_zh"]  # 取自 label_zh，非空
+
+
+def test_detailed_overall_and_recommendation(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.5, arousal=0.5)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.5, arousal=0.5)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    # 全對齊 → mae 0.0、無 warning → approved
+    assert r["overall"]["mae"] == 0.0
+    assert r["overall"]["warning_dims_count"] == 0
+    assert r["overall"]["warning_dims_threshold"] == 2
+    assert r["overall"]["recommendation"] == "approved"
+    assert "valence" in r["recommendations"]["dims_approved"]
+    assert len(r["recommendations"]["next_actions"]) == 3
+
+
+def test_detailed_recommendation_not_recommended(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    lo = dict(
+        valence=0.1, arousal=0.1, emotional_warmth=0.1, tension_direction=0.1,
+        temporal_position=0.1, event_significance=0.1, world_immersion=0.1,
+    )
+    hi = {k: 0.9 for k in lo}
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", **lo)
+        _save_annotation(in_memory_engine, aid, "vvgosick", **hi)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    # 全 7 subjective 維 MAE 0.8 → overall_mae 0.8 > 0.30 → not_recommended
+    assert r["overall"]["recommendation"] == "not_recommended"
+    assert "valence" in r["recommendations"]["dims_to_retrain"]
