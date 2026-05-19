@@ -355,7 +355,7 @@ def build_calibration_report_detailed(
         "next_actions": list(NEXT_ACTIONS),
     }
 
-    return {
+    result = {
         **base,
         "calibration_progress": (
             f"{core['total_overlap']}/{core['reference_total']}"
@@ -364,3 +364,87 @@ def build_calibration_report_detailed(
         "dimensions": dimensions,
         "recommendations": recommendations,
     }
+    if include_reference_detail:
+        scatter, top = _build_reference_detail(session, annotator_id)
+        result["scatter_data"] = scatter
+        result["top_deviations"] = top
+    return result
+
+
+def _build_reference_detail(
+    session: Session,
+    annotator_id: str,
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """回 (scatter_data, top_deviations)。含 amber 逐題值 — 只在 admin 視角呼叫。"""
+    from src.models import AudioFile  # noqa: PLC0415
+
+    ref_rows = session.exec(
+        select(Annotation).where(
+            Annotation.annotator_id == REFERENCE_ANNOTATOR,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    my_rows = session.exec(
+        select(Annotation).where(
+            Annotation.annotator_id == annotator_id,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    ref_by = {a.audio_file_id: a for a in ref_rows}
+    my_by = {a.audio_file_id: a for a in my_rows}
+    overlap = set(ref_by) & set(my_by)
+
+    audio_by_id: dict[str, Any] = {}
+    if overlap:
+        audio_by_id = {
+            a.id: a
+            for a in session.exec(
+                select(AudioFile).where(
+                    AudioFile.id.in_(overlap)  # type: ignore[attr-defined]
+                )
+            ).all()
+        }
+
+    scatter: dict[str, list[dict[str, Any]]] = {
+        d: [] for d in HUMAN_CONTINUOUS_DIMS
+    }
+    deviations: list[dict[str, Any]] = []
+
+    for aid in overlap:
+        ref = ref_by[aid]
+        mine = my_by[aid]
+        audio = audio_by_id.get(aid)
+        fname = audio.filename if audio else aid
+        all_dims: dict[str, dict[str, float]] = {}
+        worst_dim: Optional[str] = None
+        worst_diff = -1.0
+        for dim in HUMAN_CONTINUOUS_DIMS:
+            rv = getattr(ref, dim, None)
+            mv = getattr(mine, dim, None)
+            if rv is None or mv is None:
+                continue
+            rv = float(rv)
+            mv = float(mv)
+            scatter[dim].append({"file": fname, "amber": rv, "annotator": mv})
+            diff = round(abs(mv - rv), 3)
+            all_dims[dim] = {"amber": rv, "annotator": mv, "diff": diff}
+            if diff > worst_diff:
+                worst_diff = diff
+                worst_dim = dim
+        if worst_dim is None:
+            continue
+        deviations.append({
+            "file": fname,
+            "game": audio.game_name if audio else "",
+            "section": audio.game_stage if audio else "",
+            "audio_url": f"/api/audio/{aid}/stream",
+            "worst_dim": worst_dim,
+            "worst_dim_display": _dim_display(worst_dim),
+            "amber_value": all_dims[worst_dim]["amber"],
+            "annotator_value": all_dims[worst_dim]["annotator"],
+            "diff": all_dims[worst_dim]["diff"],
+            "all_dims": all_dims,
+        })
+
+    deviations.sort(key=lambda d: d["diff"], reverse=True)
+    return scatter, deviations[:10]

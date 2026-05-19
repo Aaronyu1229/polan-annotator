@@ -296,3 +296,57 @@ def test_detailed_recommendation_not_recommended(in_memory_engine):
     # 全 7 subjective 維 MAE 0.8 → overall_mae 0.8 > 0.30 → not_recommended
     assert r["overall"]["recommendation"] == "not_recommended"
     assert "valence" in r["recommendations"]["dims_to_retrain"]
+
+
+def test_detailed_admin_includes_scatter_and_top(in_memory_engine):
+    a0 = _save_audio(in_memory_engine, "GameX_Free Game.wav")
+    a1 = _save_audio(in_memory_engine, "GameY_Base Game.wav")
+    _save_annotation(in_memory_engine, a0, "amber", valence=0.9, arousal=0.5)
+    _save_annotation(in_memory_engine, a0, "vvgosick", valence=0.2, arousal=0.5)  # diff 0.7
+    _save_annotation(in_memory_engine, a1, "amber", valence=0.5, arousal=0.5)
+    _save_annotation(in_memory_engine, a1, "vvgosick", valence=0.55, arousal=0.5)  # diff 0.05
+
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+
+    assert "scatter_data" in r
+    assert "top_deviations" in r
+    # scatter：每 subjective dim 一個 array，valence 有 2 點
+    assert len(r["scatter_data"]["valence"]) == 2
+    assert {"file", "amber", "annotator"} == set(r["scatter_data"]["valence"][0])
+    # top_deviations：依跨維最大 diff 由大到小，diff 0.7 那筆排第一
+    top = r["top_deviations"]
+    assert len(top) == 2
+    assert top[0]["file"] == "GameX_Free Game.wav"
+    assert top[0]["worst_dim"] == "valence"
+    assert top[0]["amber_value"] == 0.9
+    assert top[0]["annotator_value"] == 0.2
+    assert top[0]["diff"] == 0.7
+    assert top[0]["game"] == "GameX"
+    assert top[0]["section"] == "Free Game"
+    assert top[0]["audio_url"] == f"/api/audio/{a0}/stream"
+    assert "valence" in top[0]["all_dims"]
+    assert top[0]["all_dims"]["valence"]["diff"] == 0.7
+
+
+def test_detailed_non_admin_omits_sensitive(in_memory_engine):
+    aid = _save_audio(in_memory_engine, "G_Base Game.wav")
+    _save_annotation(in_memory_engine, aid, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.7)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    assert "scatter_data" not in r
+    assert "top_deviations" not in r
+    # 聚合區塊仍完整
+    assert r["overall"] is not None
+    assert any(d["name"] == "valence" for d in r["dimensions"])
+
+
+def test_detailed_top_deviations_capped_at_10(in_memory_engine):
+    for i in range(13):
+        aid = _save_audio(in_memory_engine, f"G{i}_Base Game.wav")
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.1)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.9)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+    assert len(r["top_deviations"]) == 10
