@@ -378,6 +378,8 @@ def _build_reference_detail(
     """回 (scatter_data, top_deviations)。含 amber 逐題值 — 只在 admin 視角呼叫。"""
     from src.models import AudioFile  # noqa: PLC0415
 
+    # Re-fetches all ref/my rows independently of build_calibration_report() to avoid
+    # coupling to its internal query strategy. Calibration sets are small (≤100 files).
     ref_rows = session.exec(
         select(Annotation).where(
             Annotation.annotator_id == REFERENCE_ANNOTATOR,
@@ -428,6 +430,7 @@ def _build_reference_detail(
             scatter[dim].append({"file": fname, "amber": rv, "annotator": mv})
             diff = round(abs(mv - rv), 3)
             all_dims[dim] = {"amber": rv, "annotator": mv, "diff": diff}
+            # Ties resolved by first occurrence in HUMAN_CONTINUOUS_DIMS (deterministic but arbitrary).
             if diff > worst_diff:
                 worst_diff = diff
                 worst_dim = dim
