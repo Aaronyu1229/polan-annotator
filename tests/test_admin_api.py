@@ -368,7 +368,7 @@ def test_post_no_calibration_feedback_for_unknown_annotator(
 # ---------------------------------------------------------------------------
 
 def test_report_endpoint_returns_structured_data(client, in_memory_engine, tmp_annotators_config):
-    """report endpoint 對 vvgosick 該回 dimensions / total_overlap。"""
+    """report endpoint 對 vvgosick 該回 dimensions / calibration_progress。"""
     audio_id = _make_audio(in_memory_engine)
     _make_amber_completed_annotation(in_memory_engine, audio_id)
     # vvgosick 標一筆
@@ -377,13 +377,12 @@ def test_report_endpoint_returns_structured_data(client, in_memory_engine, tmp_a
     r = client.get("/api/calibration/report?annotator=vvgosick")
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["annotator_id"] == "vvgosick"
+    assert data["annotator"] == "vvgosick"
     assert data["is_reference"] is False
-    assert data["total_overlap"] == 1
-    assert data["reference_total"] == 1
-    assert data["completed_calibration"] is True
-    # valence 該有 verdict
-    assert "valence" in data["dimensions"]
+    assert data["calibration_progress"] == "1/1"
+    # dimensions 是 list，valence 在其中
+    dim_names = [d["name"] for d in data["dimensions"]]
+    assert "valence" in dim_names
 
 
 def test_report_endpoint_for_reference_returns_is_reference(client, in_memory_engine, tmp_annotators_config):
