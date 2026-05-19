@@ -17,6 +17,7 @@ from src.calibration_feedback import (
     GREEN_THRESHOLD,
     YELLOW_THRESHOLD,
     build_calibration_report,
+    build_calibration_report_detailed,
     compute_calibration_feedback,
     distance_category,
 )
@@ -220,9 +221,6 @@ def test_report_completed_calibration_flag(in_memory_engine):
 # ---------------------------------------------------------------------------
 # build_calibration_report_detailed — 核心(無 scatter/top)
 # ---------------------------------------------------------------------------
-
-from src.calibration_feedback import build_calibration_report_detailed
-
 
 def test_detailed_reference_returns_minimal(in_memory_engine):
     with Session(in_memory_engine) as s:
