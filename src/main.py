@@ -140,6 +140,15 @@ def dashboard_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "dashboard.html")
 
 
+@app.get("/annotator/{annotator_id}", include_in_schema=False)
+def annotator_detail_page(annotator_id: str) -> FileResponse:  # noqa: ARG001 — JS 從 path 取
+    """標註員詳細頁；權限由 /api/stats/annotator/{id}/detail 把關（admin-or-self）。
+
+    比照 /calibration/report：頁面本身純 serve，真正 gate 在 API。
+    """
+    return FileResponse(STATIC_DIR / "annotator-detail.html")
+
+
 @app.get("/upload", include_in_schema=False)
 def upload_page() -> FileResponse:
     """Phase 6：admin-only 音源上傳頁。

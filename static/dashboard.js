@@ -13,6 +13,18 @@ const TZ = (() => {
 })()
 
 includeFixtureBox.addEventListener('change', loadAll)
+
+// /api/me 快取一次（dashboard 進度列依此決定名字是否可點進詳細頁）
+let _mePromise = null
+function getMe() {
+  if (!_mePromise) {
+    _mePromise = fetch('/api/me')
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null)
+  }
+  return _mePromise
+}
+
 loadAll()
 
 async function loadAll() {
@@ -216,20 +228,27 @@ async function loadOverlap(includeFixture) {
 }
 
 async function loadProgressForAll(annotators) {
+  const me = await getMe()
   const list = $('progress-list')
   if (!annotators.length) {
     list.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">尚無標註員資料</div>'
     return
   }
-  list.innerHTML = annotators.map(a => `
+  list.innerHTML = annotators.map(a => {
+    const clickable = me && (me.is_admin || a === me.annotator_id)
+    const nameCell = clickable
+      ? `<a href="/annotator/${encodeURIComponent(a)}" class="hover:underline hover:text-amber-600 dark:hover:text-amber-400">${escapeHtml(a)}</a>`
+      : escapeHtml(a)
+    return `
     <div class="flex items-center gap-3" data-annotator="${escapeAttr(a)}">
-      <div class="w-32 text-sm font-medium truncate">${escapeHtml(a)}</div>
+      <div class="w-32 text-sm font-medium truncate">${nameCell}</div>
       <div class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
         <div class="h-full bg-amber-500" data-bar style="width: 0%"></div>
       </div>
       <div class="w-28 text-right text-sm text-slate-500 dark:text-slate-400 font-mono" data-text>—</div>
     </div>
-  `).join('')
+  `
+  }).join('')
 
   await Promise.all(annotators.map(async a => {
     try {
