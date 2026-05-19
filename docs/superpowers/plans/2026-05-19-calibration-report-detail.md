@@ -106,12 +106,17 @@ def test_detailed_overall_and_recommendation(in_memory_engine):
 
 def test_detailed_recommendation_not_recommended(in_memory_engine):
     audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    lo = dict(
+        valence=0.1, arousal=0.1, emotional_warmth=0.1, tension_direction=0.1,
+        temporal_position=0.1, event_significance=0.1, world_immersion=0.1,
+    )
+    hi = {k: 0.9 for k in lo}
     for aid in audios:
-        _save_annotation(in_memory_engine, aid, "amber", valence=0.1, arousal=0.1)
-        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.9, arousal=0.9)
+        _save_annotation(in_memory_engine, aid, "amber", **lo)
+        _save_annotation(in_memory_engine, aid, "vvgosick", **hi)
     with Session(in_memory_engine) as s:
         r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
-    # mae 0.8 > 0.30 → not_recommended
+    # 全 7 subjective 維 MAE 0.8 → overall_mae 0.8 > 0.30 → not_recommended
     assert r["overall"]["recommendation"] == "not_recommended"
     assert "valence" in r["recommendations"]["dims_to_retrain"]
 ```
