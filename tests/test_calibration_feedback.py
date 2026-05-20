@@ -350,3 +350,22 @@ def test_detailed_top_deviations_capped_at_10(in_memory_engine):
     with Session(in_memory_engine) as s:
         r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
     assert len(r["top_deviations"]) == 10
+
+
+def test_detailed_recommendation_needs_training(in_memory_engine):
+    """中間區間：overall_mae 0.20 in (0.15, 0.30] → needs_training。"""
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    lo = dict(
+        valence=0.5, arousal=0.5, emotional_warmth=0.5, tension_direction=0.5,
+        temporal_position=0.5, event_significance=0.5, world_immersion=0.5,
+    )
+    hi = {k: 0.7 for k in lo}  # per-dim delta 0.20 → overall MAE 0.20
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", **lo)
+        _save_annotation(in_memory_engine, aid, "vvgosick", **hi)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    assert r["overall"]["mae"] == 0.2
+    assert r["overall"]["recommendation"] == "needs_training"
+    # 全 7 subjective 維 mae=0.2 都 > 0.15 → 全為 warning
+    assert r["overall"]["warning_dims_count"] == 7
