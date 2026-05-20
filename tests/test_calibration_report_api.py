@@ -47,7 +47,6 @@ def test_admin_sees_scatter_and_top(client, in_memory_engine):
     _seed(in_memory_engine)
     _override_user("amber", is_admin=True)
     r = client.get("/api/calibration/report?annotator=vvgosick")
-    main_module.app.dependency_overrides.pop(_get_require_auth(), None)
     assert r.status_code == 200
     body = r.json()
     assert "scatter_data" in body
@@ -75,7 +74,3 @@ def test_amber_is_reference(client, in_memory_engine):
     assert r.status_code == 200
     assert r.json()["is_reference"] is True
 
-
-def _get_require_auth():
-    from src.middleware import require_auth
-    return require_auth
