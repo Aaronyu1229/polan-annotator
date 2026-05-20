@@ -133,7 +133,7 @@ function renderTop(items) {
         <span class="font-medium">${escapeHtml(it.game)} · ${escapeHtml(it.section)}</span>
         <span class="font-mono text-rose-600 dark:text-rose-400">Δ${it.diff.toFixed(3)} ${escapeHtml(it.worst_dim_display)}</span>
       </summary>
-      <audio controls preload="none" class="w-full mt-2" src="${it.audio_url}"></audio>
+      <audio controls preload="none" class="w-full mt-2" src="${escapeHtml(it.audio_url)}"></audio>
       <table class="w-full mt-2 text-xs">
         <tbody>
           ${Object.entries(it.all_dims).map(([dim, v]) => `
