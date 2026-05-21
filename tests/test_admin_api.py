@@ -224,6 +224,73 @@ def test_pending_allowed_on_get_audio_in_calibration_set(
 
 
 # ---------------------------------------------------------------------------
+# Phase 8 follow-up: list filter must match metadata gate (no ghost items)
+#
+# Bug 2026-05-21: list 給 pending_calibration 看到全部 1281 檔,點到非 calibration
+# 檔 → /api/audio/{id} 403 → 前端「音樂無法載入」。修法:list 按 gate 同樣規則
+# 過濾,避免「看得到卻載不到」的不一致狀態。
+# ---------------------------------------------------------------------------
+
+def test_pending_list_returns_only_amber_completed(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """vvgosick(pending) GET /api/audio 只該回 Amber 已 is_complete 的音檔。"""
+    a_in_cal = _make_audio(in_memory_engine, "A_Base Game.wav")
+    _make_amber_completed_annotation(in_memory_engine, a_in_cal)
+    _make_audio(in_memory_engine, "B_Base Game.wav")  # amber 沒標,非 calibration
+    _make_audio(in_memory_engine, "C_Base Game.wav")  # 同上
+
+    r = client.get("/api/audio?annotator=vvgosick")
+    assert r.status_code == 200
+    items = r.json()
+    filenames = {it["filename"] for it in items}
+    assert filenames == {"A_Base Game.wav"}, (
+        f"pending 應該只看到 calibration set,實際看到:{filenames}"
+    )
+
+
+def test_archived_list_returns_empty(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """archived 帳號 GET /api/audio 該回空陣列(任何檔都不該看到)。"""
+    a = _make_audio(in_memory_engine, "A_Base Game.wav")
+    _make_amber_completed_annotation(in_memory_engine, a)  # 即使在 calibration 也不開放
+
+    r = client.get("/api/audio?annotator=ex_user")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_active_list_unfiltered_regression(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """active 帳號(yyslin1024) list 行為不變 — 看到所有音檔。"""
+    _make_audio(in_memory_engine, "A_Base Game.wav")
+    _make_audio(in_memory_engine, "B_Base Game.wav")
+    _make_audio(in_memory_engine, "C_Base Game.wav")
+
+    r = client.get("/api/audio?annotator=yyslin1024")
+    assert r.status_code == 200
+    assert len(r.json()) == 3
+
+
+def test_unknown_annotator_list_unfiltered(
+    client, in_memory_engine, tmp_annotators_config,
+):
+    """歷史 annotator_id(如 guest)不在 config — fail-open 看到全部。
+
+    跟 enforce_annotator_access 的 backward compat 行為一致(見 src/middleware.py
+    的「向後相容歷史 annotator_id」分支)。
+    """
+    _make_audio(in_memory_engine, "A_Base Game.wav")
+    _make_audio(in_memory_engine, "B_Base Game.wav")
+
+    r = client.get("/api/audio?annotator=guest")
+    assert r.status_code == 200
+    assert len(r.json()) == 2
+
+
+# ---------------------------------------------------------------------------
 # Phase 8.5: dimension-review endpoint
 # ---------------------------------------------------------------------------
 
