@@ -459,14 +459,13 @@ def test_email_to_annotator_mapping_used(cf_app):
     assert r.json()["annotator_id"] == "amber"
 
 
-def test_cf_mode_logout_without_session_middleware_returns_302(cf_app):
-    """CF Access 模式無 SessionMiddleware,/logout 不該 500。
+def test_cf_mode_logout_header_only_falls_back_to_login(cf_app):
+    """CF Access header-only 模式 (team_domain 空,無法組 logout URL) → 回 /login。
 
-    Regression: 之前用 `getattr(request, "session", None)` 想 graceful 取 session,
-    但 Starlette `Request.session` 是 property,沒裝 SessionMiddleware 時會在 getattr
-    return 預設值前先 raise AssertionError → 500。改成檢查 request.scope 才安全。
+    Regression-1 (PR #11): 確保 SessionMiddleware 沒裝時 /logout 不 raise AssertionError。
+    Regression-2 (PR #14): 改成 CF logout URL fallback 後,header-only mode 仍走原路徑。
     """
-    settings = _cf_settings()
+    settings = _cf_settings(team_domain="")  # header-only mode
     app = cf_app(settings)
     client = TestClient(app)
     r = client.post(
@@ -476,3 +475,52 @@ def test_cf_mode_logout_without_session_middleware_returns_302(cf_app):
     )
     assert r.status_code == 302
     assert r.headers["location"] == "/login"
+
+
+# ---------------------------------------------------------------------------
+# CF Access logout: redirect to Cloudflare's logout endpoint to clear CF cookie
+#
+# Bug 2026-05-21: app-level /logout 在 CF Access 模式只清 app session (本來就沒有
+# SessionMiddleware → 啥都沒清),CF Access cookie 仍 valid → 用戶重整就回來,
+# 「點登出沒真的登出」。修法: redirect 到 CF 官方 /cdn-cgi/access/logout URL。
+# ---------------------------------------------------------------------------
+
+def test_cf_mode_logout_redirects_to_cf_access_logout_url(cf_app):
+    """CF Access JWT 模式 /logout 必須跳到 CF 官方 logout URL,真的清 CF cookie。"""
+    settings = _cf_settings(team_domain="polan.cloudflareaccess.com", aud="x")
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.post("/logout", follow_redirects=False)
+    assert r.status_code == 302
+    loc = r.headers["location"]
+    assert loc.startswith("https://polan.cloudflareaccess.com/cdn-cgi/access/logout"), loc
+    assert "returnTo=" in loc
+    assert "annotate.dolcenforte.com/logged-out" in loc
+
+
+def test_logged_out_page_returns_html(cf_app):
+    """/logged-out — CF Access logout returnTo 的確認頁,該回 HTML 含「已登出」字樣。"""
+    settings = _cf_settings()
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get("/logged-out")
+    assert r.status_code == 200
+    assert "text/html" in r.headers.get("content-type", "")
+    assert "已登出" in r.text
+    assert 'href="/"' in r.text
+
+
+def test_cf_mode_login_does_not_show_dev_mode_message(cf_app):
+    """CF Access 模式 /login 不該顯示「dev 模式」字樣 — 真正雲端使用者會看不懂。
+
+    Bug: 原 /login `if not oauth_enabled → dev 模式 HTML`, 但 prod 同時
+    `oauth_enabled=False + cloudflare_access_enabled=True`, 看到 dev 模式
+    提示叫加 `?annotator=` query string, 在 CF Access 模式根本沒用。
+    """
+    settings = _cf_settings()
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.get("/login")
+    assert r.status_code == 200
+    assert "dev 模式" not in r.text
+    assert ("Cloudflare Access" in r.text) or ("OTP" in r.text)
