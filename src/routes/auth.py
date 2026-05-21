@@ -141,10 +141,13 @@ async def auth_callback(request: Request) -> Response:
 
 @router.post("/logout", include_in_schema=False)
 def logout(request: Request) -> Response:
-    """清 session 並跳回 /login。POST only，避免 CSRF / 預載行為觸發登出。"""
-    session = getattr(request, "session", None)
-    if session is not None:
-        session.clear()
+    """清 session 並跳回 /login。POST only，避免 CSRF / 預載行為觸發登出。
+
+    CF Access 模式無 SessionMiddleware，要先檢查 scope 才能安全取 session
+    (Request.session 是 property,沒 middleware 時直接讀會 raise AssertionError)。
+    """
+    if "session" in request.scope:
+        request.session.clear()
     return RedirectResponse(url="/login", status_code=302)
 
 
