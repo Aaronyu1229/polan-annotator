@@ -17,6 +17,7 @@ from src.calibration_feedback import (
     GREEN_THRESHOLD,
     YELLOW_THRESHOLD,
     build_calibration_report,
+    build_calibration_report_detailed,
     compute_calibration_feedback,
     distance_category,
 )
@@ -215,3 +216,156 @@ def test_report_completed_calibration_flag(in_memory_engine):
     assert report["completed_calibration"] is True
     assert report["total_overlap"] == 2
     assert report["reference_total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# build_calibration_report_detailed — 核心(無 scatter/top)
+# ---------------------------------------------------------------------------
+
+def test_detailed_reference_returns_minimal(in_memory_engine):
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "amber", include_reference_detail=True)
+    assert r["is_reference"] is True
+    assert r["dimensions"] == []
+    assert r["overall"] is None
+    assert r["recommendations"] is None
+    assert r["calibration_progress"] == "0/0"
+    assert "scatter_data" not in r
+
+
+def test_detailed_no_overlap_minimal(in_memory_engine):
+    aid = _save_audio(in_memory_engine, "A_Base Game.wav")
+    _save_annotation(in_memory_engine, aid, "amber")
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+    assert r["is_reference"] is False
+    assert r["calibration_progress"] == "0/1"
+    assert r["dimensions"] == []
+    assert r["overall"] is None
+
+
+def test_detailed_dimensions_list_has_subjective_and_objective(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.5)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.7)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+
+    names = {d["name"]: d for d in r["dimensions"]}
+    # 7 subjective + 3 objective(loop_capability / tonal_noise_ratio / spectral_density)
+    assert names["valence"]["category"] == "subjective"
+    assert names["valence"]["overlap_count"] == 3
+    assert names["valence"]["mae"] == 0.2
+    assert names["valence"]["status"] == "warning"  # 0.2 > 0.15
+    for objective in ("loop_capability", "tonal_noise_ratio", "spectral_density"):
+        assert names[objective]["category"] == "objective"
+        assert names[objective]["status"] == "no_data"
+        assert names[objective]["mae"] is None
+    assert names["valence"]["display_name_zh"]  # 取自 label_zh，非空
+
+
+def test_detailed_overall_and_recommendation(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.5, arousal=0.5)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.5, arousal=0.5)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    # 全對齊 → mae 0.0、無 warning → approved
+    assert r["overall"]["mae"] == 0.0
+    assert r["overall"]["warning_dims_count"] == 0
+    assert r["overall"]["warning_dims_threshold"] == 2
+    assert r["overall"]["recommendation"] == "approved"
+    assert "valence" in r["recommendations"]["dims_approved"]
+    assert len(r["recommendations"]["next_actions"]) == 3
+
+
+def test_detailed_recommendation_not_recommended(in_memory_engine):
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    lo = dict(
+        valence=0.1, arousal=0.1, emotional_warmth=0.1, tension_direction=0.1,
+        temporal_position=0.1, event_significance=0.1, world_immersion=0.1,
+    )
+    hi = {k: 0.9 for k in lo}
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", **lo)
+        _save_annotation(in_memory_engine, aid, "vvgosick", **hi)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    # 全 7 subjective 維 MAE 0.8 → overall_mae 0.8 > 0.30 → not_recommended
+    assert r["overall"]["recommendation"] == "not_recommended"
+    assert "valence" in r["recommendations"]["dims_to_retrain"]
+
+
+def test_detailed_admin_includes_scatter_and_top(in_memory_engine):
+    a0 = _save_audio(in_memory_engine, "GameX_Free Game.wav")
+    a1 = _save_audio(in_memory_engine, "GameY_Base Game.wav")
+    _save_annotation(in_memory_engine, a0, "amber", valence=0.9, arousal=0.5)
+    _save_annotation(in_memory_engine, a0, "vvgosick", valence=0.2, arousal=0.5)  # diff 0.7
+    _save_annotation(in_memory_engine, a1, "amber", valence=0.5, arousal=0.5)
+    _save_annotation(in_memory_engine, a1, "vvgosick", valence=0.55, arousal=0.5)  # diff 0.05
+
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+
+    assert "scatter_data" in r
+    assert "top_deviations" in r
+    # scatter：每 subjective dim 一個 array，valence 有 2 點
+    assert len(r["scatter_data"]["valence"]) == 2
+    assert {"file", "amber", "annotator"} == set(r["scatter_data"]["valence"][0])
+    # top_deviations：依跨維最大 diff 由大到小，diff 0.7 那筆排第一
+    top = r["top_deviations"]
+    assert len(top) == 2
+    assert top[0]["file"] == "GameX_Free Game.wav"
+    assert top[0]["worst_dim"] == "valence"
+    assert top[0]["amber_value"] == 0.9
+    assert top[0]["annotator_value"] == 0.2
+    assert top[0]["diff"] == 0.7
+    assert top[0]["game"] == "GameX"
+    assert top[0]["section"] == "Free Game"
+    assert top[0]["audio_url"] == f"/api/audio/{a0}/stream"
+    assert "valence" in top[0]["all_dims"]
+    assert top[0]["all_dims"]["valence"]["diff"] == 0.7
+
+
+def test_detailed_non_admin_omits_sensitive(in_memory_engine):
+    aid = _save_audio(in_memory_engine, "G_Base Game.wav")
+    _save_annotation(in_memory_engine, aid, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.7)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    assert "scatter_data" not in r
+    assert "top_deviations" not in r
+    # 聚合區塊仍完整
+    assert r["overall"] is not None
+    assert any(d["name"] == "valence" for d in r["dimensions"])
+
+
+def test_detailed_top_deviations_capped_at_10(in_memory_engine):
+    for i in range(13):
+        aid = _save_audio(in_memory_engine, f"G{i}_Base Game.wav")
+        _save_annotation(in_memory_engine, aid, "amber", valence=0.1)
+        _save_annotation(in_memory_engine, aid, "vvgosick", valence=0.9)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=True)
+    assert len(r["top_deviations"]) == 10
+
+
+def test_detailed_recommendation_needs_training(in_memory_engine):
+    """中間區間：overall_mae 0.20 in (0.15, 0.30] → needs_training。"""
+    audios = [_save_audio(in_memory_engine, f"A{i}_Base Game.wav") for i in range(3)]
+    lo = dict(
+        valence=0.5, arousal=0.5, emotional_warmth=0.5, tension_direction=0.5,
+        temporal_position=0.5, event_significance=0.5, world_immersion=0.5,
+    )
+    hi = {k: 0.7 for k in lo}  # per-dim delta 0.20 → overall MAE 0.20
+    for aid in audios:
+        _save_annotation(in_memory_engine, aid, "amber", **lo)
+        _save_annotation(in_memory_engine, aid, "vvgosick", **hi)
+    with Session(in_memory_engine) as s:
+        r = build_calibration_report_detailed(s, "vvgosick", include_reference_detail=False)
+    assert r["overall"]["mae"] == 0.2
+    assert r["overall"]["recommendation"] == "needs_training"
+    # 全 7 subjective 維 mae=0.2 都 > 0.15 → 全為 warning
+    assert r["overall"]["warning_dims_count"] == 7

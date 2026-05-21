@@ -16,47 +16,43 @@
       <p id="header-meta" class="text-sm text-slate-600 dark:text-slate-400">載入中…</p>
     </header>
 
-    <!-- 完成度面板 -->
-    <section id="progress-panel" class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4 mb-6">
-      <div class="text-sm text-slate-500 dark:text-slate-400 mb-2">校準進度</div>
-      <div class="flex items-baseline gap-2">
-        <span id="progress-text" class="text-3xl font-semibold font-mono">—</span>
-        <span class="text-sm text-slate-500 dark:text-slate-400" id="progress-pct">—</span>
-      </div>
-      <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-3">
-        <div id="progress-bar" class="h-full bg-emerald-500" style="width: 0%"></div>
-      </div>
-      <div id="next-action" class="mt-4 text-sm"></div>
-    </section>
+    <section id="overall-panel" class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4 mb-6"></section>
 
-    <!-- per-dim 表 -->
-    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden mb-6">
       <div class="p-4 border-b border-slate-200 dark:border-slate-700">
         <h2 class="text-base font-semibold">維度對齊度</h2>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          MAE = 你跟 Amber 的平均絕對差距。系統性偏移 = 你比 Amber 整體偏高/偏低多少。
-          MAE 越小越接近;偏移接近 0 表示沒有系統性高估或低估。
+          MAE = 你跟 Amber 的平均絕對差距，越小越接近。objective 維度由 librosa 計算，無人工校準資料。
         </p>
-        <p class="text-xs text-slate-400 mt-1">⚠️ Amber 個別答案不揭露(保留 multi-perspective 中立性)</p>
       </div>
       <table class="w-full text-sm">
         <thead class="bg-slate-100 dark:bg-slate-900/70 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
           <tr>
             <th class="text-left p-3 font-medium">維度</th>
+            <th class="text-left p-3 font-medium">類別</th>
             <th class="text-right p-3 font-medium">N</th>
             <th class="text-right p-3 font-medium">MAE</th>
-            <th class="text-right p-3 font-medium">系統性偏移</th>
-            <th class="text-right p-3 font-medium">Pearson r</th>
-            <th class="text-center p-3 font-medium w-16">評等</th>
+            <th class="text-center p-3 font-medium w-20">狀態</th>
           </tr>
         </thead>
         <tbody id="dims-tbody"></tbody>
       </table>
     </section>
 
+    <section id="scatter-panel" class="mb-6 hidden">
+      <h2 class="text-base font-semibold mb-2">逐題散點（Amber × 你）</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">對角線 = 完美一致。離線越遠代表該題分歧越大。（僅 admin 可見）</p>
+      <div id="scatter-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+    </section>
+
+    <section id="top-panel" class="mb-6 hidden">
+      <h2 class="text-base font-semibold mb-2">Top 10 偏差最大音檔</h2>
+      <div id="top-list" class="space-y-2"></div>
+    </section>
+
     <footer class="mt-6 text-xs text-slate-500 dark:text-slate-500">
-      <p>評等門檻:🟢 MAE ≤ 0.15(接近)/ 🟡 0.15-0.30(略偏)/ 🔴 > 0.30(顯著偏離)</p>
-      <p class="mt-1">Amber 看完此報告後會在 Dashboard 認可校準通過,你才會解鎖標全部 1311 筆音檔。</p>
+      <p>狀態：🟢 ok（MAE ≤ 0.15）/ 🟡 warning（&gt; 0.15）/ ⚪ 無資料</p>
+      <p class="mt-1">Amber 看完此報告後會在 Dashboard 認可校準通過，你才會解鎖標全部音檔。</p>
     </footer>
   </main>
 

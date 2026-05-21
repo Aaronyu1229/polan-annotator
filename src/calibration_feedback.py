@@ -45,6 +45,16 @@ HUMAN_CONTINUOUS_DIMS = (
     "world_immersion",
 )
 
+# 報告層判定常數
+WARNING_DIMS_THRESHOLD = 2
+
+# 繁中固定建議文案（CLAUDE.md UI convention：sentence case，具體）
+NEXT_ACTIONS = (
+    "與 Amber 一對一過 Top 10 偏差最大的音檔（約 1 hr）",
+    "重做校準集第二輪標註（全部校準題）",
+    "重新計算 MAE，目標降至 ≤ 0.15 後由 Amber 認可通過",
+)
+
 
 def distance_category(my_value: float, ref_value: float) -> str:
     """連續維度比對 → green / yellow / red。門檻含浮點 epsilon 容忍。"""
@@ -219,3 +229,225 @@ def _pearson(xs: list[float], ys: list[float]) -> Optional[float]:
     if den_x == 0 or den_y == 0:
         return None
     return num / (den_x * den_y) ** 0.5
+
+
+def _dim_display(dim_id: str) -> str:
+    """維度中文顯示名 = dimensions_config 的 label_zh（唯一來源）。"""
+    from src.dimensions_loader import load_dimensions  # noqa: PLC0415
+    return load_dimensions().get(dim_id, {}).get("label_zh", dim_id)
+
+
+def _objective_dim_ids() -> list[str]:
+    """dimensions_config 內、不在 HUMAN_CONTINUOUS_DIMS 的維度（無人工 vs amber MAE）。"""
+    from src.dimensions_loader import load_dimensions  # noqa: PLC0415
+    return [d for d in load_dimensions() if d not in HUMAN_CONTINUOUS_DIMS]
+
+
+def _recommendation(overall_mae: Optional[float], warning_count: int) -> str:
+    if overall_mae is None:
+        return "needs_training"
+    if overall_mae <= GREEN_THRESHOLD and warning_count < WARNING_DIMS_THRESHOLD:
+        return "approved"
+    if overall_mae > YELLOW_THRESHOLD:
+        return "not_recommended"
+    return "needs_training"
+
+
+def build_calibration_report_detailed(
+    session: Session,
+    annotator_id: str,
+    include_reference_detail: bool,
+) -> dict[str, Any]:
+    """合伙人 spec 的完整校準報告。
+
+    scatter_data / top_deviations 含 reference(amber) 逐題值 —
+    只在 include_reference_detail=True（admin 視角）才加入。
+    既有 build_calibration_report() 不動，本函式呼叫它取 per-dim 核心。
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    from src.annotators_loader import get_annotator  # noqa: PLC0415
+
+    core = build_calibration_report(session, annotator_id)
+    spec = get_annotator(annotator_id) or {}
+    generated = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    base = {
+        "annotator": annotator_id,
+        "annotator_name": spec.get("name") or annotator_id,
+        "role": spec.get("annotator_profile"),
+        "is_reference": bool(core.get("is_reference", False)),
+        "report_generated_at": generated,
+    }
+
+    if core.get("is_reference") or core.get("total_overlap", 0) == 0:
+        return {
+            **base,
+            "calibration_progress": (
+                f"{core.get('total_overlap', 0)}/{core.get('reference_total', 0)}"
+            ),
+            "overall": None,
+            "dimensions": [],
+            "recommendations": None,
+        }
+
+    per_dim = core["dimensions"]
+    dimensions: list[dict[str, Any]] = []
+    maes: list[float] = []
+    warning_count = 0
+
+    for dim in HUMAN_CONTINUOUS_DIMS:
+        d = per_dim.get(dim, {})
+        mae = d.get("mae")
+        size = d.get("sample_size", 0)
+        if mae is None or size == 0:
+            status = "no_data"
+        elif mae > GREEN_THRESHOLD:
+            status = "warning"
+            warning_count += 1
+        else:
+            status = "ok"
+        if mae is not None:
+            maes.append(mae)
+        dimensions.append({
+            "name": dim,
+            "display_name_zh": _dim_display(dim),
+            "category": "subjective",
+            "mae": mae,
+            "threshold": GREEN_THRESHOLD,
+            "status": status,
+            "overlap_count": size,
+        })
+
+    for dim in _objective_dim_ids():
+        dimensions.append({
+            "name": dim,
+            "display_name_zh": _dim_display(dim),
+            "category": "objective",
+            "mae": None,
+            "threshold": GREEN_THRESHOLD,
+            "status": "no_data",
+            "overlap_count": 0,
+        })
+
+    overall_mae = round(sum(maes) / len(maes), 3) if maes else None
+    overall = {
+        "mae": overall_mae,
+        "threshold": GREEN_THRESHOLD,
+        "warning_dims_count": warning_count,
+        "warning_dims_threshold": WARNING_DIMS_THRESHOLD,
+        "recommendation": _recommendation(overall_mae, warning_count),
+    }
+    recommendations = {
+        "dims_to_retrain": [
+            d["name"] for d in dimensions
+            if d["category"] == "subjective" and d["status"] == "warning"
+        ],
+        "dims_approved": [
+            d["name"] for d in dimensions
+            if d["category"] == "subjective" and d["status"] == "ok"
+        ],
+        "dims_no_data": [d["name"] for d in dimensions if d["status"] == "no_data"],
+        "next_actions": list(NEXT_ACTIONS),
+    }
+
+    result = {
+        **base,
+        "calibration_progress": (
+            f"{core['total_overlap']}/{core['reference_total']}"
+        ),
+        "overall": overall,
+        "dimensions": dimensions,
+        "recommendations": recommendations,
+    }
+    if include_reference_detail:
+        scatter, top = _build_reference_detail(session, annotator_id)
+        result["scatter_data"] = scatter
+        result["top_deviations"] = top
+    return result
+
+
+def _build_reference_detail(
+    session: Session,
+    annotator_id: str,
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """回 (scatter_data, top_deviations)。含 amber 逐題值 — 只在 admin 視角呼叫。"""
+    from src.models import AudioFile  # noqa: PLC0415
+
+    # Re-fetches all ref/my rows independently of build_calibration_report() to avoid
+    # coupling to its internal query strategy. Calibration sets are small (≤100 files).
+    ref_rows = session.exec(
+        select(Annotation).where(
+            Annotation.annotator_id == REFERENCE_ANNOTATOR,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    my_rows = session.exec(
+        select(Annotation).where(
+            Annotation.annotator_id == annotator_id,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all()
+    ref_by = {a.audio_file_id: a for a in ref_rows}
+    my_by = {a.audio_file_id: a for a in my_rows}
+    overlap = set(ref_by) & set(my_by)
+
+    audio_by_id: dict[str, Any] = {}
+    if overlap:
+        audio_by_id = {
+            a.id: a
+            for a in session.exec(
+                select(AudioFile).where(
+                    AudioFile.id.in_(overlap)  # type: ignore[attr-defined]
+                )
+            ).all()
+        }
+
+    scatter: dict[str, list[dict[str, Any]]] = {
+        d: [] for d in HUMAN_CONTINUOUS_DIMS
+    }
+    deviations: list[dict[str, Any]] = []
+
+    for aid in overlap:
+        ref = ref_by[aid]
+        mine = my_by[aid]
+        audio = audio_by_id.get(aid)
+        fname = audio.filename if audio else aid
+        all_dims: dict[str, dict[str, float]] = {}
+        worst_dim: Optional[str] = None
+        worst_diff = -1.0
+        for dim in HUMAN_CONTINUOUS_DIMS:
+            rv = getattr(ref, dim, None)
+            mv = getattr(mine, dim, None)
+            if rv is None or mv is None:
+                continue
+            rv = float(rv)
+            mv = float(mv)
+            scatter[dim].append({"file": fname, "amber": rv, "annotator": mv})
+            diff = round(abs(mv - rv), 3)
+            all_dims[dim] = {"amber": rv, "annotator": mv, "diff": diff}
+            # Ties resolved by first occurrence in HUMAN_CONTINUOUS_DIMS (deterministic but arbitrary).
+            if diff > worst_diff:
+                worst_diff = diff
+                worst_dim = dim
+        if worst_dim is None:
+            continue
+        deviations.append({
+            "file": fname,
+            "game": audio.game_name if audio else "",
+            "section": audio.game_stage if audio else "",
+            "audio_url": f"/api/audio/{aid}/stream",
+            "worst_dim": worst_dim,
+            "worst_dim_display": _dim_display(worst_dim),
+            "amber_value": all_dims[worst_dim]["amber"],
+            "annotator_value": all_dims[worst_dim]["annotator"],
+            "diff": all_dims[worst_dim]["diff"],
+            "all_dims": all_dims,
+        })
+
+    deviations.sort(key=lambda d: d["diff"], reverse=True)
+    return scatter, deviations[:10]
