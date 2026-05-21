@@ -457,3 +457,22 @@ def test_email_to_annotator_mapping_used(cf_app):
     )
     assert r.status_code == 200
     assert r.json()["annotator_id"] == "amber"
+
+
+def test_cf_mode_logout_without_session_middleware_returns_302(cf_app):
+    """CF Access 模式無 SessionMiddleware,/logout 不該 500。
+
+    Regression: 之前用 `getattr(request, "session", None)` 想 graceful 取 session,
+    但 Starlette `Request.session` 是 property,沒裝 SessionMiddleware 時會在 getattr
+    return 預設值前先 raise AssertionError → 500。改成檢查 request.scope 才安全。
+    """
+    settings = _cf_settings()
+    app = cf_app(settings)
+    client = TestClient(app)
+    r = client.post(
+        "/logout",
+        follow_redirects=False,
+        headers={"Cf-Access-Authenticated-User-Email": "polanmusic2025@gmail.com"},
+    )
+    assert r.status_code == 302
+    assert r.headers["location"] == "/login"
