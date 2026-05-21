@@ -37,8 +37,13 @@ def _add_annotation(
     is_complete: bool = True,
     created_at: datetime,
     updated_at: datetime | None = None,
+    started_at: datetime | None = None,
 ) -> None:
-    """插入一筆 annotation — created_at / updated_at 必須自己給（測時序）。"""
+    """插入一筆 annotation。
+
+    `started_at`: 模擬使用者點開頁面時間,用於算 avg_duration_sec(created_at - started_at)。
+    為 None 時該筆不會被 duration 統計納入,模擬歷史資料 / 舊 client 不送 started_at 的情境。
+    """
     if updated_at is None:
         updated_at = created_at + timedelta(minutes=5)
     with Session(engine) as s:
@@ -46,6 +51,7 @@ def _add_annotation(
             audio_file_id=audio_id,
             annotator_id=annotator_id,
             is_complete=is_complete,
+            started_at=started_at,
             created_at=created_at,
             updated_at=updated_at,
             function_roles='["atmosphere"]',
@@ -71,12 +77,12 @@ def test_progress_no_annotations(in_memory_engine):
 
 
 def test_progress_single_annotation(in_memory_engine):
-    # 5 個音檔，amber 標完 1 個，花了 7 分鐘
+    # 5 個音檔，amber 標完 1 個，花了 7 分鐘 (started_at → created_at = 7min)
     audio_ids = [_add_audio(in_memory_engine, f"a{i}.wav") for i in range(5)]
     now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     _add_annotation(
         in_memory_engine, audio_ids[0], "amber",
-        created_at=now, updated_at=now + timedelta(minutes=7),
+        started_at=now, created_at=now + timedelta(minutes=7),
     )
     with Session(in_memory_engine) as s:
         result = compute_progress(
@@ -131,17 +137,17 @@ def test_progress_streak_broken(in_memory_engine):
 
 
 def test_progress_excludes_outlier_duration(in_memory_engine):
-    # 正常 5 分鐘 + outlier 3 小時 → 平均應 = 5 分鐘（outlier 被排除）
+    # 正常 5 分鐘 + outlier 3 小時 → 平均應 = 5 分鐘(outlier 被排除)
     a1 = _add_audio(in_memory_engine, "a.wav")
     a2 = _add_audio(in_memory_engine, "b.wav")
     now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     _add_annotation(
         in_memory_engine, a1, "amber",
-        created_at=now, updated_at=now + timedelta(minutes=5),
+        started_at=now, created_at=now + timedelta(minutes=5),
     )
     _add_annotation(
         in_memory_engine, a2, "amber",
-        created_at=now, updated_at=now + timedelta(hours=3),
+        started_at=now, created_at=now + timedelta(hours=3),
     )
     with Session(in_memory_engine) as s:
         result = compute_progress(
@@ -158,11 +164,11 @@ def test_progress_different_annotators_isolated(in_memory_engine):
     now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     _add_annotation(
         in_memory_engine, a, "amber",
-        created_at=now, updated_at=now + timedelta(minutes=3),
+        started_at=now, created_at=now + timedelta(minutes=3),
     )
     _add_annotation(
         in_memory_engine, a, "bob",
-        created_at=now, updated_at=now + timedelta(minutes=10),
+        started_at=now, created_at=now + timedelta(minutes=10),
     )
     with Session(in_memory_engine) as s:
         amber = compute_progress(
@@ -177,6 +183,70 @@ def test_progress_different_annotators_isolated(in_memory_engine):
     assert bob.avg_duration_sec is not None and abs(bob.avg_duration_sec - 600) < 1
     # total_audio_files 共用
     assert amber.total_audio_files == bob.total_audio_files == 2
+
+
+# ─── avg_duration_sec regression: started_at NULL 處理 + 一次性提交不再算 0 ──
+#
+# Bug 2026-05-21: 舊算法用 `updated_at - created_at`,一次性提交 (created==updated)
+# 看起來像 0:00,Vic 案例 37 筆全 0。新算法用 `created_at - started_at`,NULL
+# started_at (歷史資料 / 舊 client) 直接跳過,有 started_at 才納入平均。
+
+def test_avg_duration_excludes_rows_with_null_started_at(in_memory_engine):
+    """所有 row 的 started_at 是 NULL → avg_duration_sec = None (歷史資料情境)。"""
+    a1 = _add_audio(in_memory_engine, "a.wav")
+    a2 = _add_audio(in_memory_engine, "b.wav")
+    now = datetime(2026, 5, 21, 10, 0, tzinfo=UTC)
+    # 不帶 started_at,模擬歷史 row
+    _add_annotation(in_memory_engine, a1, "vvgosick", created_at=now)
+    _add_annotation(in_memory_engine, a2, "vvgosick", created_at=now)
+    with Session(in_memory_engine) as s:
+        result = compute_progress(
+            s, "vvgosick", tz_name="UTC", today=date(2026, 5, 21),
+        )
+    assert result.avg_duration_sec is None
+    # 但 completed_count 仍照常算 (started_at NULL 不影響 is_complete 統計)
+    assert result.completed_count == 2
+
+
+def test_avg_duration_uses_started_at_not_updated_at(in_memory_engine):
+    """有 started_at 的 row: avg = mean(created_at - started_at), 不再受 updated_at 影響。
+
+    Regression: 用一次性提交 (created_at == updated_at) 配 started_at = 60 秒前,
+    舊算法會回 0 (created==updated),新算法該回 60。
+    """
+    a = _add_audio(in_memory_engine, "x.wav")
+    now = datetime(2026, 5, 21, 10, 0, tzinfo=UTC)
+    _add_annotation(
+        in_memory_engine, a, "vvgosick",
+        started_at=now - timedelta(seconds=60),
+        created_at=now,
+        updated_at=now,  # 一次性提交 → updated_at == created_at
+    )
+    with Session(in_memory_engine) as s:
+        result = compute_progress(
+            s, "vvgosick", tz_name="UTC", today=date(2026, 5, 21),
+        )
+    assert result.avg_duration_sec is not None
+    assert abs(result.avg_duration_sec - 60) < 1
+
+
+def test_avg_duration_mixed_null_and_value_uses_only_non_null(in_memory_engine):
+    """部分歷史 row 沒 started_at + 新 row 有 → avg 只看有 started_at 的那筆。"""
+    a1 = _add_audio(in_memory_engine, "old.wav")
+    a2 = _add_audio(in_memory_engine, "new.wav")
+    now = datetime(2026, 5, 21, 10, 0, tzinfo=UTC)
+    _add_annotation(in_memory_engine, a1, "vvgosick", created_at=now)  # 無 started_at
+    _add_annotation(
+        in_memory_engine, a2, "vvgosick",
+        started_at=now, created_at=now + timedelta(minutes=4),
+    )
+    with Session(in_memory_engine) as s:
+        result = compute_progress(
+            s, "vvgosick", tz_name="UTC", today=date(2026, 5, 21),
+        )
+    # 只有 4 分鐘那筆參與計算
+    assert result.avg_duration_sec is not None
+    assert abs(result.avg_duration_sec - 4 * 60) < 1
 
 
 # ─── /api/stats/progress route：?annotator= 查指定標註員（dashboard 各人進度條）──
