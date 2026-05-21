@@ -73,6 +73,11 @@ class Annotation(SQLModel, table=True):
 
     # is_complete 由 POST /api/annotations 計算；Phase 4 export 只匯出 True
     is_complete: bool = Field(default=False)
+    # started_at: 標註員第一次開啟標註頁的時間(前端 POST 帶上來)。
+    # 用於算「平均單筆耗時」: created_at - started_at = 該人實際花在這首歌的時間。
+    # NULL = 歷史資料或 client 沒帶(向後相容),avg_duration 計算會跳過。
+    # update path 不覆寫 started_at — 保留首次標註的真實計時。
+    started_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

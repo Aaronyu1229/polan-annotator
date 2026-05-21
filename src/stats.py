@@ -69,14 +69,24 @@ def _to_utc_aware(dt: datetime) -> datetime:
 
 
 def _compute_avg_duration(annotations: list[Annotation]) -> Optional[float]:
-    """`updated_at - created_at` 的秒數平均，排除 >= 2 小時 outlier。無有效樣本回 None。"""
+    """`created_at - started_at` 的秒數平均,排除 >= 2 小時 outlier。
+
+    語意:**標註員實際花在這首歌的時間** = 從點開標註頁(started_at)到送出儲存(created_at)。
+    started_at 是 NULL 的 row (歷史資料 + 舊 client) 跳過,所以新人前期可能 avg=None,
+    累積到一筆 started_at 非 NULL 的就開始有數字。
+
+    歷史 bug 2026-05-21: 之前算 `updated_at - created_at`,量到的是「事後 edit 延遲」,
+    一次性提交者 100% 為 0,看起來像 0:00 卻誤導 (Vic 案例 37 筆全 0)。
+
+    無有效樣本 (全 NULL 或全是 outlier) → 回 None。
+    """
     valid: list[float] = []
     for ann in annotations:
-        if ann.created_at is None or ann.updated_at is None:
+        if ann.started_at is None or ann.created_at is None:
             continue
+        started = _to_utc_aware(ann.started_at)
         created = _to_utc_aware(ann.created_at)
-        updated = _to_utc_aware(ann.updated_at)
-        delta = (updated - created).total_seconds()
+        delta = (created - started).total_seconds()
         if delta < 0:
             continue
         if delta >= DURATION_OUTLIER_THRESHOLD_SEC:

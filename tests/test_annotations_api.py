@@ -301,3 +301,77 @@ def test_annotators_list_empty_when_no_records(client):
     r = client.get("/api/annotations/annotators")
     assert r.status_code == 200
     assert r.json() == []
+
+
+# ─── started_at: 平均單筆耗時的真實計時 (2026-05-21 修) ──────────────
+#
+# Bug: 舊算法用 `updated_at - created_at`,一次性提交者全 0 → 顯示 0:00。
+# 修法: 前端 POST 時帶 started_at(進頁面時記的 timestamp),後端存。
+# 統計用 `created_at - started_at` 才是真實標註花費。
+
+def test_post_stores_started_at_from_payload(client, in_memory_engine):
+    """新增 annotation 時 payload 帶 started_at,該存進 DB。"""
+    from sqlmodel import Session, select
+    from src.models import Annotation
+
+    a = _make_audio(in_memory_engine)
+    p = _complete_payload(a)
+    p["started_at"] = "2026-05-21T10:00:00+00:00"
+    r = client.post("/api/annotations", json=p)
+    assert r.status_code == 200, r.text
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == a)).first()
+    assert ann is not None
+    assert ann.started_at is not None
+    # 比對 UTC ISO timestamp 的小時/分秒,不死綁 tz repr
+    assert ann.started_at.year == 2026 and ann.started_at.month == 5 and ann.started_at.day == 21
+    assert ann.started_at.hour == 10
+
+
+def test_post_without_started_at_stores_null(client, in_memory_engine):
+    """payload 沒帶 started_at (舊 client) → DB started_at = NULL。avg_duration 會跳過。"""
+    from sqlmodel import Session, select
+    from src.models import Annotation
+
+    a = _make_audio(in_memory_engine)
+    p = _complete_payload(a)
+    # 故意不放 started_at — 模擬 Phase 13 之前的 client
+    r = client.post("/api/annotations", json=p)
+    assert r.status_code == 200, r.text
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == a)).first()
+    assert ann is not None
+    assert ann.started_at is None
+
+
+def test_post_update_preserves_existing_started_at(client, in_memory_engine):
+    """既有 row 有 started_at → re-POST 不該被覆寫,首次標註的真實計時要保留。"""
+    from sqlmodel import Session, select
+    from src.models import Annotation
+
+    a = _make_audio(in_memory_engine)
+    # 第一次 POST 帶 started_at A
+    p1 = _complete_payload(a)
+    p1["started_at"] = "2026-05-21T10:00:00+00:00"
+    r1 = client.post("/api/annotations", json=p1)
+    assert r1.status_code == 200
+
+    # 第二次 POST(同一 audio+annotator,= update path)帶不同 started_at B
+    p2 = _complete_payload(a)
+    p2["started_at"] = "2026-05-21T11:00:00+00:00"  # 一小時後,不該被採用
+    p2["valence"] = 0.2  # 改一下別的值
+    r2 = client.post("/api/annotations", json=p2)
+    assert r2.status_code == 200
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == a)).first()
+    assert ann is not None
+    assert ann.started_at is not None
+    # 應該還是 10:00,不是 11:00
+    assert ann.started_at.hour == 10, (
+        f"started_at 被覆寫了: {ann.started_at} (應保留首次 10:00)"
+    )
+    # 確認其他欄位有更新(證明 update path 有跑)
+    assert ann.valence == 0.2

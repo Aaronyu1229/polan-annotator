@@ -18,11 +18,14 @@ engine = create_engine(
 
 
 def create_db() -> None:
-    """建立所有 SQLModel 表；idempotent，重複呼叫安全。"""
+    """建立所有 SQLModel 表 + 跑 pending migrations；idempotent，重複呼叫安全。"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     # import models 確保 metadata 註冊
     from src import models  # noqa: F401
     SQLModel.metadata.create_all(engine)
+    # 加 column 到既有表(create_all 不會做)— idempotent,每次啟動跑都安全
+    from src.migrations import apply_pending_migrations  # noqa: PLC0415
+    apply_pending_migrations(engine)
 
 
 def get_session() -> Session:

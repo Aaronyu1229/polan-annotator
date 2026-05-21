@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -79,6 +80,9 @@ class AnnotationPayload(BaseModel):
     worldview_tag: Optional[str] = None
     style_tag: list[str] = Field(default_factory=list)
     notes: Optional[str] = None
+    # 標註頁前端載入時間 — 用於算「平均單筆耗時」(created_at - started_at)。
+    # client 沒帶 → None,該筆不會被 avg_duration 統計納入(歷史資料 + 舊 client 同理)。
+    started_at: Optional[datetime] = None
 
 
 def _check_completeness(payload: AnnotationPayload) -> tuple[bool, Optional[str]]:
@@ -247,6 +251,8 @@ def upsert_annotation(
         existing.notes = payload.notes
         existing.is_complete = is_complete
         existing.updated_at = now
+        # 刻意不覆寫 existing.started_at —— 保留首次標註的真實計時,後續 edit 不污染。
+        # 若歷史資料 started_at 是 NULL 也維持 NULL(avg_duration 跳過該筆,符合預期)。
         session.add(existing)
         annotation_id = existing.id
     else:
@@ -270,6 +276,7 @@ def upsert_annotation(
             style_tag=json.dumps(payload.style_tag),
             notes=payload.notes,
             is_complete=is_complete,
+            started_at=payload.started_at,  # client 沒帶就 None,avg_duration 會跳過
             created_at=now,
             updated_at=now,
         )

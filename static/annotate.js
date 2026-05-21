@@ -16,6 +16,10 @@ const ANNOTATOR = qs.get('annotator') || 'guest'
 const DRAFT_KEY = `draft:${ANNOTATOR}:${AUDIO_ID}`
 const DRAFT_DEBOUNCE_MS = 3000
 
+// 進頁面當下記 timestamp,POST /api/annotations 時帶上,後端算 created_at - started_at
+// = 該人實際花在這首歌的時間(取代量「事後 edit 延遲」的舊算法)。
+const PAGE_LOADED_AT = new Date().toISOString()
+
 // Phase 5 #2：session count 由 list.js 與此頁共同維護。連續儲存時中間的 annotate 頁
 // 仍會收到 ?just_saved=1 flag — 各頁各自 +1，才能讓最終回首頁時 count 正確。
 const SESSION_COUNT_KEY = `session_completed_count:${ANNOTATOR}`
@@ -920,6 +924,7 @@ async function submitAnnotation({ goNext }) {
     worldview_tag: state.worldview || null,
     style_tag: state.styles,
     notes: state.notes || null,
+    started_at: PAGE_LOADED_AT,
   }
 
   try {
