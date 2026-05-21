@@ -47,6 +47,19 @@ def _html_page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
 async def login(request: Request) -> Response:
     settings: Settings = _get_settings(request)
 
+    # CF Access 模式: 真正的閘道在 Cloudflare,使用者該透過 OTP email 連結進來,
+    # 不該看到「dev 模式」叫他加 `?annotator=` query string (在 CF Access 模式無效)。
+    if settings.cloudflare_access_enabled:
+        body = """
+        <h1 class="text-xl font-semibold mb-3">請從 OTP 信件登入</h1>
+        <p class="text-sm text-slate-600 dark:text-slate-300 mb-5">
+          本工具由 Cloudflare Access 把關。要進入請收 Amber 發給你的 OTP 驗證信,
+          照信中連結登入。沒有信請聯絡 Amber。
+        </p>
+        <a href="/" class="inline-block px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium">嘗試進入 →</a>
+        """
+        return _html_page("登入", body)
+
     if not settings.oauth_enabled:
         body = """
         <h1 class="text-xl font-semibold mb-3">登入（dev 模式）</h1>
@@ -65,6 +78,28 @@ async def login(request: Request) -> Response:
 
     redirect_uri = settings.oauth_redirect_uri
     return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+# ─── /logged-out ──────────────────────────────────────────
+#
+# CF Access logout URL 的 returnTo target。CF 清完 cookie 後會把使用者導到這頁。
+#
+# ⚠️ 部署 ops 須知: 需在 Cloudflare Zero Trust → Access → Applications →
+# annotate.dolcenforte.com → Policies 加一條 Bypass policy 對 path `/logged-out`,
+# 否則使用者回到這頁時 CF 又會挑戰 OTP, 反而把人放回登入狀態,登出 UX 失敗。
+
+@router.get("/logged-out", include_in_schema=False)
+def logged_out_page() -> Response:
+    """CF Access logout returnTo 的「你已登出」確認頁。"""
+    body = """
+    <h1 class="text-xl font-semibold mb-3">你已登出 ✓</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-5">
+      已從 Cloudflare Access 登出。要重新進入,請按下方連結並收 OTP 驗證信。
+    </p>
+    <a href="/" class="inline-block px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium">重新登入 →</a>
+    <p class="text-xs text-slate-400 mt-4">或直接關閉這個分頁。</p>
+    """
+    return _html_page("已登出", body)
 
 
 # ─── /auth/callback ───────────────────────────────────────
@@ -141,13 +176,31 @@ async def auth_callback(request: Request) -> Response:
 
 @router.post("/logout", include_in_schema=False)
 def logout(request: Request) -> Response:
-    """清 session 並跳回 /login。POST only，避免 CSRF / 預載行為觸發登出。
+    """清 session 並真正登出。POST only,避免 CSRF / 預載行為觸發登出。
 
-    CF Access 模式無 SessionMiddleware，要先檢查 scope 才能安全取 session
-    (Request.session 是 property,沒 middleware 時直接讀會 raise AssertionError)。
+    流程依模式:
+    - OAuth 模式 (有 SessionMiddleware): 清 app session → redirect /login。
+    - CF Access JWT 模式 (有 team_domain): redirect 到 CF 官方 logout URL,
+      讓 CF 清掉自己的 cookie,再 returnTo `/logged-out` 確認頁。**這條才會真正登出**,
+      只回 /login 等於沒登出(CF cookie 還在,重整就會回來)。
+    - CF Access header-only / dev 模式 (無 team_domain): fallback redirect /login。
     """
+    settings = _get_settings(request)
     if "session" in request.scope:
         request.session.clear()
+
+    if (
+        settings.cloudflare_access_enabled
+        and settings.cloudflare_access_team_domain
+        and settings.app_domain
+    ):
+        team = settings.cloudflare_access_team_domain
+        return_to = f"https://{settings.app_domain}/logged-out"
+        return RedirectResponse(
+            url=f"https://{team}/cdn-cgi/access/logout?returnTo={return_to}",
+            status_code=302,
+        )
+
     return RedirectResponse(url="/login", status_code=302)
 
 
