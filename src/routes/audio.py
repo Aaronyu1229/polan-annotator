@@ -80,10 +80,15 @@ def list_audio(
     annotator: Optional[str] = Depends(optional_annotator),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
-    """回傳所有音檔,含 duration、is_annotated_by_current_annotator 旗標、status(Phase 12-C)。
+    """回傳音檔清單,含 duration、is_annotated_by_current_annotator 旗標、status(Phase 12-C)。
 
     status:Phase 10 五狀態,bulk compute 避免 N+1。
+
+    Phase 8 follow-up: 對 pending_calibration / archived 標註員過濾,
+    跟 enforce_annotator_access 的 gate 行為一致,避免「看得到卻載不到」。
     """
+    from src.annotators_loader import AnnotatorsConfigError, get_annotator  # noqa: PLC0415
+
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
     ).all()
@@ -101,6 +106,24 @@ def list_audio(
         completed_audio_ids = {
             ann.audio_file_id for ann in all_complete if ann.annotator_id == annotator
         }
+
+    # Phase 8 follow-up: 比對 annotator 狀態,跟 enforce_annotator_access 同邏輯過濾
+    if annotator:
+        try:
+            spec = get_annotator(annotator)
+        except AnnotatorsConfigError:
+            spec = None  # config 壞 → fail-open,跟 gate 同 fallback
+        if spec is not None:
+            status_value = spec.get("status")
+            if status_value == "archived":
+                audios = []
+            elif status_value == "pending_calibration":
+                amber_completed_ids = {
+                    ann.audio_file_id
+                    for ann in all_complete
+                    if ann.annotator_id == "amber"
+                }
+                audios = [a for a in audios if a.id in amber_completed_ids]
 
     # Phase 12-C:bulk compute status per audio
     from src.audiofile_status import per_dim_spread, GOLD_MAX_SPREAD  # noqa: PLC0415
