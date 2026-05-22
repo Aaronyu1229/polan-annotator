@@ -272,13 +272,18 @@ def compute_icc_per_dimension(
     """
     import numpy as np  # noqa: PLC0415 — 延遲載入避免 import 順序問題
 
+    from src.calibration_feedback import REFERENCE_ANNOTATOR  # noqa: PLC0415
     from src.dimensions_loader import load_dimensions
     from src.statistics import icc_2_1
 
-    annotators = list_completed_annotators(session, include_fixture=include_fixture)
-    overlap_ids = find_overlap_audios(session, annotators)
+    # all_annotators: 全部有 is_complete 紀錄者(含 amber)— 給 dashboard 進度區塊用。
+    all_annotators = list_completed_annotators(session, include_fixture=include_fixture)
+    # icc_annotators: 排除 reference(amber)。Amber 是仲裁者 / 校準基準,不是 peer rater;
+    # 跨標 ICC 量的是 L1 標註員(yyslin1024 × vvgosick)彼此的一致性,不該把基準納入。
+    icc_annotators = [a for a in all_annotators if a != REFERENCE_ANNOTATOR]
+    overlap_ids = find_overlap_audios(session, icc_annotators)
     n = len(overlap_ids)
-    k = len(annotators)
+    k = len(icc_annotators)
 
     dims_config = load_dimensions()
     eligible: list[tuple[str, str]] = []
@@ -308,7 +313,9 @@ def compute_icc_per_dimension(
                 "note": "尚無足夠重疊資料（需 ≥ 2 位標註員各自完整標記 ≥ 2 個共同檔案）",
             }
         return {
-            "annotators": annotators,
+            "annotators": all_annotators,
+            "icc_annotators": icc_annotators,
+            "reference_annotator": REFERENCE_ANNOTATOR,
             "sample_size": n,
             "include_fixture": include_fixture,
             "dimensions": dimensions_result,
@@ -319,7 +326,7 @@ def compute_icc_per_dimension(
     rows = session.exec(
         select(Annotation).where(
             Annotation.audio_file_id.in_(overlap_ids),  # type: ignore[attr-defined]
-            Annotation.annotator_id.in_(annotators),  # type: ignore[attr-defined]
+            Annotation.annotator_id.in_(icc_annotators),  # type: ignore[attr-defined]
             Annotation.is_complete == True,  # noqa: E712
         )
     ).all()
@@ -332,7 +339,7 @@ def compute_icc_per_dimension(
         matrix = np.full((n, k), np.nan, dtype=float)
         complete = True
         for i, audio_id in enumerate(overlap_ids):
-            for j, ann_id in enumerate(annotators):
+            for j, ann_id in enumerate(icc_annotators):
                 ann = by_pair.get((audio_id, ann_id))
                 value = getattr(ann, dim_key, None) if ann else None
                 if value is None:
@@ -362,7 +369,9 @@ def compute_icc_per_dimension(
         }
 
     return {
-        "annotators": annotators,
+        "annotators": all_annotators,
+        "icc_annotators": icc_annotators,
+        "reference_annotator": REFERENCE_ANNOTATOR,
         "sample_size": n,
         "include_fixture": include_fixture,
         "dimensions": dimensions_result,

@@ -211,7 +211,7 @@ async function loadIcc(includeFixture) {
     const res = await fetch(`/api/stats/icc?include_fixture=${includeFixture}`)
     const data = await res.json()
     renderIccTable(data)
-    loadProgressForAll(data.annotators)
+    loadProgressForAll(data.annotators, data.reference_annotator)
   } catch (err) {
     $('icc-meta').textContent = `載入 ICC 失敗：${err.message}`
   }
@@ -227,7 +227,7 @@ async function loadOverlap(includeFixture) {
   }
 }
 
-async function loadProgressForAll(annotators) {
+async function loadProgressForAll(annotators, referenceAnnotator) {
   const me = await getMe()
   const list = $('progress-list')
   if (!annotators.length) {
@@ -239,9 +239,15 @@ async function loadProgressForAll(annotators) {
     const nameCell = clickable
       ? `<a href="/annotator/${encodeURIComponent(a)}" class="hover:underline hover:text-amber-600 dark:hover:text-amber-400">${escapeHtml(a)}</a>`
       : escapeHtml(a)
+    // Amber (reference) 角色標示:仲裁者 / 校準基準,跟 L1 標註員區分
+    const roleBadge = a === referenceAnnotator
+      ? ` <span class="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 whitespace-nowrap">仲裁者 / 校準基準</span>`
+      : ''
     return `
     <div class="flex items-center gap-3" data-annotator="${escapeAttr(a)}">
-      <div class="w-32 text-sm font-medium truncate">${nameCell}</div>
+      <div class="w-52 text-sm font-medium flex items-center gap-1.5 min-w-0">
+        <span class="truncate">${nameCell}</span>${roleBadge}
+      </div>
       <div class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
         <div class="h-full bg-amber-500" data-bar style="width: 0%"></div>
       </div>
@@ -268,9 +274,11 @@ async function loadProgressForAll(annotators) {
 }
 
 function renderIccTable(data) {
+  // icc_annotators = 排除 reference(amber) 後實際參與計算的 L1 標註員
+  const iccAnnotators = data.icc_annotators || data.annotators || []
   const meta = data.sample_size > 0
-    ? `基於 N=${data.sample_size} 筆共同標註的檔案，K=${data.annotators.length} 位標註員：${data.annotators.join(', ')}`
-    : '尚無跨標註員資料（需 ≥ 2 位標註員各自完整標記 ≥ 2 個共同檔案）'
+    ? `${iccAnnotators.join(' × ')}（K=${iccAnnotators.length}）· 基於 N=${data.sample_size} 筆共同標註的檔案`
+    : `尚無 L1 跨標資料（需 ≥ 2 位 L1 標註員各自完整標記 ≥ 2 個共同檔案）。目前 L1：${iccAnnotators.join('、') || '無'}`
   $('icc-meta').textContent = meta
 
   const dims = data.dimensions || {}
