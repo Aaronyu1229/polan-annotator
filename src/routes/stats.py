@@ -16,13 +16,29 @@ from sqlmodel import Session, select
 
 from src.annotation_serialization import annotation_to_dict
 from src.annotators_loader import AnnotatorsConfigError, get_annotator
-from src.calibration_feedback import build_calibration_report
+from src.calibration_feedback import REFERENCE_ANNOTATOR, build_calibration_report
 from src.db import get_session
 from src.middleware import require_auth
 from src.models import Annotation, AudioFile
 from src.stats import compute_icc_per_dimension, compute_overlap_audios, compute_progress
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+# Feature-005: 每筆音檔「警示」判定 — 標註員值與 Amber 值偏差 >= 門檻。
+# 門檻依負責人 spec:主觀 7 維 0.25、客觀 2 維 0.15。
+# 註:world_immersion 在 dimensions_config 歸 acoustic 類,但 spec 明列為主觀維度
+# (它是「世界沉浸感」主觀感受,非聲學量測),故門檻用 0.25,以負責人 spec 為準。
+_WARNING_THRESHOLDS: dict[str, float] = {
+    "valence": 0.25,
+    "arousal": 0.25,
+    "emotional_warmth": 0.25,
+    "tension_direction": 0.25,
+    "temporal_position": 0.25,
+    "event_significance": 0.25,
+    "world_immersion": 0.25,
+    "tonal_noise_ratio": 0.15,
+    "spectral_density": 0.15,
+}
 
 
 @router.get("/progress")
@@ -126,6 +142,9 @@ def annotator_detail(
         files.append(item)
     files.sort(key=lambda f: f["updated_at"] or "", reverse=True)
 
+    # Feature-005: 對每筆算「vs Amber 偏差警示」。amber 自己的明細不比對(無 self-reference)。
+    _annotate_warning_dims(session, target, files)
+
     try:
         spec = get_annotator(target)
     except AnnotatorsConfigError:
@@ -139,3 +158,57 @@ def annotator_detail(
         "calibration": calibration,
         "files": files,
     }
+
+
+def _annotate_warning_dims(
+    session: Session,
+    target: str,
+    files: list[dict[str, Any]],
+) -> None:
+    """就地為每筆 file 加 warning_dims / warning_count / max_deviation 欄位。
+
+    警示 = 該筆某維度 |標註員值 - Amber值| >= 門檻(_WARNING_THRESHOLDS)。
+    - amber 自己的明細:不比對,全部 warning_count=0、max_deviation=None。
+    - Amber 沒標過該 audio 的:無從比對,warning_count=0、max_deviation=None。
+    - 某維度任一方為 None(如 acoustic 兩維已改 librosa 自動,人類常為 None):跳過該維。
+    """
+    for f in files:
+        f["warning_dims"] = []
+        f["warning_count"] = 0
+        f["max_deviation"] = None
+
+    if target == REFERENCE_ANNOTATOR or not files:
+        return
+
+    audio_ids = [f["audio_id"] for f in files]
+    amber_rows = session.exec(
+        select(Annotation).where(
+            Annotation.annotator_id == REFERENCE_ANNOTATOR,
+            Annotation.is_complete == True,  # noqa: E712
+            Annotation.audio_file_id.in_(audio_ids),  # type: ignore[attr-defined]
+        )
+    ).all()
+    amber_by_audio = {a.audio_file_id: a for a in amber_rows}
+
+    for f in files:
+        amber_ann = amber_by_audio.get(f["audio_id"])
+        if amber_ann is None:
+            continue
+        warning_dims: list[dict[str, Any]] = []
+        max_dev: Optional[float] = None
+        for dim, threshold in _WARNING_THRESHOLDS.items():
+            my_val = f.get(dim)
+            amber_val = getattr(amber_ann, dim, None)
+            if my_val is None or amber_val is None:
+                continue
+            diff = abs(float(my_val) - float(amber_val))
+            max_dev = diff if max_dev is None else max(max_dev, diff)
+            if diff >= threshold:
+                warning_dims.append(
+                    {"dim": dim, "diff": round(diff, 3), "threshold": threshold}
+                )
+        # 警示維度依差距由大到小,前端 expand 時最嚴重的排前面
+        warning_dims.sort(key=lambda w: w["diff"], reverse=True)
+        f["warning_dims"] = warning_dims
+        f["warning_count"] = len(warning_dims)
+        f["max_deviation"] = round(max_dev, 3) if max_dev is not None else None

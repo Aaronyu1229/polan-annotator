@@ -23,6 +23,7 @@ const state = {
   files: [],
   dims: {},
   sortKey: 'time',
+  filterKey: 'all',  // 'all' | 'warning'
   expandedId: null,
 }
 
@@ -44,7 +45,7 @@ async function load() {
     state.files = data.files || []
     $('title').textContent = `標註員明細 — ${data.annotator_name || data.annotator_id}`
     renderStats(data)
-    bindSort()
+    bindControls()
     renderTable()
   } catch (err) {
     $('content').innerHTML = `<div class="p-6 text-sm text-red-600">載入失敗：${escapeHtml(err.message)}</div>`
@@ -105,8 +106,18 @@ function renderStats(data) {
   $('stats').innerHTML = html
 }
 
-function sortedFiles() {
-  const fs = state.files.slice()
+function warningCount(f) {
+  return f.warning_count || 0
+}
+
+function filteredSortedFiles() {
+  let fs = state.files.slice()
+  if (state.filterKey === 'warning') {
+    // 只看有警示的,預設按「最大偏差維度的差距」由大到小,讓 Amber 從最嚴重的看起
+    fs = fs.filter(f => warningCount(f) > 0)
+    fs.sort((a, b) => (b.max_deviation || 0) - (a.max_deviation || 0))
+    return fs
+  }
   if (state.sortKey === 'filename') {
     fs.sort((a, b) => a.filename.localeCompare(b.filename))
   } else {
@@ -131,10 +142,17 @@ function chips(arr) {
 }
 
 function renderDetail(f) {
+  // Feature-005: 該筆的警示維度 → diff 對照,在維度列右側顯示紅色「差 0.XX」
+  const warnByDim = {}
+  for (const w of (f.warning_dims || [])) warnByDim[w.dim] = w.diff
   const dimRows = CONTINUOUS_ORDER.map(k => {
     const v = f[k]
+    const dev = warnByDim[k]
+    const devBadge = dev != null
+      ? ` <span class="text-[10px] px-1 py-0.5 rounded bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 font-mono">差 ${dev.toFixed(2)}</span>`
+      : ''
     return `<div class="flex justify-between py-0.5">
-      <span class="text-slate-600 dark:text-slate-400">${escapeHtml(dimLabel(k))}${dimWarn(k)}</span>
+      <span class="text-slate-600 dark:text-slate-400">${escapeHtml(dimLabel(k))}${dimWarn(k)}${devBadge}</span>
       <span class="font-mono">${v == null ? '—' : Number(v).toFixed(2)}</span>
     </div>`
   }).join('')
@@ -161,11 +179,29 @@ function renderDetail(f) {
     </div>`
 }
 
+function updateFilterCounts() {
+  const total = state.files.length
+  const warnN = state.files.filter(f => warningCount(f) > 0).length
+  const sel = $('filter')
+  if (!sel) return
+  const optAll = sel.querySelector('option[value="all"]')
+  const optWarn = sel.querySelector('option[value="warning"]')
+  if (optAll) optAll.textContent = `全部 ${total} 筆`
+  if (optWarn) optWarn.textContent = `只看有警示的（${warnN} 筆）`
+}
+
 function renderTable() {
-  const fs = sortedFiles()
-  $('meta').textContent = `共 ${fs.length} 筆完成標註`
+  const fs = filteredSortedFiles()
+  updateFilterCounts()
+  const total = state.files.length
+  $('meta').textContent = state.filterKey === 'warning'
+    ? `顯示 ${fs.length} 筆有警示 · 共 ${total} 筆完成標註`
+    : `共 ${total} 筆完成標註`
   if (!fs.length) {
-    $('tbody').innerHTML = '<tr><td colspan="3" class="p-3 text-sm text-slate-500 dark:text-slate-400">尚無完成的標註</td></tr>'
+    const empty = state.filterKey === 'warning'
+      ? '沒有任何一筆達到警示門檻 🎉'
+      : '尚無完成的標註'
+    $('tbody').innerHTML = `<tr><td colspan="3" class="p-3 text-sm text-slate-500 dark:text-slate-400">${empty}</td></tr>`
     return
   }
   $('tbody').innerHTML = fs.map(f => {
@@ -173,10 +209,14 @@ function renderTable() {
     const detail = expanded
       ? `<tr><td colspan="3" class="p-0">${renderDetail(f)}</td></tr>`
       : ''
+    const wc = warningCount(f)
+    const warnBadge = wc > 0
+      ? ` <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 whitespace-nowrap align-middle">${wc} 個警示維度</span>`
+      : ''
     return `
       <tr class="border-t border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30"
           data-row="${escapeAttr(f.annotation_id)}">
-        <td class="p-3"><div class="font-medium">${escapeHtml(f.filename)}</div></td>
+        <td class="p-3"><div class="font-medium">${escapeHtml(f.filename)}${warnBadge}</div></td>
         <td class="p-3 text-slate-600 dark:text-slate-400">${escapeHtml(f.game_name)} · ${escapeHtml(f.game_stage)}</td>
         <td class="p-3 text-right font-mono text-xs text-slate-500 dark:text-slate-400">${escapeHtml(fmtTime(f.updated_at))} ${expanded ? '▲' : '▼'}</td>
       </tr>
@@ -191,13 +231,21 @@ function renderTable() {
   })
 }
 
-function bindSort() {
-  const sel = $('sort')
-  if (!sel) return
-  sel.addEventListener('change', e => {
-    state.sortKey = e.target.value
-    renderTable()
-  })
+function bindControls() {
+  const sortSel = $('sort')
+  if (sortSel) {
+    sortSel.addEventListener('change', e => {
+      state.sortKey = e.target.value
+      renderTable()
+    })
+  }
+  const filterSel = $('filter')
+  if (filterSel) {
+    filterSel.addEventListener('change', e => {
+      state.filterKey = e.target.value
+      renderTable()
+    })
+  }
 }
 
 // ─── helpers ──────────────────────────
