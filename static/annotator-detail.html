@@ -18,15 +18,24 @@
     </section>
 
     <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+      <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-wrap">
         <span id="meta" class="text-xs text-slate-500 dark:text-slate-400">載入中…</span>
-        <label class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-          排序
-          <select id="sort" class="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5">
-            <option value="time">標註時間 ↓</option>
-            <option value="filename">檔名 A→Z</option>
-          </select>
-        </label>
+        <div class="flex items-center gap-3">
+          <label class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            篩選
+            <select id="filter" class="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5">
+              <option value="all">全部</option>
+              <option value="warning">只看有警示的</option>
+            </select>
+          </label>
+          <label class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            排序
+            <select id="sort" class="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5">
+              <option value="time">標註時間 ↓</option>
+              <option value="filename">檔名 A→Z</option>
+            </select>
+          </label>
+        </div>
       </div>
       <table class="w-full text-sm">
         <thead class="bg-slate-100 dark:bg-slate-900/70 text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
