@@ -138,23 +138,69 @@ def test_icc_no_overlap_returns_empty_message(in_memory_engine):
 
 
 def test_icc_perfect_agreement_two_annotators(in_memory_engine):
-    """兩 annotator 給完全相同分數 → 每連續維度 ICC ~ 1.0、pass=True。"""
+    """兩個 L1 標註員給完全相同分數 → 每連續維度 ICC ~ 1.0、pass=True。
+
+    用 bob + carol(都非 reference)— amber 已被排除出 ICC 計算,見
+    test_icc_excludes_reference_annotator。
+    """
     with Session(in_memory_engine) as s:
         audios = [_make_audio(s, f"{name}_Base Game.wav") for name in "ABCDE"]
-        # 建 5 個 audio，amber/bob 給每個都同樣 dim 值（每個 audio 不同值才有 between-subject variance）
+        # 建 5 個 audio，bob/carol 給每個都同樣 dim 值（每個 audio 不同值才有 between-subject variance）
         for i, audio in enumerate(audios):
             v = 0.1 + 0.2 * i  # 0.1, 0.3, 0.5, 0.7, 0.9
             dims = {k: v for k in _DEFAULT_DIMS}
-            _make_ann(s, audio.id, "amber", dims=dims)
             _make_ann(s, audio.id, "bob", dims=dims)
+            _make_ann(s, audio.id, "carol", dims=dims)
         result = compute_icc_per_dimension(s)
 
     assert result["sample_size"] == 5
-    assert result["annotators"] == ["amber", "bob"]
+    assert result["icc_annotators"] == ["bob", "carol"]
     for dim_key, dim_data in result["dimensions"].items():
         assert dim_data["icc"] is not None
         assert dim_data["icc"] > 0.99, f"{dim_key}: icc={dim_data['icc']}"
         assert dim_data["pass"] is True
+
+
+def test_icc_excludes_reference_annotator(in_memory_engine):
+    """amber (reference / 仲裁者) 不列入 ICC — icc_annotators 只含 L1 標註員。
+
+    amber + bob + carol 都標同 3 檔。ICC 該只看 bob × carol (K=2);
+    但 annotators (給 dashboard 進度區塊) 仍含 amber。
+    """
+    with Session(in_memory_engine) as s:
+        audios = [_make_audio(s, f"{name}_Base Game.wav") for name in "ABC"]
+        for i, audio in enumerate(audios):
+            v = 0.2 + 0.2 * i
+            dims = {k: v for k in _DEFAULT_DIMS}
+            _make_ann(s, audio.id, "amber", dims=dims)
+            _make_ann(s, audio.id, "bob", dims=dims)
+            _make_ann(s, audio.id, "carol", dims=dims)
+        result = compute_icc_per_dimension(s)
+
+    # 進度區塊用的 annotators 含全部三人(含 amber)
+    assert result["annotators"] == ["amber", "bob", "carol"]
+    # ICC 計算只看 bob + carol (排除 amber=reference), K=2
+    assert result["icc_annotators"] == ["bob", "carol"]
+    assert result["reference_annotator"] == "amber"
+    assert result["sample_size"] == 3
+    # ICC 仍算得出來(2 人完全一致 → ~1.0)
+    assert result["dimensions"]["valence"]["icc"] is not None
+    assert result["dimensions"]["valence"]["icc"] > 0.99
+
+
+def test_icc_reference_only_no_l1_annotators(in_memory_engine):
+    """只有 amber 標 → 排除 reference 後 icc_annotators 空 → 無 ICC,但 annotators 仍含 amber。"""
+    with Session(in_memory_engine) as s:
+        a1 = _make_audio(s, "A_Base Game.wav")
+        a2 = _make_audio(s, "B_Base Game.wav")
+        _make_ann(s, a1.id, "amber")
+        _make_ann(s, a2.id, "amber")
+        result = compute_icc_per_dimension(s)
+    assert result["annotators"] == ["amber"]
+    assert result["icc_annotators"] == []
+    assert result["sample_size"] == 0
+    for dim_data in result["dimensions"].values():
+        assert dim_data["icc"] is None
 
 
 def test_icc_skips_loop_capability_as_multi_discrete(in_memory_engine):
@@ -169,16 +215,17 @@ def test_icc_skips_loop_capability_as_multi_discrete(in_memory_engine):
 
 
 def test_icc_excludes_fixture_by_default(in_memory_engine):
+    # 用 bob(非 reference) + fixture_bob,避免 amber 排除邏輯干擾本測試的 fixture 主題
     with Session(in_memory_engine) as s:
         a1 = _make_audio(s, "A_Base Game.wav")
         a2 = _make_audio(s, "B_Base Game.wav")
         for a in [a1, a2]:
-            _make_ann(s, a.id, "amber")
+            _make_ann(s, a.id, "bob")
             _make_ann(s, a.id, "fixture_bob")
         result_default = compute_icc_per_dimension(s)
         result_fixture = compute_icc_per_dimension(s, include_fixture=True)
-    assert result_default["annotators"] == ["amber"]
-    assert result_default["sample_size"] == 0  # 排掉 fixture 後只剩 amber，無 overlap
+    assert result_default["annotators"] == ["bob"]
+    assert result_default["sample_size"] == 0  # 排掉 fixture 後只剩 bob，無 overlap
     assert "fixture_bob" in result_fixture["annotators"]
     assert result_fixture["sample_size"] == 2
 
