@@ -111,7 +111,7 @@ def _complete_payload(audio_id: str, annotator_id: str = "vvgosick") -> dict:
         "loop_capability": [1.0],
         "source_type": ["ambience"],
         "function_roles": ["atmosphere"],
-        "genre_tag": [], "worldview_tag": None,
+        "genre_tag": [], "worldview_tag": [],
         "style_tag": [], "notes": None,
     }
 

@@ -153,6 +153,31 @@ def test_function_roles_union(in_memory_engine):
     assert len(roles) == 3  # dedupe 生效
 
 
+def test_worldview_tag_union_across_annotators(in_memory_engine):
+    # worldview 改多選後，consensus 與 genre/style 一樣取 union dedupe（不再 mode/tie）
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber", worldview_tag=json.dumps(["fantasy"]))
+        _make_annotation(s, audio.id, "bob",   worldview_tag=json.dumps(["casino", "fantasy"]))
+        data = build_dataset(s)
+
+    wv = data["items"][0]["consensus"]["worldview_tag"]
+    assert set(wv) == {"fantasy", "casino"}
+    assert len(wv) == 2  # dedupe 生效
+
+
+def test_worldview_tag_legacy_scalar_does_not_crash_export(in_memory_engine):
+    # 舊資料 worldview 存原始字串（非 JSON）→ export 不可 fail-loud，需解成單元素 list
+    with Session(in_memory_engine) as s:
+        audio = _make_audio(s)
+        _make_annotation(s, audio.id, "amber", worldview_tag="fantasy")
+        data = build_dataset(s)
+
+    item = data["items"][0]
+    assert item["individual_annotations"][0]["worldview_tag"] == ["fantasy"]
+    assert item["consensus"]["worldview_tag"] == ["fantasy"]
+
+
 # ---------------------------------------------------------------------------
 # 4. source_type union（兩人選不同 → consensus 取兩個 dedupe）
 # ---------------------------------------------------------------------------
@@ -256,7 +281,7 @@ def test_empty_database_does_not_crash(in_memory_engine):
     assert data["total_annotations"] == 0
     assert data["annotators"] == []
     # schema_version / dimension_schema 仍在，買方 parser 不會炸
-    assert data["schema_version"] == "0.3.0"
+    assert data["schema_version"] == "0.4.0"
     assert "valence" in data["dimension_schema"]
 
 
@@ -308,7 +333,7 @@ def test_dataset_endpoint_returns_valid_envelope(client, in_memory_engine):
     r = client.get("/api/export/dataset.json")
     assert r.status_code == 200
     data = r.json()
-    assert data["schema_version"] == "0.3.0"
+    assert data["schema_version"] == "0.4.0"
     assert data["total_annotated"] == 1
     # function_roles 在 HTTP body 裡應該是真的 array，不是 escape string
     roles = data["items"][0]["consensus"]["function_roles"]
@@ -492,8 +517,8 @@ def test_export_item_includes_gold_locked_metadata(client, in_memory_engine):
     assert item["audio_metadata"]["is_gold_locked"] is True
 
 
-def test_export_schema_version_bumped_to_0_3_0(client, in_memory_engine):
-    """Phase 13-C bump: item 新增 status / metadata.is_gold_locked。"""
+def test_export_schema_version_bumped_to_0_4_0(client, in_memory_engine):
+    """0.4.0 bump: worldview_tag 從單值改多選（list），consensus 改 union。"""
     r = client.get("/api/export/dataset.json")
-    assert r.json()["schema_version"] == "0.3.0"
+    assert r.json()["schema_version"] == "0.4.0"
 

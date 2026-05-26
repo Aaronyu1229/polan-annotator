@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from src.annotation_serialization import decode_worldview_tag
 from src.annotators_loader import (
     AnnotatorsConfigError,
     get_annotator,
@@ -454,7 +455,7 @@ def reconcile_detail(
             "source_type": _decode(a.source_type),
             "function_roles": _decode(a.function_roles),
             "genre_tag": _decode(a.genre_tag),
-            "worldview_tag": a.worldview_tag,
+            "worldview_tag": decode_worldview_tag(a.worldview_tag),
             "style_tag": _decode(a.style_tag),
             "notes": a.notes,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,

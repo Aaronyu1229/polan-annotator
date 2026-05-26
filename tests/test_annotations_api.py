@@ -51,7 +51,7 @@ def _complete_payload(audio_id: str, annotator_id: str = "amber") -> dict:
         "source_type": ["ambience"],
         "function_roles": ["atmosphere", "gameplay_core"],
         "genre_tag": ["博弈"],
-        "worldview_tag": "asian_mythology",
+        "worldview_tag": ["asian_mythology"],
         "style_tag": ["chinese_traditional"],
         "notes": "測試用",
     }
@@ -116,6 +116,19 @@ def test_post_multi_source_type_accepted(client, in_memory_engine):
     with Session(in_memory_engine) as s:
         ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
         assert json.loads(ann.source_type) == ["ambience", "synthetic_designed"]
+
+
+def test_post_multi_worldview_stored_as_json_list(client, in_memory_engine):
+    """worldview 改多選 → 多個值以 JSON list 存 DB。"""
+    audio_id = _make_audio(in_memory_engine)
+    payload = _complete_payload(audio_id)
+    payload["worldview_tag"] = ["asian_mythology", "casino"]
+    r = client.post("/api/annotations", json=payload)
+    assert r.status_code == 200, r.text
+
+    with Session(in_memory_engine) as s:
+        ann = s.exec(select(Annotation).where(Annotation.audio_file_id == audio_id)).one()
+        assert json.loads(ann.worldview_tag) == ["asian_mythology", "casino"]
 
 
 def test_post_partial_missing_dimension_marks_is_complete_false(client, in_memory_engine):

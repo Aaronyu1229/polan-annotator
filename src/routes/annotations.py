@@ -77,7 +77,8 @@ class AnnotationPayload(BaseModel):
     function_roles: list[str] = Field(default_factory=list)
     # genre_tag 從單字串改成多選 list[str]
     genre_tag: list[str] = Field(default_factory=list)
-    worldview_tag: Optional[str] = None
+    # worldview_tag 從單字串改成多選 list[str]
+    worldview_tag: list[str] = Field(default_factory=list)
     style_tag: list[str] = Field(default_factory=list)
     notes: Optional[str] = None
     # 標註頁前端載入時間 — 用於算「平均單筆耗時」(created_at - started_at)。
@@ -152,8 +153,8 @@ def _touch_tag_suggestion(session: Session, field: str, value: str) -> None:
 def _record_tag_suggestions(session: Session, payload: AnnotationPayload) -> None:
     for genre in payload.genre_tag:
         _touch_tag_suggestion(session, "genre", genre)
-    if payload.worldview_tag:
-        _touch_tag_suggestion(session, "worldview", payload.worldview_tag)
+    for worldview in payload.worldview_tag:
+        _touch_tag_suggestion(session, "worldview", worldview)
     for style in payload.style_tag:
         _touch_tag_suggestion(session, "style", style)
 
@@ -246,7 +247,7 @@ def upsert_annotation(
         existing.source_type = json.dumps(payload.source_type)
         existing.function_roles = json.dumps(payload.function_roles)
         existing.genre_tag = json.dumps(payload.genre_tag)
-        existing.worldview_tag = payload.worldview_tag
+        existing.worldview_tag = json.dumps(payload.worldview_tag)
         existing.style_tag = json.dumps(payload.style_tag)
         existing.notes = payload.notes
         existing.is_complete = is_complete
@@ -272,7 +273,7 @@ def upsert_annotation(
             source_type=json.dumps(payload.source_type),
             function_roles=json.dumps(payload.function_roles),
             genre_tag=json.dumps(payload.genre_tag),
-            worldview_tag=payload.worldview_tag,
+            worldview_tag=json.dumps(payload.worldview_tag),
             style_tag=json.dumps(payload.style_tag),
             notes=payload.notes,
             is_complete=is_complete,

@@ -22,6 +22,27 @@ def _decode_list(raw: str | None) -> list:
     return value if isinstance(value, list) else []
 
 
+def decode_worldview_tag(raw: str | None) -> list[str]:
+    """worldview_tag 向後相容解碼（單值 → 多選遷移）。
+
+    舊資料把 worldview_tag 存成原始字串（如 "fantasy"），改多選後存 JSON list
+    （如 '["fantasy"]'）。同一 column 兩種格式並存，故讀取時統一解成 list：
+    - None / "" → []
+    - 合法 JSON list（含空 list []）→ 該 list
+    - 其餘（JSON decode 失敗，或 decode 出非 list）→ 視為單一舊值 [raw]
+
+    與 _decode_list 的差異：_decode_list 對 decode 失敗回 []（會丟掉舊字串值），
+    這個函式保留舊值，且能區分「合法空 list」與「decode 失敗」。
+    """
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return [raw]
+    return value if isinstance(value, list) else [raw]
+
+
 def annotation_to_dict(ann: Annotation) -> dict[str, Any]:
     """回傳單筆 annotation 的標註欄位（不含 audio metadata）。"""
     return {
@@ -40,7 +61,7 @@ def annotation_to_dict(ann: Annotation) -> dict[str, Any]:
         "source_type": _decode_list(ann.source_type),
         "function_roles": _decode_list(ann.function_roles),
         "genre_tag": _decode_list(ann.genre_tag),
-        "worldview_tag": ann.worldview_tag,
+        "worldview_tag": decode_worldview_tag(ann.worldview_tag),
         "style_tag": _decode_list(ann.style_tag),
         "notes": ann.notes,
         "is_complete": ann.is_complete,

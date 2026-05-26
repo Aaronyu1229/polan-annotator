@@ -30,7 +30,6 @@ const state = {
   selectedFunctionRoles: new Set(),
   selectedLoop: new Set(),
   notes: '',
-  worldview: '',
 }
 
 let wavesurfer = null
@@ -81,7 +80,6 @@ function initState() {
     state.selectedFunctionRoles = new Set(state.amberAnnotation.function_roles || [])
     state.selectedLoop = new Set(state.amberAnnotation.loop_capability || [])
     state.notes = state.amberAnnotation.notes || ''
-    state.worldview = state.amberAnnotation.worldview_tag || ''
   }
 }
 
@@ -214,8 +212,9 @@ function renderTags() {
   const othersWV   = collect('worldview_tag')
   const othersStyle = collect('style_tag')
 
-  // Phase 12-B:Amber's genre/style chip-style selectable;worldview single select
+  // Amber's genre/worldview/style chip-style selectable（worldview 已改多選）
   state.selectedGenre = new Set(state.amberAnnotation?.genre_tag || [])
+  state.selectedWorldview = new Set(state.amberAnnotation?.worldview_tag || [])
   state.selectedStyle = new Set(state.amberAnnotation?.style_tag || [])
 
   wrap.innerHTML = `
@@ -245,10 +244,14 @@ function renderTags() {
     </div>
 
     <div>
-      <div class="text-sm font-medium mb-1">Worldview tag(單選,可空)</div>
+      <div class="text-sm font-medium mb-1">Worldview tag(多選)</div>
       ${renderOthersChips(othersWV)}
-      <input id="worldview-input" list="worldview-suggest" type="text" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" placeholder="留空或選一個" value="${escapeAttr(state.worldview)}">
-      <datalist id="worldview-suggest"></datalist>
+      <div id="worldview-chips" class="flex flex-wrap gap-1 mb-1"></div>
+      <div class="flex gap-1">
+        <input id="worldview-input" list="worldview-suggest" type="text" class="flex-1 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" placeholder="輸入後按 Enter">
+        <datalist id="worldview-suggest"></datalist>
+        <button type="button" id="worldview-add" class="px-2 text-sm bg-slate-200 dark:bg-slate-700 rounded hover:bg-amber-200 dark:hover:bg-amber-900">+</button>
+      </div>
     </div>
 
     <div>
@@ -270,6 +273,7 @@ function renderTags() {
 
   // chip 渲染 + 互動
   refreshChips('genre-chips', state.selectedGenre)
+  refreshChips('worldview-chips', state.selectedWorldview)
   refreshChips('style-chips', state.selectedStyle)
 
   // 從 server 撈 autocomplete suggestions(fail-safe)
@@ -283,6 +287,12 @@ function renderTags() {
   })
   $('genre-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); $('genre-add').click() }
+  })
+  $('worldview-add').addEventListener('click', () => {
+    addChipFromInput($('worldview-input'), state.selectedWorldview, 'worldview-chips')
+  })
+  $('worldview-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('worldview-add').click() }
   })
   $('style-add').addEventListener('click', () => {
     addChipFromInput($('style-input'), state.selectedStyle, 'style-chips')
@@ -346,10 +356,6 @@ async function save() {
   const loop = parseCommaList($('loop-input').value).map(s => parseFloat(s)).filter(n => !isNaN(n))
   const notes = $('notes-input').value.trim()
 
-  // Phase 12-B:從 chip UI 取 genre / style;worldview 從 input 取
-  const worldviewInput = $('worldview-input')
-  const worldview = worldviewInput ? worldviewInput.value.trim() : (state.worldview || '')
-
   const payload = {
     audio_id: AUDIO_ID,
     annotator_id: 'amber',
@@ -358,7 +364,7 @@ async function save() {
     source_type: sourceTypes,
     function_roles: functionRoles,
     genre_tag: [...(state.selectedGenre || [])],
-    worldview_tag: worldview || null,
+    worldview_tag: [...(state.selectedWorldview || [])],
     style_tag: [...(state.selectedStyle || [])],
     notes: notes || null,
   }
