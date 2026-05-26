@@ -66,6 +66,8 @@ class Annotation(SQLModel, table=True):
     # 離散 tags
     # genre_tag 多選 → JSON-serialized list[str]
     genre_tag: Optional[str] = None
+    # worldview_tag 多選 → JSON-serialized list[str]（舊資料為原始字串，讀取時由
+    # decode_worldview_tag 向後相容；同一 column 不需 migration）
     worldview_tag: Optional[str] = None
     # style_tag 多選 → JSON-serialized list[str]
     style_tag: Optional[str] = None

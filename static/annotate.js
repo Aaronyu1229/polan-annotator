@@ -54,7 +54,7 @@ const state = {
   sourceTypes: new Set(),
   functionRoles: new Set(),
   genres: [],
-  worldview: '',
+  worldviews: [],
   styles: [],
   notes: '',
   draftTimer: null,
@@ -80,11 +80,10 @@ const tagsPanel = $('tags-panel')
 const tagsCaret = $('tags-caret')
 const genreInput = $('genre-input')
 const genreAdd = $('genre-add')
-const genreChips = $('genre-chips')
 const worldviewInput = $('worldview-input')
+const worldviewAdd = $('worldview-add')
 const styleInput = $('style-input')
 const styleAdd = $('style-add')
-const styleChips = $('style-chips')
 const notesInput = $('notes-input')
 const saveNextBtn = $('save-next-btn')
 const saveStayBtn = $('save-stay-btn')
@@ -633,94 +632,115 @@ tagsToggle.addEventListener('click', () => {
   tagsCaret.textContent = hidden ? '▸' : '▾'
 })
 
+// genre / worldview / style 統一用 .chip toggle 按鈕呈現（比照音源類型 / 功能角色，1 鍵選取）。
+// 候選按鈕 = API 建議值（presets ∪ 歷史）∪ 目前已選值；角落輸入框可新增自訂標籤，
+// 新增後自動變成已選的按鈕。三者皆多選。
+function makeTagField({ buttonsEl, inputEl, addBtn, getSelected, toggleValue }) {
+  let options = []
+
+  const isSelected = v => getSelected().includes(v)
+
+  function render() {
+    const union = [...options]
+    getSelected().forEach(v => { if (!union.includes(v)) union.push(v) })
+    buttonsEl.innerHTML = union.map(v => `
+      <button type="button" class="chip px-3 py-2 text-sm rounded" data-tag="${escapeAttr(v)}">
+        ${escapeHtml(v)}
+      </button>
+    `).join('')
+    buttonsEl.querySelectorAll('[data-tag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        toggleValue(btn.dataset.tag)
+        refreshActive()
+        scheduleDraftSave()
+      })
+    })
+    refreshActive()
+  }
+
+  function refreshActive() {
+    buttonsEl.querySelectorAll('[data-tag]').forEach(b => {
+      b.classList.toggle('chip-active', isSelected(b.dataset.tag))
+    })
+  }
+
+  function addCustom() {
+    const v = inputEl.value.trim()
+    if (!v) return
+    if (!options.includes(v)) options.push(v)
+    if (!isSelected(v)) toggleValue(v)
+    inputEl.value = ''
+    render()
+    scheduleDraftSave()
+  }
+
+  addBtn.addEventListener('click', addCustom)
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addCustom()
+    }
+  })
+
+  return {
+    setOptions(list) { options = [...list]; render() },
+    render,
+  }
+}
+
+const genreField = makeTagField({
+  buttonsEl: $('genre-buttons'),
+  inputEl: genreInput,
+  addBtn: genreAdd,
+  getSelected: () => state.genres,
+  toggleValue: (v) => {
+    const i = state.genres.indexOf(v)
+    if (i >= 0) state.genres.splice(i, 1)
+    else state.genres.push(v)
+  },
+})
+
+const styleField = makeTagField({
+  buttonsEl: $('style-buttons'),
+  inputEl: styleInput,
+  addBtn: styleAdd,
+  getSelected: () => state.styles,
+  toggleValue: (v) => {
+    const i = state.styles.indexOf(v)
+    if (i >= 0) state.styles.splice(i, 1)
+    else state.styles.push(v)
+  },
+})
+
+const worldviewField = makeTagField({
+  buttonsEl: $('worldview-buttons'),
+  inputEl: worldviewInput,
+  addBtn: worldviewAdd,
+  getSelected: () => state.worldviews,
+  toggleValue: (v) => {
+    const i = state.worldviews.indexOf(v)
+    if (i >= 0) state.worldviews.splice(i, 1)
+    else state.worldviews.push(v)
+  },
+})
+
 async function loadTagSuggestions() {
-  const fields = ['genre', 'worldview', 'style']
-  const lists = { genre: $('genre-list'), worldview: $('worldview-list'), style: $('style-list') }
-  for (const f of fields) {
+  const fields = [
+    ['genre', genreField],
+    ['worldview', worldviewField],
+    ['style', styleField],
+  ]
+  for (const [f, ctrl] of fields) {
     try {
       const data = await fetchJson(`/api/tag-suggestions?field=${f}`)
-      lists[f].innerHTML = data.suggestions
-        .map(v => `<option value="${escapeAttr(v)}">`).join('')
+      ctrl.setOptions(data.suggestions)
     } catch (err) {
       console.warn(`tag-suggestions ${f} 載入失敗`, err)
     }
   }
 }
 
-worldviewInput.addEventListener('input', () => { state.worldview = worldviewInput.value; scheduleDraftSave() })
 notesInput.addEventListener('input', () => { state.notes = notesInput.value; scheduleDraftSave() })
-
-genreAdd.addEventListener('click', addGenreFromInput)
-genreInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    addGenreFromInput()
-  }
-})
-
-function addGenreFromInput() {
-  const v = genreInput.value.trim()
-  if (!v) return
-  if (!state.genres.includes(v)) {
-    state.genres.push(v)
-    renderGenreChips()
-    scheduleDraftSave()
-  }
-  genreInput.value = ''
-}
-
-function renderGenreChips() {
-  genreChips.innerHTML = state.genres.map((s, i) => `
-    <span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 rounded text-xs">
-      ${escapeHtml(s)}
-      <button data-genre-remove="${i}" class="text-amber-700 hover:text-red-600 dark:text-amber-300 dark:hover:text-white">×</button>
-    </span>
-  `).join('')
-  genreChips.querySelectorAll('[data-genre-remove]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.genreRemove, 10)
-      state.genres.splice(idx, 1)
-      renderGenreChips()
-      scheduleDraftSave()
-    })
-  })
-}
-
-styleAdd.addEventListener('click', addStyleFromInput)
-styleInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    addStyleFromInput()
-  }
-})
-
-function addStyleFromInput() {
-  const v = styleInput.value.trim()
-  if (!v) return
-  if (!state.styles.includes(v)) {
-    state.styles.push(v)
-    renderStyleChips()
-    scheduleDraftSave()
-  }
-  styleInput.value = ''
-}
-
-function renderStyleChips() {
-  styleChips.innerHTML = state.styles.map((s, i) => `
-    <span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 rounded text-xs">
-      ${escapeHtml(s)}
-      <button data-style-remove="${i}" class="text-amber-700 hover:text-red-600 dark:text-amber-300 dark:hover:text-white">×</button>
-    </span>
-  `).join('')
-  styleChips.querySelectorAll('[data-style-remove]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.styleRemove, 10)
-      state.styles.splice(idx, 1)
-      renderStyleChips()
-      scheduleDraftSave()
-    })
-  })
-}
 
 // ========== 初始值 / prefill / draft ==========
 function applyDefaults() {
@@ -784,13 +804,16 @@ function applyPrefillFromExisting() {
     refreshFunctionRoleChips()
   }
   state.genres = Array.isArray(ea.genre_tag) ? [...ea.genre_tag] : []
-  state.worldview = ea.worldview_tag || ''
+  // worldview_tag 後端已改回 list；防禦舊資料可能仍回單字串
+  state.worldviews = Array.isArray(ea.worldview_tag)
+    ? [...ea.worldview_tag]
+    : (ea.worldview_tag ? [ea.worldview_tag] : [])
   state.styles = Array.isArray(ea.style_tag) ? [...ea.style_tag] : []
   state.notes = ea.notes || ''
-  worldviewInput.value = state.worldview
   notesInput.value = state.notes
-  renderGenreChips()
-  renderStyleChips()
+  genreField.render()
+  worldviewField.render()
+  styleField.render()
   return true
 }
 
@@ -801,7 +824,7 @@ function currentSnapshot() {
     sourceTypes: [...state.sourceTypes],
     functionRoles: [...state.functionRoles],
     genres: [...state.genres],
-    worldview: state.worldview,
+    worldviews: [...state.worldviews],
     styles: [...state.styles],
     notes: state.notes,
     savedAt: new Date().toISOString(),
@@ -874,13 +897,16 @@ function applyDraft(s) {
   if (Array.isArray(s.genres)) state.genres = [...s.genres]
   else if (typeof s.genre === 'string' && s.genre) state.genres = [s.genre]
   else state.genres = []
-  state.worldview = s.worldview || ''
+  // 向後相容：舊版 draft 用 s.worldview（單字串），新版用 s.worldviews（list）
+  if (Array.isArray(s.worldviews)) state.worldviews = [...s.worldviews]
+  else if (typeof s.worldview === 'string' && s.worldview) state.worldviews = [s.worldview]
+  else state.worldviews = []
   state.styles = Array.isArray(s.styles) ? [...s.styles] : []
   state.notes = s.notes || ''
-  worldviewInput.value = state.worldview
   notesInput.value = state.notes
-  renderGenreChips()
-  renderStyleChips()
+  genreField.render()
+  worldviewField.render()
+  styleField.render()
 }
 
 // ========== 儲存 ==========
@@ -921,7 +947,7 @@ async function submitAnnotation({ goNext }) {
     source_type: [...state.sourceTypes],
     function_roles: [...state.functionRoles],
     genre_tag: state.genres,
-    worldview_tag: state.worldview || null,
+    worldview_tag: state.worldviews,
     style_tag: state.styles,
     notes: state.notes || null,
     started_at: PAGE_LOADED_AT,

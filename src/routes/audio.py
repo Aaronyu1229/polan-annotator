@@ -24,9 +24,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
+from src.annotation_serialization import decode_worldview_tag
 from src.audio_analysis import AUDIO_DIR, ensure_cached
 from src.audio_scanner import SUPPORTED_EXTS, scan_audio_directory
-from src.constants import KNOWN_STAGES, parse_audio_filename
+from src.constants import parse_audio_filename
 from src.db import get_session
 from src.middleware import enforce_annotator_access, optional_annotator, require_auth
 from src.models import Annotation, AudioFile, DimensionFeedback
@@ -67,7 +68,7 @@ def _annotation_to_dict(ann: Annotation) -> dict[str, Any]:
         "source_type": _decode_list(ann.source_type),
         "function_roles": _decode_list(ann.function_roles),
         "genre_tag": _decode_list(ann.genre_tag),
-        "worldview_tag": ann.worldview_tag,
+        "worldview_tag": decode_worldview_tag(ann.worldview_tag),
         "style_tag": _decode_list(ann.style_tag),
         "notes": ann.notes,
         "is_complete": ann.is_complete,

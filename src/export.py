@@ -9,7 +9,7 @@
     source_type（多選）          → union
     function_roles（多選）       → union，dedupe 保留首現順序
     genre_tag（多選）            → union
-    worldview_tag                → mode；平手 → None
+    worldview_tag（多選）        → union
     style_tag（多選）            → union
     notes                        → 不合併，只留在 individual_annotations
 
@@ -18,16 +18,17 @@
 from __future__ import annotations
 
 import json
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import Any, Optional
 
 from sqlmodel import Session, select
 
+from src.annotation_serialization import decode_worldview_tag
 from src.dimensions_loader import list_dimension_ids, load_dimensions
 from src.models import AudioFile, Annotation
 
-SCHEMA_VERSION = "0.3.0"  # Phase 13-C：item 加 status + gold_locked metadata
+SCHEMA_VERSION = "0.4.0"  # worldview_tag 從單值改多選（list），consensus 改 union
 GENERATOR = "polan-annotator/phase13"
 DATASET_NAME = "polan_calibration_v0"
 
@@ -63,29 +64,6 @@ def _mean_continuous(values: list[float]) -> Optional[float]:
     if not values:
         return None
     return round(sum(values) / len(values), 3)
-
-
-def _mode_or_tie(
-    values: list[Any],
-    tie_value: Any = None,
-) -> tuple[Any, bool]:
-    """回 (mode_value, is_tie)。
-
-    - 空 list → (None, False)
-    - 單一頂票 → (that_value, False)
-    - 多個並列頂票 → (tie_value, True)
-
-    刻意不用 statistics.mode — 它在 tie 時回「第一個看到的」，會產生無意中的
-    字母序偏向，這是 source_type conflict 判定要明確避免的行為。
-    """
-    if not values:
-        return None, False
-    counts = Counter(values)
-    top_freq = max(counts.values())
-    top_values = [v for v, c in counts.items() if c == top_freq]
-    if len(top_values) == 1:
-        return top_values[0], False
-    return tie_value, True
 
 
 def _union_ordered(lists: list[list]) -> list:
@@ -153,7 +131,9 @@ def _annotation_to_individual(ann: Annotation, dim_keys: list[str]) -> dict[str,
         "source_type": _decode_multi_field(ann.source_type, ann.id, "source_type"),
         "function_roles": _decode_multi_field(ann.function_roles, ann.id, "function_roles"),
         "genre_tag": _decode_multi_field(ann.genre_tag, ann.id, "genre_tag"),
-        "worldview_tag": ann.worldview_tag,
+        # worldview_tag 用向後相容解碼（舊資料為原始字串，非 JSON），不走 fail-loud 的
+        # _decode_multi_field，否則舊單值資料會讓整個 export 炸掉。
+        "worldview_tag": decode_worldview_tag(ann.worldview_tag),
         "style_tag": _decode_multi_field(ann.style_tag, ann.id, "style_tag"),
         "notes": ann.notes,
     }
@@ -193,15 +173,12 @@ def _aggregate_consensus(
             continue
         dims[k] = _mean_continuous(vals)
 
-    # source_type / function_roles / genre_tag / style_tag：union
+    # source_type / function_roles / genre_tag / worldview_tag / style_tag：union
     source_type = _union_ordered([ind["source_type"] for ind in inds])
     function_roles = _union_ordered([ind["function_roles"] for ind in inds])
     genre_tag = _union_ordered([ind["genre_tag"] for ind in inds])
+    worldview_tag = _union_ordered([ind["worldview_tag"] for ind in inds])
     style_tag = _union_ordered([ind["style_tag"] for ind in inds])
-
-    # worldview_tag：mode，tie → None
-    worldview_values = [ind["worldview_tag"] for ind in inds if ind["worldview_tag"]]
-    worldview_tag, _ = _mode_or_tie(worldview_values, tie_value=None)
 
     # Phase 7：每維度的 source 標明 — 讓買方 parser 知道哪些是 human consensus、
     # 哪些是 librosa deterministic 計算。對 ICC 解讀與下游模型訓練都很重要。
