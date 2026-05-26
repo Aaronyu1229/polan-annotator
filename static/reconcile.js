@@ -340,8 +340,9 @@ async function fillSuggestions(field, datalistId) {
   try {
     const res = await fetch(`/api/tag-suggestions?field=${encodeURIComponent(field)}`)
     if (!res.ok) return
-    const items = await res.json()
-    $(datalistId).innerHTML = items.map(it => `<option value="${escapeAttr(it.value)}">`).join('')
+    // API 回 { field, suggestions: string[] }，不是物件陣列
+    const { suggestions = [] } = await res.json()
+    $(datalistId).innerHTML = suggestions.map(v => `<option value="${escapeAttr(v)}">`).join('')
   } catch {
     // 靜默,autocomplete 不可用就讓 user 手打
   }

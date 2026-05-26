@@ -27,7 +27,7 @@ from sqlmodel import Session, select
 from src.annotation_serialization import decode_worldview_tag
 from src.audio_analysis import AUDIO_DIR, ensure_cached
 from src.audio_scanner import SUPPORTED_EXTS, scan_audio_directory
-from src.constants import KNOWN_STAGES, parse_audio_filename
+from src.constants import parse_audio_filename
 from src.db import get_session
 from src.middleware import enforce_annotator_access, optional_annotator, require_auth
 from src.models import Annotation, AudioFile, DimensionFeedback
