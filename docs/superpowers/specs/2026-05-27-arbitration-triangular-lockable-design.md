@@ -140,11 +140,15 @@ def pairwise_gaps(
 - **Phase 3**：六個 status 各自的 fixture；creator+industry 齊但 audience 缺仍能 fast_confirmable；audience 大幅偏離不影響 status（回歸舊 bug）；creator_ready 需全欄位仲裁。
 - 維持既有測試全綠（status 既有測試會因語意改變需更新，spec review 後於實作處理）。
 
-## 8. 明確延後（Phase 4–6，不在本 spec）
+## 8. 明確延後（Phase 4–7，不在本 spec）
 
 - Phase 4：fast-path 批次「快速確認」admin UI + full 仲裁 Notes 強制（/reconcile 改造）。
 - Phase 5：flags（creator_industry > 0.30 → 業界內部分歧 → 觸發 industry 校準；industry_audience > 0.40 → 專業 vs 大眾分歧 = 商品）surfacing + 校準觸發機制。
 - Phase 6：雙版本匯出 — Creator/Expert Edition（仲裁值）+ Dual-View Edition（industry/audience 並陳 + flags），export schema bump。
+- **Phase 7：per-role 校準/訓練策略（另開 spec）。** 依賴 Phase 1 的 `role` 欄位；與 Phase 5 的 industry 校準觸發重疊。現行校準對所有人套同一組門檻（🟢≤0.15 / 🟡≤0.30 / 🔴>0.30，`src/calibration_feedback.py`），需改為 per-role：
+  - **creator（Amber）：自我一致性訓練，self-MAE < 0.10。** 新能力 — 需 test-retest 儲存（同一 item 標 ≥2 次；現行 annotation 是 upsert 覆寫，無重複儲存），計算她的 test-retest MAE 並 surface。
+  - **industry（yyslin）：中度方法論對齊，vs-Amber MAE 目標帶 0.10–0.20。** 注意有下界 0.10（過度貼近 = 模仿，非獨立判斷）。取代此 role 的全域門檻。
+  - **audience（Vic）：只訓練定義理解，不訓練分數對齊。** audience role 的校準**不**以 vs-Amber MAE gating（不顯示 🔴、不擋 pending）；改為定義理解確認。⚠️ Vic 目前 `pending_calibration` 走全域 gating，此為對 live 流程的改動，上線前需確認切換時機。
 
 ## 9. 待 review 的 🔸 預設（可改）
 
