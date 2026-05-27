@@ -17,6 +17,7 @@ from sqlmodel import Session
 from src.audiofile_status import _STATUS_ORDER
 from src.db import get_session
 from src.export import build_dataset, count_completed_for
+from src.export_editions import build_creator_edition, build_dual_view
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -60,3 +61,15 @@ def export_individual(
             detail=f"annotator '{annotator}' has no completed annotations",
         )
     return build_dataset(session, annotator_filter=annotator)
+
+
+@router.get("/creator_edition.json")
+def export_creator_edition(session: Session = Depends(get_session)) -> dict:
+    """Phase 6:Creator Edition — creator 仲裁值（只收 creator_ready 檔）。"""
+    return build_creator_edition(session)
+
+
+@router.get("/dual_view.json")
+def export_dual_view(session: Session = Depends(get_session)) -> dict:
+    """Phase 6:Dual-View — industry/audience 並陳 + flags（audience N=1 reference）。"""
+    return build_dual_view(session)
