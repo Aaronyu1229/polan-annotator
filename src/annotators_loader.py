@@ -36,6 +36,8 @@ _VALID_STATUS = frozenset({"pending_calibration", "active", "archived"})
 _VALID_PROFILE = frozenset({
     "music_professional", "general_audience", "TBD_pending_amber_confirm",
 })
+# 方法論架構角色（與 profile 解耦的獨立欄位，可為 null）。
+_VALID_ROLES = frozenset({"creator", "industry", "audience"})
 
 
 class AnnotatorsConfigError(ValueError):
@@ -62,6 +64,12 @@ def _validate(config: dict[str, Any]) -> None:
             raise AnnotatorsConfigError(
                 f"標註員 {ann_id!r} annotator_profile={spec['annotator_profile']!r} 不合法，"
                 f"合法值：{sorted(_VALID_PROFILE)}"
+            )
+        role = spec.get("role")
+        if role is not None and role not in _VALID_ROLES:
+            raise AnnotatorsConfigError(
+                f"標註員 {ann_id!r} role={role!r} 不合法，"
+                f"合法值：{sorted(_VALID_ROLES)} 或 null"
             )
 
 
@@ -150,3 +158,24 @@ def set_status(
     os.replace(tmp_path, path)
     log.info("annotator %s status → %s", annotator_id, new_status)
     return config
+
+
+def get_role(annotator_id: str, path: Path | None = None) -> str | None:
+    """回該標註員的方法論角色（creator/industry/audience）；未設或未知 → None。"""
+    spec = get_annotator(annotator_id, path)
+    return spec.get("role") if spec else None
+
+
+def annotator_id_for_role(role: str, path: Path | None = None) -> str | None:
+    """反查扮演某 role 的 annotator_id。
+
+    role≠profile：role 是內部架構角色。目前一 role 一人；解析到多人時 raise
+    （把「一 role 多人」的未來情境變大聲，而非靜默取第一個）。無人擔任 → None。
+    """
+    config = load_annotators(path)
+    matches = [aid for aid, spec in config.items() if spec.get("role") == role]
+    if len(matches) > 1:
+        raise AnnotatorsConfigError(
+            f"role={role!r} 對應多位標註員 {matches}；目前模型假設一 role 一人。"
+        )
+    return matches[0] if matches else None

@@ -5,7 +5,8 @@
     "annotator_profile": "music_professional",
     "status": "active",
     "is_admin": true,
-    "joined_at": "2025-12-15"
+    "joined_at": "2025-12-15",
+    "role": "creator"
   },
   "yyslin1024": {
     "name": "養心 (嗚嗚)",
@@ -13,7 +14,8 @@
     "annotator_profile": "TBD_pending_amber_confirm",
     "status": "active",
     "is_admin": false,
-    "joined_at": "2026-02-01"
+    "joined_at": "2026-02-01",
+    "role": "industry"
   },
   "vvgosick": {
     "name": "Vic",
@@ -21,7 +23,8 @@
     "annotator_profile": "general_audience",
     "status": "pending_calibration",
     "is_admin": false,
-    "joined_at": "2026-05-12"
+    "joined_at": "2026-05-12",
+    "role": "audience"
   },
   "guest": {
     "name": "Guest (歷史測試帳號)",
@@ -29,6 +32,7 @@
     "annotator_profile": "general_audience",
     "status": "archived",
     "is_admin": false,
-    "joined_at": "2026-01-01"
+    "joined_at": "2026-01-01",
+    "role": null
   }
 }
