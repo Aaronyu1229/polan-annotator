@@ -125,3 +125,45 @@ class DimensionFeedback(SQLModel, table=True):
             name="uq_feedback_audio_annotator_dim",
         ),
     )
+
+
+class Arbitration(SQLModel, table=True):
+    """creator 對 (audio × field) 確認最終值的事件。per-(audio,field)，保留歷史。
+
+    active 仲裁 = 同 (audio_file_id, field) 中 arbitrated_at 最大的那筆（不存 is_active）。
+    arbitrated_value 以 JSON 字串存（float / list[str] / list[float]），由 value_type 標型別，
+    decode 集中在 src/arbitration.py。
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audio_file_id: str = Field(foreign_key="audiofile.id", index=True)
+    field: str = Field(index=True)            # valence … world_immersion / loop_capability / *_tag
+    arbitrated_value: str                     # JSON-serialized
+    value_type: str                           # "float" | "list_str" | "list_float"
+    path: str                                 # "fast" | "full"
+    notes: Optional[str] = None               # full path 時 API 強制要求（Phase 4）
+    arbitrated_by: str                        # = creator annotator_id
+    arbitrated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_arbitration_audio_field_at", "audio_file_id", "field", "arbitrated_at"),
+    )
+
+
+class AnnotationSnapshot(SQLModel, table=True):
+    """Append-only test-retest 紀錄（凍結欄位）。Phase 1 建空表；Phase 7 / audience-floor 才寫入。
+
+    用途：creator self-MAE、audience 隱藏重複題 intra-rater 一致性。
+    刻意不加唯一鍵 — 同 (audio, annotator) 可多次 pass。只存 7 個 human 連續維。
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audio_file_id: str = Field(foreign_key="audiofile.id", index=True)
+    annotator_id: str = Field(index=True)
+    pass_no: int
+    created_at: datetime = Field(default_factory=_utcnow)
+    valence: Optional[float] = None
+    arousal: Optional[float] = None
+    emotional_warmth: Optional[float] = None
+    tension_direction: Optional[float] = None
+    temporal_position: Optional[float] = None
+    event_significance: Optional[float] = None
+    world_immersion: Optional[float] = None
