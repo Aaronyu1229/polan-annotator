@@ -582,3 +582,17 @@ def quality_flags(
     _require_admin(current_user)
     from src.quality_flags import aggregate_quality  # noqa: PLC0415
     return aggregate_quality(session, resolve_role_map())
+
+
+# ─── Phase 7：per-role 校準狀態 ──────────────────────────────────
+
+@router.get("/calibration-status/{annotator_id}")
+def calibration_status(
+    annotator_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """role-aware 校準狀態（creator self-MAE / industry 對齊只上界 / audience intra-rater）。"""
+    _require_admin(current_user)
+    from src.role_calibration import role_aware_calibration_status  # noqa: PLC0415
+    return role_aware_calibration_status(session, annotator_id)
