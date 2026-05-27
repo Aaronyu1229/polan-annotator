@@ -569,3 +569,16 @@ def arbitrate_full(
     session.commit()
     log.info("full-arbitrate %s by %s", audio_id, arbitrated_by)
     return {"audio_id": audio_id, "status": compute_audiofile_status(audio, session)}
+
+
+# ─── Phase 5：品質 flags 聚合 ─────────────────────────────────────
+
+@router.get("/quality")
+def quality_flags(
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """集合層級品質信號：industry 校準信號 / 商品證據 / audience 守門。"""
+    _require_admin(current_user)
+    from src.quality_flags import aggregate_quality  # noqa: PLC0415
+    return aggregate_quality(session, resolve_role_map())

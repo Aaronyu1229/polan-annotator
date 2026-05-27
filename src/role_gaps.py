@@ -10,7 +10,12 @@ from __future__ import annotations
 from typing import Optional
 
 from src.models import Annotation
-from src.thresholds import ARBITRATION_GATE, HUMAN_CONTINUOUS_DIMS
+from src.thresholds import (
+    ARBITRATION_GATE,
+    HUMAN_CONTINUOUS_DIMS,
+    INDUSTRY_RECAL,
+    PRODUCT_DIVERGENCE,
+)
 
 GapsByDim = dict[str, dict[str, Optional[float]]]
 
@@ -48,3 +53,24 @@ def needs_full_arbitration(gaps: GapsByDim) -> set[str]:
         for dim, g in gaps.items()
         if g["creator_industry"] is not None and g["creator_industry"] > ARBITRATION_GATE
     }
+
+
+def classify_dim_flags(gaps: GapsByDim) -> dict[str, set[str]]:
+    """每個連續維 → 品質 flag 集合（Phase 5）。
+
+    - industry_divergence：creator_industry_gap > INDUSTRY_RECAL（業界內部分歧，校準信號）
+    - product_divergence：industry_audience_gap > PRODUCT_DIVERGENCE（專業vs大眾=商品）
+    None gap（缺角色）不分類；creator_audience 純觀察不分類。
+    """
+    _eps = 1e-9  # IEEE 754 容忍：剛好 = 門檻不算超（如 0.5-0.8 = 0.30000000000000004）
+    out: dict[str, set[str]] = {}
+    for dim, g in gaps.items():
+        flags: set[str] = set()
+        ci = g["creator_industry"]
+        ia = g["industry_audience"]
+        if ci is not None and ci > INDUSTRY_RECAL + _eps:
+            flags.add("industry_divergence")
+        if ia is not None and ia > PRODUCT_DIVERGENCE + _eps:
+            flags.add("product_divergence")
+        out[dim] = flags
+    return out

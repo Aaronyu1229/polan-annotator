@@ -49,3 +49,30 @@ def test_boundary_equal_gate_is_fast():
                "audience": None}
     g = pairwise_gaps(by_role)  # gap = 0.20 exactly
     assert needs_full_arbitration(g) == set()  # ≤ gate → fast
+
+
+# ─── Phase 5: classify_dim_flags ──────────────────────────────────
+
+def test_classify_dim_flags():
+    from src.role_gaps import classify_dim_flags
+    by_role = {
+        # valence: creator-industry 0.35 > 0.30 → industry_divergence
+        # arousal: industry-audience 0.5 > 0.40 → product_divergence
+        "creator": _ann(valence=0.5, arousal=0.5),
+        "industry": _ann(valence=0.85, arousal=0.5),
+        "audience": _ann(valence=0.85, arousal=1.0),
+    }
+    g = pairwise_gaps(by_role)
+    flags = classify_dim_flags(g)
+    assert "industry_divergence" in flags["valence"]
+    assert "product_divergence" in flags["arousal"]
+    assert flags["emotional_warmth"] == set()  # 缺值 → 無 flag
+
+
+def test_classify_boundary_not_flagged():
+    from src.role_gaps import classify_dim_flags
+    # gap 剛好 = 門檻 → 不算超：ci=|0.5-0.8|=0.30(=門檻), ia=|0.8-0.4|=0.40(=門檻)
+    by_role = {"creator": _ann(valence=0.5), "industry": _ann(valence=0.8),
+               "audience": _ann(valence=0.4)}
+    flags = classify_dim_flags(pairwise_gaps(by_role))
+    assert flags["valence"] == set()
