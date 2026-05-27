@@ -149,6 +149,11 @@ def pairwise_gaps(
   - **creator（Amber）：自我一致性訓練，self-MAE < 0.10。** 新能力 — 需 test-retest 儲存（同一 item 標 ≥2 次；現行 annotation 是 upsert 覆寫，無重複儲存），計算她的 test-retest MAE 並 surface。
   - **industry（yyslin）：中度方法論對齊，vs-Amber MAE 目標帶 0.10–0.20。** 注意有下界 0.10（過度貼近 = 模仿，非獨立判斷）。取代此 role 的全域門檻。
   - **audience（Vic）：只訓練定義理解，不訓練分數對齊。** audience role 的校準**不**以 vs-Amber MAE gating（不顯示 🔴、不擋 pending）；改為定義理解確認。⚠️ Vic 目前 `pending_calibration` 走全域 gating，此為對 live 流程的改動，上線前需確認切換時機。
+- **Phase 8：ICC 分層重新詮釋（另開 spec）。** 集合層級品質指標，非 per-file。**現行 `src/stats.py::compute_icc_per_dimension` 排除 Amber、只算 yyslin × Vic（K=2）對 0.7** —— 在新方法論下量錯對象（yyslin×Vic 分歧 = 商品特性，dashboard 現在等於把商品當缺陷報，與 lockable spread 同一 bug class）。重新分層：
+  - **業界對齊度：Amber × yyslin（creator×industry）ICC ≥ 0.7。** 現行 ICC 完全沒算這對（Amber 被排除）。
+  - **整體三人 ICC（含 Vic）：自然會低，是商品特性 → 只報告不 gate**（呼應 industry_audience_gap > 0.40 = 商品）。
+  - **Vic 內部一致性（intra-rater，同類音檔變異）≥ 0.6。** 量 Vic 對同類音檔評分是否穩定，非與他人一致。
+  - 🔶 **開放項：「同類音檔」的定義未定** — 依 genre？source_type？game_name？或標籤組合？此為 Phase 8 前置，須先決定分組鍵才能算 within-category 一致性。
 
 ## 9. 待 review 的 🔸 預設（可改）
 
