@@ -1,5 +1,5 @@
 // Phase 11 — 仲裁頁邏輯。
-// Amber 看 audio + 其他人標 → 拖滑桿做自己決定 → 儲存 = POST /api/annotations as amber
+// Amber 看 audio + 其他人標 → 拖滑桿做最終決定 → 儲存 = POST /api/admin/arbitrate/{id}/full（寫 Arbitration，path=full）
 
 const AUDIO_ID = decodeURIComponent(window.location.pathname.split('/').pop())
 const $ = id => document.getElementById(id)
@@ -48,6 +48,10 @@ async function load() {
     state.audio = data.audio
     state.annotations = data.annotations || []
     state.amberAnnotation = state.annotations.find(a => a.annotator_id === 'amber') || null
+    // Phase 4：仲裁所需 — Notes 是否強制、哪些維度 creator-industry gap 超標
+    state.notesRequired = !!data.notes_required
+    state.needsFullDims = data.needs_full_dims || []
+    state.blindAudit = !!data.blind_audit
 
     // 初始化 values:若 amber 已標,沿用;否則取其他人平均當起點
     initState()
@@ -266,7 +270,7 @@ function renderTags() {
     </div>
 
     <div>
-      <div class="text-sm font-medium mb-1">Notes</div>
+      <div class="text-sm font-medium mb-1">Notes${state.notesRequired ? ' <span class="text-rose-600">必填（gap 過大或盲審）</span>' : ''}</div>
       <textarea id="notes-input" class="w-full px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded" rows="2">${escapeHtml(state.notes)}</textarea>
     </div>
   `
@@ -357,9 +361,14 @@ async function save() {
   const loop = parseCommaList($('loop-input').value).map(s => parseFloat(s)).filter(n => !isNaN(n))
   const notes = $('notes-input').value.trim()
 
-  const payload = {
-    audio_id: AUDIO_ID,
-    annotator_id: 'amber',
+  // Phase 4：needs_full / 盲審檔 Notes 強制（前端先擋，後端再驗）
+  if (state.notesRequired && !notes) {
+    $('save-status').textContent = '❌ 此檔 creator-industry gap 過大（或盲審抽中），Notes 必填。'
+    return
+  }
+
+  // Phase 4：寫 Arbitration（path=full），不覆寫 creator raw annotation
+  const values = {
     ...state.values,
     loop_capability: loop,
     source_type: sourceTypes,
@@ -367,24 +376,23 @@ async function save() {
     genre_tag: [...(state.selectedGenre || [])],
     worldview_tag: [...(state.selectedWorldview || [])],
     style_tag: [...(state.selectedStyle || [])],
-    notes: notes || null,
   }
 
   try {
-    const res = await fetch('/api/annotations', {
+    const res = await fetch(`/api/admin/arbitrate/${encodeURIComponent(AUDIO_ID)}/full`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ values, notes: notes || null }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
-      $('save-status').textContent = `❌ 儲存失敗:${err.detail || '未知錯誤'}`
+      $('save-status').textContent = `❌ 仲裁失敗:${err.detail || '未知錯誤'}`
       return
     }
     const data = await res.json()
-    $('save-status').textContent = data.is_complete
-      ? '✅ 已儲存(is_complete=true)。回清單可看到此檔可能已掉到 lockable。'
-      : '⚠️ 已儲存但 is_complete=false(缺必填欄位)。'
+    $('save-status').textContent = data.status === 'creator_ready'
+      ? '✅ 已仲裁，此檔已 Creator Ready。'
+      : `✅ 已寫入仲裁（狀態:${data.status}）。`
   } catch (err) {
     $('save-status').textContent = `❌ 網路錯誤:${err.message}`
   }

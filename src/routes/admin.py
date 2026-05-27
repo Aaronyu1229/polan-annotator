@@ -324,6 +324,7 @@ def lockable_list(
             "annotators": sorted({a.annotator_id for a in anns}),
             "max_gap_dim": max_dim,
             "max_gap_value": max_val,
+            "blind_audit": is_blind_audit(audio.id),  # 抽中者不可快速確認，須走 full
         })
     items.sort(key=lambda x: (x["max_gap_value"] or 0))
     return items
@@ -350,7 +351,9 @@ def reconcile_list(
     for audio in audios:
         anns = by_audio.get(audio.id, [])
         st = compute_status_from_preload(audio, anns, arbs_by_audio.get(audio.id, []), role_map)
-        if st != "needs_arbitration":
+        audit = is_blind_audit(audio.id)
+        # needs_arbitration 必收；fast_confirmable 但被盲審抽中者也納入（強制走 full）
+        if not (st == "needs_arbitration" or (st == "fast_confirmable" and audit)):
             continue
         max_dim, max_val = _max_creator_industry_gap(anns, role_map)
         items.append({
@@ -363,6 +366,7 @@ def reconcile_list(
             "max_gap_dim": max_dim,
             "max_gap_value": max_val,
             "amber_already_annotated": any(a.annotator_id == "amber" for a in anns),
+            "blind_audit": audit,
         })
     items.sort(key=lambda x: (x["max_gap_value"] or 0), reverse=True)
     return items
