@@ -30,7 +30,8 @@ loadAll()
 async function loadAll() {
   const includeFixture = includeFixtureBox.checked ? 'true' : 'false'
   await Promise.all([
-    loadIcc(includeFixture),
+    loadIcc(includeFixture),     // 只用於各標註員進度（不再渲染舊 ICC 表）
+    loadAgreement(),             // Phase 8 — 業界對齊 CCC（取代誤導的 yyslin×Vic ICC）
     loadOverlap(includeFixture),
     loadPendingAnnotators(),  // Phase 8 — 待校準 widget(admin only)
     loadStatusCards(),        // Phase 10 — 資料品質狀態分布
@@ -216,7 +217,7 @@ async function loadIcc(includeFixture) {
   try {
     const res = await fetch(`/api/stats/icc?include_fixture=${includeFixture}`)
     const data = await res.json()
-    renderIccTable(data)
+    // 舊 ICC 表已停用（yyslin×Vic 對 0.7 會把商品當缺陷）；這裡只取 annotators 驅動進度列。
     loadProgressForAll(data.annotators, data.reference_annotator)
   } catch (err) {
     $('icc-meta').textContent = `載入 ICC 失敗：${err.message}`
@@ -279,50 +280,56 @@ async function loadProgressForAll(annotators, referenceAnnotator) {
   }))
 }
 
-function renderIccTable(data) {
-  // icc_annotators = 排除 reference(amber) 後實際參與計算的 L1 標註員
-  const iccAnnotators = data.icc_annotators || data.annotators || []
-  const meta = data.sample_size > 0
-    ? `${iccAnnotators.join(' × ')}（K=${iccAnnotators.length}）· 基於 N=${data.sample_size} 筆共同標註的檔案`
-    : `尚無 L1 跨標資料（需 ≥ 2 位 L1 標註員各自完整標記 ≥ 2 個共同檔案）。目前 L1：${iccAnnotators.join('、') || '無'}`
-  $('icc-meta').textContent = meta
+async function loadAgreement() {
+  try {
+    const res = await fetch('/api/stats/agreement')
+    if (!res.ok) { $('icc-meta').textContent = `載入對齊資料失敗：HTTP ${res.status}`; return }
+    renderAgreement(await res.json())
+  } catch (err) {
+    $('icc-meta').textContent = `載入對齊資料失敗：${err.message}`
+  }
+}
 
-  const dims = data.dimensions || {}
-  const dimKeys = Object.keys(dims)
+function renderAgreement(data) {
+  const align = data.industry_alignment || {}
+  const overall = data.overall_three_way || {}
+  const dimKeys = Object.keys(align)
+  const anyValue = dimKeys.some(k => !align[k].insufficient)
+  $('icc-meta').textContent = anyValue
+    ? 'creator × industry 對齊（CCC + 95% CI）；gate 在 CI 下界 ≥ 0.7。'
+    : `資料不足（需 ≥ ${data.agreement_min_n || 30} 筆 creator+industry 共同標註）才出 CCC。`
+
   if (!dimKeys.length) {
     $('icc-table').innerHTML = '<tr><td colspan="5" class="p-3 text-sm text-slate-500 dark:text-slate-400">無資料</td></tr>'
     return
   }
   $('icc-table').innerHTML = dimKeys.map(k => {
-    const d = dims[k]
-    let statusCell = ''
-    if (d.icc == null) {
-      statusCell = `<span class="text-slate-400" title="${escapeAttr(d.note || '')}">—</span>`
-    } else if (d.pass) {
-      statusCell = '<span class="text-emerald-600 dark:text-emerald-400">🟢</span>'
+    const a = align[k]
+    const o = overall[k] || {}
+    let cccCell, ciCell, statusCell
+    if (a.insufficient) {
+      cccCell = `<span class="text-slate-400">— (n=${a.n})</span>`
+      ciCell = '—'
+      statusCell = '<span class="text-slate-400">—</span>'
     } else {
-      statusCell = '<span class="text-red-600 dark:text-red-400">🔴</span>'
+      cccCell = a.value.toFixed(3)
+      ciCell = `[${a.ci_low.toFixed(2)}, ${a.ci_high.toFixed(2)}]`
+      statusCell = a.pass
+        ? '<span class="text-emerald-600 dark:text-emerald-400">🟢</span>'
+        : '<span class="text-red-600 dark:text-red-400">🔴</span>'
     }
+    const iccRef = o.insufficient ? '—' : o.value.toFixed(3)
     return `
       <tr class="border-t border-slate-200 dark:border-slate-700/60">
         <td class="p-3 font-medium">${escapeHtml(k)}</td>
-        <td class="p-3 text-slate-500 dark:text-slate-400 text-xs">${escapeHtml(d.category)}</td>
-        <td class="p-3 text-right font-mono ${d.icc == null ? 'text-slate-400' : ''}">${d.icc == null ? '—' : d.icc.toFixed(3)}</td>
-        <td class="p-3 text-right font-mono text-slate-500 dark:text-slate-400 text-xs">${d.threshold.toFixed(2)}</td>
+        <td class="p-3 text-right font-mono ${a.insufficient ? 'text-slate-400' : ''}">${cccCell}</td>
+        <td class="p-3 text-right font-mono text-slate-500 dark:text-slate-400 text-xs">${ciCell}</td>
+        <td class="p-3 text-right font-mono text-slate-400 text-xs">${iccRef}</td>
         <td class="p-3 text-center">${statusCell}</td>
       </tr>
     `
   }).join('')
-
-  // skipped dims 區塊
-  const skipped = data.skipped_dimensions || []
-  if (skipped.length) {
-    $('icc-skipped').innerHTML = '⚠️ 略過維度：' + skipped.map(s =>
-      `<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded mx-1">${escapeHtml(s.key)}</code>(${escapeHtml(s.reason)})`
-    ).join(' ')
-  } else {
-    $('icc-skipped').textContent = ''
-  }
+  $('icc-skipped').textContent = '三人整體 ICC（含 audience）僅供參考：偏低是預期（專業 vs 大眾分歧 = 商品特性），不作為品質 gate。'
 }
 
 function renderOverlapTable(items) {

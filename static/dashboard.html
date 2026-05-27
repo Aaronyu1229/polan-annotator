@@ -60,23 +60,24 @@
       </div>
     </section>
 
-    <!-- 2. ICC 表 -->
+    <!-- 2. 業界對齊 CCC（三角架構，取代舊 yyslin×Vic ICC）-->
     <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
       <div class="p-4 border-b border-slate-200 dark:border-slate-700">
-        <h2 id="icc-title" class="text-base font-semibold">L1 標註員跨標 ICC(2,1)</h2>
+        <h2 id="icc-title" class="text-base font-semibold">業界對齊 — CCC（creator × industry）</h2>
         <p id="icc-meta" class="text-xs text-slate-500 dark:text-slate-400 mt-1">載入中…</p>
         <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-          僅計算 L1 標註員彼此的一致性。Amber 為仲裁者 / 校準基準,不列入此 ICC。
+          量 creator(Amber)×industry(yyslin) 的對齊（Lin's CCC + 95% CI，gate 在 CI 下界 ≥ 0.7）。
+          audience(Vic) 偏離是商品特性，不在此 gate；三人整體 ICC 僅供參考（低=商品，正常）。
         </p>
       </div>
       <table class="w-full text-sm">
         <thead class="bg-slate-100 text-slate-600 dark:bg-slate-900/70 dark:text-slate-400 text-xs uppercase tracking-wide">
           <tr>
             <th class="text-left p-3 font-medium">維度</th>
-            <th class="text-left p-3 font-medium">類別</th>
-            <th class="text-right p-3 font-medium">ICC</th>
-            <th class="text-right p-3 font-medium">門檻</th>
-            <th class="text-center p-3 font-medium w-16">狀態</th>
+            <th class="text-right p-3 font-medium">CCC</th>
+            <th class="text-right p-3 font-medium">95% CI</th>
+            <th class="text-right p-3 font-medium">三人 ICC（參考）</th>
+            <th class="text-center p-3 font-medium w-16">對齊</th>
           </tr>
         </thead>
         <tbody id="icc-table"></tbody>

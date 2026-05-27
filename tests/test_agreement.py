@@ -82,3 +82,12 @@ def test_agreement_endpoint(client, in_memory_engine):
     r = client.get("/api/admin/agreement")
     assert r.status_code == 200
     assert "industry_alignment" in r.json()
+
+
+def test_stats_agreement_endpoint_team_visible(client, in_memory_engine):
+    # /api/stats/agreement 不限 admin（dashboard 用），回分層結構
+    r = client.get("/api/stats/agreement")
+    assert r.status_code == 200
+    body = r.json()
+    assert "industry_alignment" in body
+    assert "overall_three_way" in body

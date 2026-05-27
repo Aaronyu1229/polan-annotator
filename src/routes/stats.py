@@ -68,6 +68,15 @@ def icc(
     return compute_icc_per_dimension(session, include_fixture=include_fixture)
 
 
+@router.get("/agreement")
+def agreement(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Phase 8 分層 agreement（取代 dashboard 舊 ICC 的誤導呈現）：
+    業界對齊 CCC(creator×industry) / 三人整體 ICC 僅報告 / audience within-category。
+    team-visible（同舊 /icc，不限 admin）。"""
+    from src.agreement import compute_agreement_layers  # noqa: PLC0415
+    return compute_agreement_layers(session)
+
+
 @router.get("/overlap")
 def overlap(
     include_fixture: bool = Query(default=False),
