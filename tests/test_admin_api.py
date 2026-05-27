@@ -712,3 +712,94 @@ def test_admin_html_page_serves_html_to_admin(client, in_memory_engine, tmp_anno
         r = client.get(path, follow_redirects=False)
         assert r.status_code == 200, f"{path} should serve HTML to admin"
         assert "html" in r.headers.get("content-type", "").lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: arbitration write endpoints
+# ---------------------------------------------------------------------------
+
+_FULL_VALUES = {
+    "valence": 0.5, "arousal": 0.5, "emotional_warmth": 0.5,
+    "tension_direction": 0.5, "temporal_position": 0.5,
+    "event_significance": 0.5, "world_immersion": 0.5,
+    "loop_capability": [1.0], "source_type": ["ambience"],
+    "function_roles": ["atmosphere"], "genre_tag": ["博弈"],
+    "worldview_tag": ["casino"], "style_tag": ["orchestral"],
+}
+
+
+def _status_of(client, audio_id):
+    return client.get(f"/api/admin/audio/{audio_id}/status?annotator=amber").json()["status"]
+
+
+def test_fast_confirm_makes_creator_ready(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
+    audio_id = _make_audio(in_memory_engine, "F_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)  # aligned → fast_confirmable
+    assert _status_of(client, audio_id) == "fast_confirmable"
+
+    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
+                    json={"audio_ids": [audio_id], "notes": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["confirmed"] == [audio_id]
+    assert _status_of(client, audio_id) == "creator_ready"
+
+
+def test_fast_confirm_skips_non_fast(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
+    audio_id = _make_audio(in_memory_engine, "N_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)  # gap 0.8 → needs_arbitration
+    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
+                    json={"audio_ids": [audio_id]})
+    assert r.status_code == 200
+    assert r.json()["confirmed"] == []
+    assert r.json()["skipped"][0]["reason"] == "not_fast_confirmable"
+
+
+def test_fast_confirm_skips_blind_audit(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: True)
+    audio_id = _make_audio(in_memory_engine, "B_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
+    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
+                    json={"audio_ids": [audio_id]})
+    assert r.json()["confirmed"] == []
+    assert r.json()["skipped"][0]["reason"] == "blind_audit"
+
+
+def test_full_arbitrate_makes_creator_ready(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
+    audio_id = _make_audio(in_memory_engine, "FA_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)  # needs_arbitration
+    r = client.post(f"/api/admin/arbitrate/{audio_id}/full?annotator=amber",
+                    json={"values": _FULL_VALUES, "notes": "Vic 偏離不採，以業界對齊為準"})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "creator_ready"
+
+
+def test_full_arbitrate_requires_notes_for_needs_arbitration(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
+    audio_id = _make_audio(in_memory_engine, "FN_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)
+    r = client.post(f"/api/admin/arbitrate/{audio_id}/full?annotator=amber",
+                    json={"values": _FULL_VALUES, "notes": "  "})
+    assert r.status_code == 400
+    assert "Notes" in str(r.json()["detail"])
+
+
+def test_full_arbitrate_409_when_industry_missing(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine, "FI_X.wav")
+    _make_amber_completed_annotation(in_memory_engine, audio_id)  # creator only
+    r = client.post(f"/api/admin/arbitrate/{audio_id}/full?annotator=amber",
+                    json={"values": _FULL_VALUES, "notes": "x"})
+    assert r.status_code == 409
+
+
+def test_full_arbitrate_400_when_field_missing(client, in_memory_engine, tmp_annotators_config, monkeypatch):
+    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
+    audio_id = _make_audio(in_memory_engine, "FM_X.wav")
+    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
+    partial = {k: v for k, v in _FULL_VALUES.items() if k != "style_tag"}
+    r = client.post(f"/api/admin/arbitrate/{audio_id}/full?annotator=amber",
+                    json={"values": partial, "notes": "x"})
+    assert r.status_code == 400
+    assert "缺仲裁欄位" in str(r.json()["detail"])

@@ -18,14 +18,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
-from src.annotation_serialization import decode_worldview_tag
+from src.annotation_serialization import annotation_to_dict, decode_worldview_tag
 from src.annotators_loader import (
     AnnotatorsConfigError,
     get_annotator,
     list_pending_annotators,
     set_status,
 )
-from src.arbitration import bulk_load_arbitrations_by_audio
+from src.arbitration import (
+    ARBITRATED_FIELDS,
+    bulk_load_arbitrations_by_audio,
+    is_blind_audit,
+    write_arbitration,
+)
 from src.audiofile_status import (
     bulk_load_annotations_by_audio,
     compute_audiofile_status,
@@ -33,11 +38,12 @@ from src.audiofile_status import (
     resolve_role_map,
     status_summary,
 )
-from src.role_gaps import pairwise_gaps
+from src.role_gaps import needs_full_arbitration, pairwise_gaps
 from src.db import get_session
 from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
-from src.models import Annotation, AudioFile
+from src.models import Annotation, Arbitration, AudioFile
+from pydantic import BaseModel, Field as PydField
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 log = logging.getLogger("polan.routes.admin")
@@ -318,6 +324,7 @@ def lockable_list(
             "annotators": sorted({a.annotator_id for a in anns}),
             "max_gap_dim": max_dim,
             "max_gap_value": max_val,
+            "blind_audit": is_blind_audit(audio.id),  # 抽中者不可快速確認，須走 full
         })
     items.sort(key=lambda x: (x["max_gap_value"] or 0))
     return items
@@ -344,7 +351,9 @@ def reconcile_list(
     for audio in audios:
         anns = by_audio.get(audio.id, [])
         st = compute_status_from_preload(audio, anns, arbs_by_audio.get(audio.id, []), role_map)
-        if st != "needs_arbitration":
+        audit = is_blind_audit(audio.id)
+        # needs_arbitration 必收；fast_confirmable 但被盲審抽中者也納入（強制走 full）
+        if not (st == "needs_arbitration" or (st == "fast_confirmable" and audit)):
             continue
         max_dim, max_val = _max_creator_industry_gap(anns, role_map)
         items.append({
@@ -357,6 +366,7 @@ def reconcile_list(
             "max_gap_dim": max_dim,
             "max_gap_value": max_val,
             "amber_already_annotated": any(a.annotator_id == "amber" for a in anns),
+            "blind_audit": audit,
         })
     items.sort(key=lambda x: (x["max_gap_value"] or 0), reverse=True)
     return items
@@ -417,6 +427,16 @@ def reconcile_detail(
         for a in anns
     ]
 
+    # Phase 4：per-dim creator-industry gap + 是否需 full（Notes 強制）。
+    role_map = resolve_role_map()
+    by_id = {a.annotator_id: a for a in anns}
+    by_role = {r: by_id.get(role_map.get(r)) for r in ("creator", "industry", "audience")}
+    gaps = pairwise_gaps(by_role)
+    creator_industry_gaps = {d: g["creator_industry"] for d, g in gaps.items()}
+    needs_full = needs_full_arbitration(gaps)
+    # blind-audit 抽中的對齊檔也要強制 Notes（A5）
+    notes_required = bool(needs_full) or is_blind_audit(audio_id)
+
     return {
         "audio": {
             "id": audio.id,
@@ -430,4 +450,122 @@ def reconcile_detail(
         },
         "annotations": annotations_data,
         "status": compute_audiofile_status(audio, session),
+        "creator_industry_gaps": creator_industry_gaps,
+        "needs_full_dims": sorted(needs_full),
+        "notes_required": notes_required,
+        "blind_audit": is_blind_audit(audio_id),
     }
+
+
+# ─── Phase 4：仲裁寫入（fast-confirm 批次 + full 完整）─────────────
+
+def _completed_annotations(session: Session, audio_id: str) -> list[Annotation]:
+    return list(session.exec(
+        select(Annotation).where(
+            Annotation.audio_file_id == audio_id,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).all())
+
+
+class FastConfirmPayload(BaseModel):
+    audio_ids: list[str] = PydField(default_factory=list)
+    notes: str | None = None
+
+
+@router.post("/arbitrate/fast-confirm")
+def arbitrate_fast_confirm(
+    payload: FastConfirmPayload,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """批次快速確認：fast_confirmable 檔以 creator raw value 寫 Arbitration(path=fast)。
+
+    重算 status 防 race；blind-audit 抽中者 skip（必須走 full）。
+    """
+    _require_admin(current_user)
+    role_map = resolve_role_map()
+    creator_id = role_map.get("creator")
+    arbitrated_by = current_user.get("annotator_id") or creator_id or "amber"
+
+    confirmed: list[str] = []
+    skipped: list[dict[str, str]] = []
+    for aid in payload.audio_ids:
+        audio = session.get(AudioFile, aid)
+        if audio is None:
+            skipped.append({"audio_id": aid, "reason": "not_found"})
+            continue
+        if is_blind_audit(aid):
+            skipped.append({"audio_id": aid, "reason": "blind_audit"})
+            continue
+        anns = _completed_annotations(session, aid)
+        arbs = list(session.exec(
+            select(Arbitration).where(Arbitration.audio_file_id == aid)
+        ).all())
+        if compute_status_from_preload(audio, anns, arbs, role_map) != "fast_confirmable":
+            skipped.append({"audio_id": aid, "reason": "not_fast_confirmable"})
+            continue
+        creator_ann = next((a for a in anns if a.annotator_id == creator_id), None)
+        if creator_ann is None:
+            skipped.append({"audio_id": aid, "reason": "no_creator_annotation"})
+            continue
+        decoded = annotation_to_dict(creator_ann)
+        fields_values = {f: decoded[f] for f in ARBITRATED_FIELDS}
+        write_arbitration(
+            session, audio_id=aid, fields_values=fields_values,
+            path="fast", notes=payload.notes, arbitrated_by=arbitrated_by,
+        )
+        confirmed.append(aid)
+
+    session.commit()
+    log.info("fast-confirm by %s: confirmed=%d skipped=%d",
+             arbitrated_by, len(confirmed), len(skipped))
+    return {"confirmed": confirmed, "skipped": skipped}
+
+
+class FullArbitrationPayload(BaseModel):
+    values: dict[str, Any] = PydField(default_factory=dict)
+    notes: str | None = None
+
+
+@router.post("/arbitrate/{audio_id}/full")
+def arbitrate_full(
+    audio_id: str,
+    payload: FullArbitrationPayload,
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """完整仲裁：逐欄寫 Arbitration(path=full)。needs_full / blind-audit 檔 Notes 強制。
+
+    不覆寫 creator raw annotation — 最終值只存 Arbitration。
+    """
+    _require_admin(current_user)
+    audio = session.get(AudioFile, audio_id)
+    if audio is None:
+        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
+
+    role_map = resolve_role_map()
+    anns = _completed_annotations(session, audio_id)
+    by_id = {a.annotator_id: a for a in anns}
+    if role_map.get("creator") not in by_id or role_map.get("industry") not in by_id:
+        raise HTTPException(status_code=409, detail="creator 與 industry 尚未都完成，不可仲裁")
+
+    by_role = {r: by_id.get(role_map.get(r)) for r in ("creator", "industry", "audience")}
+    needs_full = needs_full_arbitration(pairwise_gaps(by_role))
+    notes_required = bool(needs_full) or is_blind_audit(audio_id)
+    if notes_required and not (payload.notes and payload.notes.strip()):
+        raise HTTPException(status_code=400, detail="此檔需完整仲裁，Notes 必填")
+
+    missing = [f for f in ARBITRATED_FIELDS if f not in payload.values]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"缺仲裁欄位:{missing}")
+
+    arbitrated_by = current_user.get("annotator_id") or role_map.get("creator") or "amber"
+    write_arbitration(
+        session, audio_id=audio_id,
+        fields_values={f: payload.values[f] for f in ARBITRATED_FIELDS},
+        path="full", notes=payload.notes, arbitrated_by=arbitrated_by,
+    )
+    session.commit()
+    log.info("full-arbitrate %s by %s", audio_id, arbitrated_by)
+    return {"audio_id": audio_id, "status": compute_audiofile_status(audio, session)}
