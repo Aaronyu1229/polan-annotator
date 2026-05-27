@@ -11,6 +11,9 @@ ARBITRATION_GATE = 0.20
 INDUSTRY_RECAL = 0.30
 # industry-audience gap > 此值 → 「專業 vs 大眾分歧」= 商品特性，不修正（Phase 5）
 PRODUCT_DIVERGENCE = 0.40
+# 單一維度需 ≥ 此檔數出現 creator-industry > INDUSTRY_RECAL，才建議 industry 重新校準
+# （避免單一 outlier 觸發；Phase 5）
+RECAL_MIN_FILES = 3
 
 # 7 個 human 連續維（acoustic 兩維 librosa deterministic 不計）。放在此 leaf module
 # 供 arbitration / role_gaps / audiofile_status 共用，打破循環 import。

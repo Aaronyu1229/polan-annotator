@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>資料品質信號 — 珀瀾標註工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <main class="max-w-5xl mx-auto p-6 space-y-6">
+    <header class="flex items-baseline justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold">📊 資料品質信號</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          三角架構：只 creator-industry 失準才觸發校準；audience 偏離是商品不是缺陷。
+        </p>
+      </div>
+      <a href="/dashboard" class="text-sm text-slate-500 hover:text-amber-500">← Dashboard</a>
+    </header>
+
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
+      <h2 class="font-semibold mb-2">業界對齊（industry 校準信號）</h2>
+      <p class="text-xs text-slate-500 mb-3">creator-industry gap &gt; 0.30 的檔數；超門檻維度建議請 yyslin 重新校準。</p>
+      <div id="industry-block" class="text-sm">載入中…</div>
+    </section>
+
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
+      <h2 class="font-semibold mb-2">商品證據（專業 vs 大眾分歧）</h2>
+      <p class="text-xs text-slate-500 mb-3">industry-audience gap &gt; 0.40 的檔，是 Dual-View Edition 的賣點佐證（不修正）。</p>
+      <div id="product-block" class="text-sm">載入中…</div>
+    </section>
+
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
+      <h2 class="font-semibold mb-2">audience 品質守門</h2>
+      <p class="text-xs text-slate-500 mb-3">straight-lining 啟發式（Phase 7 將以隱藏重複題 intra-rater 取代）。</p>
+      <div id="audience-block" class="text-sm">載入中…</div>
+    </section>
+  </main>
+
+  <script type="module" src="/static/auth.js"></script>
+  <script type="module" src="/static/quality.js"></script>
+</body>
+</html>

@@ -197,4 +197,10 @@ def lockable_list_page(user: dict = Depends(require_auth)):
     return _ensure_admin_or_redirect(user, "lockable-list.html")
 
 
+@app.get("/admin/quality", include_in_schema=False)
+def quality_page(user: dict = Depends(require_auth)):
+    """Phase 5:admin-only 品質信號頁（業界對齊 / 商品證據 / audience 守門）。"""
+    return _ensure_admin_or_redirect(user, "quality.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

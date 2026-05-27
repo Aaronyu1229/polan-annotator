@@ -698,7 +698,7 @@ def test_admin_html_page_redirects_non_admin(client, in_memory_engine, tmp_annot
 
     main_module.app.dependency_overrides[require_auth] = _non_admin
     try:
-        for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions"]:
+        for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
             r = client.get(path, follow_redirects=False)
             assert r.status_code == 302, f"{path} should redirect non-admin, got {r.status_code}"
             assert r.headers.get("location") == "/"
@@ -708,7 +708,7 @@ def test_admin_html_page_redirects_non_admin(client, in_memory_engine, tmp_annot
 
 def test_admin_html_page_serves_html_to_admin(client, in_memory_engine, tmp_annotators_config):
     """admin 開 /admin/* HTML 該回 200 HTML(dev mode 預設 is_admin=True)。"""
-    for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions"]:
+    for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
         r = client.get(path, follow_redirects=False)
         assert r.status_code == 200, f"{path} should serve HTML to admin"
         assert "html" in r.headers.get("content-type", "").lower()
@@ -803,3 +803,27 @@ def test_full_arbitrate_400_when_field_missing(client, in_memory_engine, tmp_ann
                     json={"values": partial, "notes": "x"})
     assert r.status_code == 400
     assert "缺仲裁欄位" in str(r.json()["detail"])
+
+
+def test_quality_endpoint_admin_only(client, in_memory_engine, tmp_annotators_config):
+    from src import main as main_module
+    from src.middleware import require_auth
+    main_module.app.dependency_overrides[require_auth] = lambda: {
+        "annotator_id": "vvgosick", "email": "x", "is_admin": False, "name": None,
+    }
+    try:
+        assert client.get("/api/admin/quality").status_code == 403
+    finally:
+        main_module.app.dependency_overrides.pop(require_auth, None)
+
+
+def test_quality_endpoint_returns_layers(client, in_memory_engine, tmp_annotators_config):
+    aid = _make_audio(in_memory_engine, "Q_X.wav")
+    _make_two_complete_annotations(in_memory_engine, aid, 0.2, 0.7)  # gap 0.5 industry_divergence
+    r = client.get("/api/admin/quality?annotator=amber")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "industry_divergence_by_dim" in data
+    assert "product_divergence_files" in data
+    assert "audience_quality" in data
+    assert data["industry_divergence_by_dim"]["valence"]["count"] == 1
