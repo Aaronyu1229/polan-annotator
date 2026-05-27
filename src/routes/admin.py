@@ -596,3 +596,16 @@ def calibration_status(
     _require_admin(current_user)
     from src.role_calibration import role_aware_calibration_status  # noqa: PLC0415
     return role_aware_calibration_status(session, annotator_id)
+
+
+# ─── Phase 8：agreement 分層 ─────────────────────────────────────
+
+@router.get("/agreement")
+def agreement_layers(
+    current_user: dict[str, Any] = Depends(require_auth),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """三層 agreement：業界對齊(CCC) / 三人整體(ICC 僅報告) / audience within-category。"""
+    _require_admin(current_user)
+    from src.agreement import compute_agreement_layers  # noqa: PLC0415
+    return compute_agreement_layers(session)
