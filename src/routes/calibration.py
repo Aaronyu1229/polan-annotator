@@ -199,3 +199,63 @@ def calibration_report(
 def calibration_report_page() -> FileResponse:
     """Phase 9：校準完成報告頁。annotator 在 query string 帶。"""
     return FileResponse(STATIC_DIR / "calibration-report.html")
+
+
+# ─── Phase 7：test-retest 提交（盲重標寫 AnnotationSnapshot）─────────
+
+from datetime import UTC, datetime, timedelta  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
+
+from src.models import AnnotationSnapshot  # noqa: E402
+from src.thresholds import HUMAN_CONTINUOUS_DIMS, RETEST_WASHOUT_DAYS  # noqa: E402
+
+
+class RetestPayload(BaseModel):
+    audio_id: str
+    annotator_id: str
+    values: dict[str, float]
+
+
+@api_router.post("/retest")
+def submit_retest(
+    payload: RetestPayload,
+    user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001 — 純 auth gate
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """寫一筆 test-retest snapshot（不動正式 Annotation）。需原標距今 ≥ wash-out。"""
+    original = session.exec(
+        select(Annotation).where(
+            Annotation.audio_file_id == payload.audio_id,
+            Annotation.annotator_id == payload.annotator_id,
+            Annotation.is_complete == True,  # noqa: E712
+        )
+    ).first()
+    if original is None:
+        raise HTTPException(status_code=409, detail="尚無原始標註，無法 retest")
+
+    created = original.created_at
+    if created is not None:
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        if datetime.now(UTC) - created < timedelta(days=RETEST_WASHOUT_DAYS):
+            raise HTTPException(
+                status_code=409,
+                detail=f"wash-out 未滿 {RETEST_WASHOUT_DAYS} 天，retest 可能被記憶污染",
+            )
+
+    existing = session.exec(
+        select(AnnotationSnapshot).where(
+            AnnotationSnapshot.audio_file_id == payload.audio_id,
+            AnnotationSnapshot.annotator_id == payload.annotator_id,
+        )
+    ).all()
+    pass_no = max([s.pass_no for s in existing], default=1) + 1
+
+    dims = {d: payload.values.get(d) for d in HUMAN_CONTINUOUS_DIMS}
+    snap = AnnotationSnapshot(
+        audio_file_id=payload.audio_id, annotator_id=payload.annotator_id,
+        pass_no=pass_no, **dims,
+    )
+    session.add(snap)
+    session.commit()
+    return {"audio_id": payload.audio_id, "annotator_id": payload.annotator_id, "pass_no": pass_no}
