@@ -22,6 +22,28 @@ function render(d) {
   renderIndustry(d)
   renderProduct(d)
   renderAudience(d)
+  loadAgreement()
+}
+
+async function loadAgreement() {
+  try {
+    const res = await fetch('/api/admin/agreement')
+    if (!res.ok) { $('agreement-block').textContent = `載入失敗 HTTP ${res.status}`; return }
+    const a = await res.json()
+    const rows = Object.entries(a.industry_alignment || {}).map(([dim, r]) => {
+      if (r.insufficient) {
+        return `<div class="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700/50 text-slate-400">
+          <span>${escapeHtml(dim)}</span><span class="font-mono">資料不足 (n=${r.n})</span></div>`
+      }
+      const cls = r.pass ? 'text-emerald-600' : 'text-rose-600 font-medium'
+      return `<div class="flex justify-between py-1 border-b border-slate-100 dark:border-slate-700/50 ${cls}">
+        <span>${escapeHtml(dim)}</span>
+        <span class="font-mono">CCC ${r.value}　CI[${r.ci_low}, ${r.ci_high}]${r.pass ? '' : '　CI下界<0.7'}</span></div>`
+    }).join('')
+    $('agreement-block').innerHTML = rows || '無資料'
+  } catch (err) {
+    $('agreement-block').textContent = `載入失敗:${err.message}`
+  }
 }
 
 function renderIndustry(d) {

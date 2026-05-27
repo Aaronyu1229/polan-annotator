@@ -22,6 +22,11 @@ AUDIENCE_INTRA_MIN = 0.6   # audience 內部一致性（1 - mean|Δ|）下界；
 CALIB_MIN_N = 20           # self-MAE / intra-rater 最低樣本數，不足回「資料不足」
 RETEST_WASHOUT_DAYS = 14   # test-retest 最小 wash-out（避免記憶污染）
 
+# ─── Phase 8：agreement 統計 ─────────────────────────────────────
+AGREEMENT_MIN_N = 30       # CCC / ICC 最低 N（不足回「資料不足」，不 gate 點估計）
+INDUSTRY_CCC_MIN = 0.7     # 業界對齊 CCC CI 下界門檻
+AUDIENCE_WITHIN_CAT_MIN = 5  # within-category 一致性最低組內檔數
+
 # 7 個 human 連續維（acoustic 兩維 librosa deterministic 不計）。放在此 leaf module
 # 供 arbitration / role_gaps / audiofile_status 共用，打破循環 import。
 HUMAN_CONTINUOUS_DIMS: tuple[str, ...] = (
