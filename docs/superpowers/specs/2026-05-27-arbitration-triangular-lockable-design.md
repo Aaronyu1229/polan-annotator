@@ -1,0 +1,154 @@
+# 三角架構仲裁 + lockable 重寫 — 設計文件（Phase 1–3）
+
+**日期：** 2026-05-27
+**狀態：** 設計定案，待 Phase 1–3 實作
+**範圍：** 本 spec 只涵蓋 Phase 1–3（資料基礎 + gap 引擎 + status 重寫）。Phase 4–6（仲裁 UI、flags/校準觸發、雙版本匯出）另開 spec。
+
+---
+
+## 1. 問題
+
+現行 lockable 邏輯（`src/audiofile_status.py`）：
+
+```
+spread = max(三人各維值) - min(三人各維值)
+lockable = 每維 spread ≤ 0.20
+```
+
+**Bug：** 假設三位標註員應該趨同。但三角架構中，audience（Vic）本來就該跟 creator（Amber）有視角差異——把他的偏離算進 spread 會讓本來合格的檔案卡在 cross_annotated，永遠 lockable 不了。
+
+## 2. 三角架構（方法論角色）
+
+| role | 目前是誰 | 方法論身份 | 對 creator 的期望 |
+|---|---|---|---|
+| `creator` | Amber | 方法論設計者 + 最終仲裁者（Creator View） | — |
+| `industry` | yyslin1024 | 業界同行（Industry View） | 應對齊，gap < 0.20 |
+| `audience` | Vic (vvgosick) | 目標受眾 / 終端使用者（Audience View） | 可大可小（視角差異，允許不同） |
+
+**role ≠ profile。** `role` 是方法論架構角色（內部分配，creator/industry/audience），`profile` 是標註員身份特徵（對外 metadata，如 music_professional / general_audience）。目前 1:1 映射，但未來會解耦（例：請 music_professional 來扮演 audience role 測「被要求用直覺反應時的判斷」），故兩者必須獨立欄位，**不可由 profile 推論 role**。
+
+三個 pairwise gap（per 連續維度）：
+
+- `creator_industry_gap = |creator − industry|` — 業界對齊指標。**這是仲裁路徑的唯一闘門。**
+- `creator_audience_gap = |creator − audience|` — 觀察用，視角差異，不影響任何判定。
+- `industry_audience_gap = |industry − audience|` — 觀察用（Phase 5 才用：>0.40 = 專業 vs 大眾分歧 = 商品本身）。
+
+## 3. 仲裁模型
+
+仲裁（arbitration）是 creator 對「某音檔某欄位」確認最終值的**獨立事件**，不是音檔屬性。
+
+- **粒度：** per (audio × field)。一個音檔的每個可標欄位各自獨立仲裁。「Amber 仲裁了 valence 但還沒仲裁 emotional_warmth」是正常狀態。
+- **覆蓋欄位：** 7 個 human 連續維 + `loop_capability` + `source_type` + `function_roles` + `genre_tag` + `worldview_tag` + `style_tag`。acoustic 2 維（librosa deterministic）不仲裁。
+- **歷史：** 同 (audio, field) 可有多筆（方法論升級重新仲裁），舊紀錄保留。
+- **最低參與：** creator + industry 都 `is_complete` 標過才能算 gap / 進仲裁；audience 可選。industry 缺 → 「等待 industry」，不能仲裁。
+
+### 仲裁路徑（fast / full）
+
+路徑由**連續維的 `creator_industry_gap`** 決定（audience 偏離永不影響）：
+
+- `creator_industry_gap ≤ 0.20` → **fast**：採 creator raw value，Notes 可省略（批次「快速確認」）
+- `creator_industry_gap > 0.20` → **full**：走完整仲裁流程（/reconcile），Notes 不可省略
+
+> 🔸 **決策：路徑 per-維度。** 與 per-dim 仲裁一致——每個連續維各自依自己的 creator_industry_gap 判 fast/full。非連續欄位（loop/tags）無 gap 概念：在 fast 場景隨批次快速確認（path=fast）；若該檔有任一連續維走 full、Amber 進 reconcile 時一併設定（path=full）。
+
+## 4. Phase 1 — 資料基礎
+
+### 4.1 Config role 欄位
+
+`data/annotators_config.json` 每人加 `role`：
+
+```json
+"amber":      { ..., "role": "creator" },
+"yyslin1024": { ..., "role": "industry" },
+"vvgosick":   { ..., "role": "audience" },
+"guest":      { ..., "role": null }
+```
+
+`src/annotators_loader.py`：
+- `_REQUIRED_FIELDS` 加 `role`（或設為 optional 並預設 null，避免舊 config 載入失敗 — 採 optional + default null）。
+- 新增 `_VALID_ROLES = {"creator", "industry", "audience"}`；非法值（且非 null）raise。
+- 新增 helper：`get_role(annotator_id) -> str | None`、`annotator_id_for_role(role) -> str | None`（反查，給 gap 引擎解析誰是 creator/industry/audience）。
+
+### 4.2 `Arbitration` 表（`src/models.py`）
+
+```python
+class Arbitration(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audio_file_id: str = Field(index=True, foreign_key="audiofile.id")
+    field: str = Field(index=True)          # valence … style_tag
+    arbitrated_value: str                   # JSON-serialized（float 或 list）
+    path: str                               # "fast" | "full"
+    notes: Optional[str] = None             # full path 時 API 強制要求
+    arbitrated_by: str                      # = creator annotator_id
+    arbitrated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+```
+
+- 建表走既有 `apply_pending_migrations`（idempotent `CREATE TABLE IF NOT EXISTS` 或 SQLModel metadata create）。
+- 🔸 **決策：active = 最新 `arbitrated_at` per (audio, field)；不加 `is_active` 欄，查詢時取最新。** 歷史筆數全保留。
+- `ARBITRATED_FIELDS` 常數（列出上述 13 個欄位名）放 `src/audiofile_status.py` 或新 `src/arbitration.py`，作單一資料來源。
+
+## 5. Phase 2 — Gap 引擎（`src/role_gaps.py`，pure module）
+
+純函式、無 DB、無副作用，可獨立單元測試。
+
+```python
+def pairwise_gaps(
+    by_role: dict[str, Annotation | None],   # {"creator": ann|None, "industry": ..., "audience": ...}
+) -> dict[str, dict[str, float | None]]:
+    """每個 human 連續維 → {creator_industry, creator_audience, industry_audience}。
+    任一側缺 → 該 pair gap = None。"""
+```
+
+- 輸入由呼叫端用 `annotator_id_for_role` 解析 role → annotation。
+- 只算 `HUMAN_CONTINUOUS_DIMS`（7 維）。
+- 提供便利判定：`needs_full_arbitration(gaps) -> set[str]`（回 creator_industry_gap > 0.20 的維度集合）。
+
+## 6. Phase 3 — Status 重寫（`src/audiofile_status.py`）
+
+移除 spread≤0.20 的 lockable 判定，改為 arbitration + gap 驅動。
+
+### 6.1 新 status 分類（audio-level）
+
+🔸 **決策：以下取代舊 5 態的 lockable/gold。**
+
+| status | 條件 |
+|---|---|
+| `untouched` | 0 筆 is_complete |
+| `draft` | 只有 creator **或** industry 其一 is_complete（未湊齊可比對的兩人） |
+| `cross_annotated` | creator + industry 都 is_complete，但尚未全部仲裁 |
+| `needs_arbitration` | 上述 + 至少一個連續維 creator_industry_gap > 0.20（待走 full reconcile） |
+| `fast_confirmable` | 上述 + 所有連續維 creator_industry_gap ≤ 0.20（待 Amber 批次快速確認） |
+| `creator_ready` | 所有 `ARBITRATED_FIELDS` 都有 active arbitration 紀錄 → Creator Edition 可出貨（取代 `gold`） |
+
+> 註：`needs_arbitration` 與 `fast_confirmable` 互斥，皆為 cross_annotated 的細分。audience 是否標過不影響 status（只影響 Phase 5 的觀察指標）。
+
+### 6.2 `is_gold_locked` 退役
+
+🔸 **決策：arbitration 表成為唯一真實來源，`creator_ready` 由「所有欄位皆有 active 仲裁」衍生。** 保留 `is_gold_locked` column 向後相容但不再參與 status 計算。Production `gold=0`（見專案記憶），無歷史資料遷移負擔。
+
+### 6.3 受影響的既有函式
+
+- `compute_audiofile_status` / `compute_status_from_preload`：改用新分類。需要一併預載 arbitration 紀錄（避免 N+1，比照 `bulk_load_annotations_by_audio` 加 `bulk_load_arbitrations_by_audio`）。
+- `per_dim_spread`：保留供參考或移除（若無其他呼叫端則移除——實作時 grep 確認）。
+- `gold_lock_prerequisites`：語意改為 arbitration eligibility（creator+industry 齊、列出 needs-full 維度）。Phase 4 的 UI 會用，但 Phase 3 先把純邏輯就位。
+- export `min_status` 過濾（`_STATUS_ORDER`）：更新排序含新狀態。
+
+## 7. 測試計畫
+
+- **Phase 1**：config role 載入 + 驗證（合法/非法/null/缺欄）；`annotator_id_for_role` 反查；Arbitration 表 CRUD + active=最新時間戳;JSON value round-trip（float 與 list）。
+- **Phase 2**：pairwise_gaps 各情境（三人齊、industry 缺、audience 缺、值相同 gap=0）；`needs_full_arbitration` 門檻邊界（=0.20 不算超、>0.20 算）。
+- **Phase 3**：六個 status 各自的 fixture；creator+industry 齊但 audience 缺仍能 fast_confirmable；audience 大幅偏離不影響 status（回歸舊 bug）；creator_ready 需全欄位仲裁。
+- 維持既有測試全綠（status 既有測試會因語意改變需更新，spec review 後於實作處理）。
+
+## 8. 明確延後（Phase 4–6，不在本 spec）
+
+- Phase 4：fast-path 批次「快速確認」admin UI + full 仲裁 Notes 強制（/reconcile 改造）。
+- Phase 5：flags（creator_industry > 0.30 → 業界內部分歧 → 觸發 industry 校準；industry_audience > 0.40 → 專業 vs 大眾分歧 = 商品）surfacing + 校準觸發機制。
+- Phase 6：雙版本匯出 — Creator/Expert Edition（仲裁值）+ Dual-View Edition（industry/audience 並陳 + flags），export schema bump。
+
+## 9. 待 review 的 🔸 預設（可改）
+
+1. 仲裁路徑 **per-維度**（非 per-音檔）。
+2. active 仲裁 = **最新 arbitrated_at**（無 is_active 欄）。
+3. `is_gold_locked` **退役**，status 全由 arbitration 衍生。
+4. status 分類含 `needs_arbitration` / `fast_confirmable` / `creator_ready` 三個新名。
