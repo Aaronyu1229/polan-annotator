@@ -161,3 +161,39 @@ def pairwise_gaps(
 2. active 仲裁 = **最新 arbitrated_at**（無 is_active 欄）。
 3. `is_gold_locked` **退役**，status 全由 arbitration 衍生。
 4. status 分類含 `needs_arbitration` / `fast_confirmable` / `creator_ready` 三個新名。
+
+---
+
+## 10. 深度審查後的實作決議（2026-05-27，全部 accepted）
+
+見 [methodology-deep-review.md](./2026-05-27-methodology-deep-review.md)。以下為**影響 Phase 1–3 的已定案項**，writing-plans 以此為準。
+
+### 10.1 改寫 Phase 1（資料基礎）
+
+- **命名**：`creator_ready` 對應 **Creator Edition**（非 Expert）。產品定位 = 單一專家策展 + 受眾參照，不宣稱 ground truth。
+- **新增 `AnnotationSnapshot` 表（append-only，本 phase 建空表、欄位凍結，Phase 7 / audience-floor 才寫入）：**
+  `(id, audio_file_id, annotator_id, pass_no, created_at, valence, arousal, emotional_warmth, tension_direction, temporal_position, event_significance, world_immersion)`。
+  **不動 `Annotation` 的 upsert / 唯一鍵**（stats/export/calibration 都假設一檔一人一列）。self-MAE（creator）與 intra-rater 一致性（audience）皆只讀此表。理由：test-retest 在現行 UPSERT 下結構性不可能，晚做要二次 migration。
+- **`Arbitration` 表補**：複合索引 `(audio_file_id, field, arbitrated_at DESC)`；加 `value_type` 欄（`float` / `list_str` / `list_float`）。
+- **新 `src/thresholds.py`** 集中所有門檻：`ARBITRATION_GATE = 0.20`、`INDUSTRY_RECAL = 0.30`、`PRODUCT_DIVERGENCE = 0.40`（門檻視為慣例，非驗證 cutoff）。取代散落的 `GOLD_MAX_SPREAD` / `GREEN_THRESHOLD` 等。
+
+### 10.2 改寫 Phase 2（gap 引擎）
+
+- role 解析：呼叫端在 bulk 操作**頂端解一次** role→annotator_id map 往下傳，**不在 per-row 迴圈**解（config 無快取，會 N 次磁碟讀）。以 `annotator_id_for_role("creator")` 取代寫死 `REFERENCE_ANNOTATOR="amber"`。
+- gap 引擎簽名守備「一 role 多人」（`role≠profile` 保證未來會發生）：一 role 解析到多位 is_complete 時 raise，把假設變大聲。
+- 共用 reducer `latest_by_audio_field(rows)`，per-file 與 bulk 路徑同一邏輯。
+
+### 10.3 改寫 Phase 3（status 重寫）
+
+- **收斂三處 status 邏輯為一**：刪除 `src/routes/audio.py::_compute_status_inline`，全走 `compute_status_from_preload`（加 arbitration 預載 `bulk_load_arbitrations_by_audio`）。
+- **`is_gold_locked` 退役連帶**：停用 `lock_gold` / `unlock_gold`（回 410 或標 deprecated）、`lockable-list` / `reconcile-list` UI 同步；`_STATUS_ORDER` 保留 `gold` / `lockable` key 並做 old→new 映射，避免舊 `min_status` 請求 400。
+- **status 邊角規則**：`draft` 拆 `creator_draft` / `industry_only`（後者無用、前者是校準集）；stale 仲裁（`creator.updated_at > arbitrated_at`）失效並標記；late / changed industry 分歧會 demote `creator_ready`；mixed 完成度（部分欄位已仲裁）的 audio-level rollup 明訂。
+- **reconcile 寫端點屬 Phase 4**：Phase 3 出的 taxonomy 在 Phase 4（寫 Arbitration 的 UI）之前**不產生任何 `creator_ready`** —— 這是預期，非 regression。
+
+### 10.4 凍結但延後（影響後續 phase，現在定案）
+
+- **A3 統計（Phase 8）**：pairwise 對齊用 **CCC + Bland–Altman**、gate 在 **CI 下界**、最低 **N≥30**。
+- **A2 industry（Phase 7）**：取消 0.10 下界；防模仿改盲標 + 殘差獨立性檢定。
+- **A4 audience（提前為核心）**：garbage filter（隱藏重複 intra-rater / straight-lining / attention / 反應時間）重用 `AnnotationSnapshot`；**Dual-View 降級為 single end-user reference**，不單獨定價。
+- **A5 fast-path（Phase 4）**：隨機 ~10% 走 full arbitration 盲審。
+- **匯出（Phase 6）**：major bump → `1.0.0`、top-level `edition` 欄、拆 `/export/creator_edition.json` 與 `/export/dual_view.json`、`dimension_sources` 擴充 `creator_arbitrated`。

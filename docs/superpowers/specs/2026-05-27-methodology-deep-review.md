@@ -82,12 +82,12 @@ yyslin 一旦校準到 ≤0.20，**依定義**幾乎每筆都 `fast_confirmable`
 
 ---
 
-## D. 待你裁示清單（A 區，方法論）
+## D. 裁示結果（2026-05-27，使用者「照建議執行」全部採納）
 
-1. **A1 外部效度錨點**：選 (a) 誠實重定位為單一專家策展（+ Expert→Creator Edition 改名），還是 (b) 引入第三方/行為驗證錨點？
-2. **A2 yyslin 對齊帶**：是否拿掉 0.10 下界、改用盲標 + 殘差獨立性檢查防模仿？
-3. **A3 統計路線**：是否改用 CCC + Bland–Altman、gate 在 CI 下界、設最低 N≥30？
-4. **A4 audience 品質底線 + N=1**：是否補受眾人數（≥30）或把 Dual-View 降級為「single end-user reference」？audience 的 garbage filter（隱藏重複/straight-lining/attention）要不要提前到核心而非 Phase 8？
-5. **A5 fast-path 盲審**：抽審比例（建議 10%）或不做？
+1. **A1 外部效度錨點 → (a) 誠實重定位。** 產品 = 「單一專家策展標註（single-expert curated）+ 受眾參照」；**Expert Edition 改名 Creator Edition**；不宣稱 = ground truth。
+2. **A2 yyslin 對齊帶 → 拿掉 0.10 下界。** 只留上界對齊；防模仿改用盲標（UI 不得預載 Amber 參照值）+ 殘差獨立性檢定。
+3. **A3 統計路線 → 採 CCC + Bland–Altman、gate 在 CI 下界、最低 N≥30；門檻一律視為慣例**（最好 per-dim SD 正規化或實測反推）。
+4. **A4 audience 品質底線 + N=1 → 提前為核心：** audience garbage filter（隱藏重複題 intra-rater / straight-lining / attention / 反應時間）不再推到 Phase 8，重用 Phase 1 的 `AnnotationSnapshot` 表。**Dual-View Edition 降級為「single end-user reference annotations」**，不單獨定價（除非日後補受眾 ≥30）。
+5. **A5 fast-path 盲審 → 做，隨機 ~10%** 走 full arbitration 盲審（Phase 4 routing）。
 
-> B 區工程決議若有要推翻的也一併講；否則我據此更新 Phase 1–3 spec 後進 writing-plans。
+> B 區 11 項工程決議全部採納，影響 Phase 1–3 者已寫入主 spec §10。
