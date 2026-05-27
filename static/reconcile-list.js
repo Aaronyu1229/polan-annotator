@@ -26,7 +26,7 @@ function render(items) {
   if (!items.length) {
     tbody.innerHTML = `
       <tr><td colspan="5" class="p-4 text-sm text-slate-500 text-center">
-        🎉 沒有待仲裁的音檔。所有 cross_annotated 音檔的 max spread 都 ≤ 0.20(已 lockable)。
+        🎉 沒有待仲裁的音檔。所有 creator-industry gap 都 ≤ 0.20(待快速確認)。
       </td></tr>`
     return
   }
@@ -35,10 +35,10 @@ function render(items) {
       const isAmber = a === 'amber'
       return `<span class="text-xs px-1.5 py-0.5 rounded ${isAmber ? 'bg-amber-200 dark:bg-amber-900 font-medium' : 'bg-slate-200 dark:bg-slate-700'}">${escapeHtml(a)}</span>`
     }).join(' ')
-    const spread = it.max_spread_value != null ? it.max_spread_value.toFixed(2) : '—'
-    const spreadCls = it.max_spread_value > 0.5
+    const gap = it.max_gap_value != null ? it.max_gap_value.toFixed(2) : '—'
+    const gapCls = it.max_gap_value > 0.5
       ? 'text-rose-600 dark:text-rose-400 font-medium'
-      : it.max_spread_value > 0.3
+      : it.max_gap_value > 0.3
       ? 'text-amber-600 dark:text-amber-400'
       : 'text-slate-700 dark:text-slate-300'
     return `
@@ -48,8 +48,8 @@ function render(items) {
           <div class="text-xs text-slate-500">${escapeHtml(it.game_stage)}</div>
         </td>
         <td class="p-3">${annotators}</td>
-        <td class="p-3 text-right font-mono ${spreadCls}">${spread}</td>
-        <td class="p-3 text-xs text-slate-500">${escapeHtml(it.max_spread_dim || '—')}</td>
+        <td class="p-3 text-right font-mono ${gapCls}">${gap}</td>
+        <td class="p-3 text-xs text-slate-500">${escapeHtml(it.max_gap_dim || '—')}</td>
         <td class="p-3 text-right">
           <a href="/admin/reconcile/${encodeURIComponent(it.audio_id)}"
              class="inline-block px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700">

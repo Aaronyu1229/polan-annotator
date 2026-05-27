@@ -73,35 +73,41 @@ async function loadStatusCards() {
         numCls: 'text-slate-900 dark:text-slate-200',
       },
       {
-        key: 'draft', label: '初標',
+        key: 'creator_draft', label: 'creator 初標',
         cls: 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-900',
         labelCls: 'text-sky-700 dark:text-sky-300',
         numCls: 'text-sky-900 dark:text-sky-200',
       },
       {
-        key: 'cross_annotated', label: '多人交叉',
+        key: 'industry_only', label: '待 creator',
+        cls: 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800',
+        labelCls: 'text-slate-700 dark:text-slate-300',
+        numCls: 'text-slate-900 dark:text-slate-200',
+      },
+      {
+        key: 'needs_arbitration', label: '待仲裁',
         cls: 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900',
         labelCls: 'text-indigo-700 dark:text-indigo-300',
         numCls: 'text-indigo-900 dark:text-indigo-200',
       },
       {
-        key: 'lockable', label: '可鎖未鎖',
+        key: 'fast_confirmable', label: '待快速確認',
         cls: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900',
         labelCls: 'text-amber-700 dark:text-amber-300',
         numCls: 'text-amber-900 dark:text-amber-200',
       },
       {
-        key: 'gold', label: '🏆 Gold',
+        key: 'creator_ready', label: '✅ Creator Ready',
         cls: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900',
         labelCls: 'text-emerald-700 dark:text-emerald-300',
         numCls: 'text-emerald-900 dark:text-emerald-200',
       },
     ]
-    // Phase 11/12-A:cross 與 lockable 卡片若 > 0 可點到對應列表
+    // needs_arbitration / fast_confirmable 卡片若 > 0 可點到對應列表
     const linkFor = (key, n) => {
       if (n <= 0) return null
-      if (key === 'cross_annotated') return { href: '/admin/reconcile', title: '點開待仲裁清單' }
-      if (key === 'lockable')        return { href: '/admin/lockable',  title: '點開可鎖 gold 清單' }
+      if (key === 'needs_arbitration') return { href: '/admin/reconcile', title: '點開待仲裁清單' }
+      if (key === 'fast_confirmable')  return { href: '/admin/lockable',  title: '點開待快速確認清單' }
       return null
     }
     wrap.innerHTML = cards.map(c => {

@@ -288,14 +288,16 @@ function renderRow(item) {
   `
 }
 
-// Phase 12-C:資料品質 status badge(對齊 Dashboard 5 卡顏色)
+// 三角架構 status badge(對齊 Dashboard 卡顏色)
 function renderStatusBadge(status) {
   const map = {
-    untouched:       { label: '未標', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
-    draft:           { label: '初標', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' },
-    cross_annotated: { label: '交叉', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
-    lockable:        { label: '可鎖', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-    gold:            { label: '🏆 Gold', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+    untouched:         { label: '未標', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+    draft:             { label: '初標', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+    creator_draft:     { label: 'creator 初標', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' },
+    industry_only:     { label: '待 creator', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+    needs_arbitration: { label: '待仲裁', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
+    fast_confirmable:  { label: '待快速確認', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+    creator_ready:     { label: '✅ Creator Ready', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
   }
   const m = map[status] || map.untouched
   return `<span class="text-xs px-2 py-0.5 rounded ${m.cls}">${m.label}</span>`
