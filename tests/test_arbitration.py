@@ -93,3 +93,50 @@ def test_bulk_load_arbitrations_groups_by_audio(in_memory_engine):
         by_audio = bulk_load_arbitrations_by_audio(s)
         assert set(by_audio.keys()) == {"a", "b"}
         assert by_audio["a"][0].field == "valence"
+
+
+# ─── Phase 4: write_arbitration + is_blind_audit ──────────────────
+
+def test_write_arbitration_writes_one_row_per_field(in_memory_engine):
+    from src.arbitration import write_arbitration, deserialize_value
+    with Session(in_memory_engine) as s:
+        rows = write_arbitration(
+            s, audio_id="a1",
+            fields_values={"valence": 0.7, "genre_tag": ["博弈"], "loop_capability": [0.5]},
+            path="fast", notes=None, arbitrated_by="amber",
+        )
+        s.commit()
+        assert len(rows) == 3
+        stored = s.exec(select(Arbitration).where(Arbitration.audio_file_id == "a1")).all()
+        by_field = {r.field: r for r in stored}
+        assert deserialize_value(by_field["valence"].arbitrated_value, by_field["valence"].value_type) == 0.7
+        assert deserialize_value(by_field["genre_tag"].arbitrated_value, by_field["genre_tag"].value_type) == ["博弈"]
+        assert by_field["loop_capability"].value_type == "list_float"
+        assert all(r.path == "fast" for r in stored)
+
+
+def test_write_arbitration_appends_history(in_memory_engine):
+    from src.arbitration import write_arbitration
+    with Session(in_memory_engine) as s:
+        write_arbitration(s, audio_id="a1", fields_values={"valence": 0.5},
+                          path="fast", notes=None, arbitrated_by="amber")
+        write_arbitration(s, audio_id="a1", fields_values={"valence": 0.6},
+                          path="full", notes="改判", arbitrated_by="amber")
+        s.commit()
+        rows = s.exec(select(Arbitration).where(Arbitration.field == "valence")).all()
+        assert len(rows) == 2  # append，不刪舊
+
+
+def test_is_blind_audit_deterministic():
+    from src.arbitration import is_blind_audit
+    # 同 id 同結果
+    assert is_blind_audit("abc-123") == is_blind_audit("abc-123")
+
+
+def test_is_blind_audit_sample_rate_roughly_one_in_eight():
+    from src.arbitration import is_blind_audit
+    import uuid
+    n = 4000
+    hits = sum(is_blind_audit(str(uuid.uuid4())) for _ in range(n))
+    rate = hits / n
+    assert 0.08 < rate < 0.18  # ≈ 1/8 = 0.125

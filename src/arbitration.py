@@ -1,6 +1,7 @@
-"""Arbitration 表的讀取 / 序列化 helper（單一資料來源，避免 Phase 5/6 各自手刻 decode）。"""
+"""Arbitration 表的讀取 / 寫入 / 序列化 helper（單一資料來源，避免各處手刻 decode）。"""
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
@@ -62,3 +63,41 @@ def bulk_load_arbitrations_by_audio(
     for r in rows:
         by_audio.setdefault(r.audio_file_id, []).append(r)
     return by_audio
+
+
+# ─── Phase 4: 寫入 + 盲審 ──────────────────────────────────────────
+
+def write_arbitration(
+    session: Session,
+    *,
+    audio_id: str,
+    fields_values: dict[str, Any],
+    path: str,
+    notes: str | None,
+    arbitrated_by: str,
+) -> list[Arbitration]:
+    """為一個 audio 的多個 field 各寫一筆 Arbitration（append，不刪歷史）。
+
+    fields_values: {field: raw_value}（float 或 list）。caller 負責 commit。
+    """
+    rows: list[Arbitration] = []
+    for field, value in fields_values.items():
+        raw, value_type = serialize_value(field, value)
+        row = Arbitration(
+            audio_file_id=audio_id, field=field,
+            arbitrated_value=raw, value_type=value_type,
+            path=path, notes=notes, arbitrated_by=arbitrated_by,
+        )
+        session.add(row)
+        rows.append(row)
+    return rows
+
+
+def is_blind_audit(audio_id: str) -> bool:
+    """確定性抽樣 ≈12.5%（A5 fast-path 盲審）：sha1(audio_id) 末 hex ∈ {0,1}。
+
+    抽中的 fast_confirmable 檔不可批次快速確認，必須走 full（強制 Notes），
+    讓獨立判斷紀律不只在校準失敗時才出現。確定性 → 同檔每次判定一致。
+    """
+    digest = hashlib.sha1(audio_id.encode("utf-8")).hexdigest()  # noqa: S324 — 非密碼學用途
+    return int(digest[-1], 16) < 2
