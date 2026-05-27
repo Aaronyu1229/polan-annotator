@@ -126,23 +126,13 @@ def list_audio(
                 }
                 audios = [a for a in audios if a.id in amber_completed_ids]
 
-    # Phase 12-C:bulk compute status per audio
-    from src.audiofile_status import per_dim_spread, GOLD_MAX_SPREAD  # noqa: PLC0415
-
-    def _compute_status_inline(audio: AudioFile) -> str:
-        if audio.is_gold_locked:
-            return "gold"
-        anns = by_audio.get(audio.id, [])
-        n = len({a.annotator_id for a in anns})  # 不同 annotator 數
-        if n == 0:
-            return "untouched"
-        if n == 1:
-            return "draft"
-        spreads = per_dim_spread(anns)
-        has_any_exceeds = any(
-            s is not None and s > GOLD_MAX_SPREAD for s in spreads.values()
-        )
-        return "cross_annotated" if has_any_exceeds else "lockable"
+    # 三角架構 status：收斂為單一 compute_status_from_preload（不再 inline 重算）。
+    from src.arbitration import bulk_load_arbitrations_by_audio  # noqa: PLC0415
+    from src.audiofile_status import (  # noqa: PLC0415
+        compute_status_from_preload, resolve_role_map,
+    )
+    role_map = resolve_role_map()
+    arbs_by_audio = bulk_load_arbitrations_by_audio(session)
 
     return [
         {
@@ -153,7 +143,9 @@ def list_audio(
             "is_brand_theme": a.is_brand_theme,
             "duration_sec": a.duration_sec,
             "is_annotated_by_current_annotator": a.id in completed_audio_ids,
-            "status": _compute_status_inline(a),  # Phase 12-C
+            "status": compute_status_from_preload(
+                a, by_audio.get(a.id, []), arbs_by_audio.get(a.id, []), role_map
+            ),
         }
         for a in audios
     ]

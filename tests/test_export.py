@@ -361,38 +361,33 @@ def test_calibration_endpoint_only_contains_amber(client, in_memory_engine):
 # Phase 10: min_status filter
 # ---------------------------------------------------------------------------
 
-def test_export_min_status_gold_excludes_unlocked(client, in_memory_engine):
-    """min_status=gold 只回 is_gold_locked=True 的音檔。"""
+def test_export_min_status_fast_confirmable_excludes_unaligned(client, in_memory_engine):
+    """min_status=fast_confirmable 只回 creator+industry 對齊的音檔（creator-only 排除）。"""
     with Session(in_memory_engine) as s:
         audio_a = _make_audio(s, "A_Base Game.wav")
         audio_b = _make_audio(s, "B_Base Game.wav")
-        # 兩個 audio 都有 amber + bob 兩人共標(緊 spread)
+        # A: creator + industry 對齊 → fast_confirmable
         _make_annotation(s, audio_a.id, "amber")
-        _make_annotation(s, audio_a.id, "bob")
+        _make_annotation(s, audio_a.id, "yyslin1024")
+        # B: 只 creator → creator_draft
         _make_annotation(s, audio_b.id, "amber")
-        _make_annotation(s, audio_b.id, "bob")
-        # 只 lock A
-        audio_a.is_gold_locked = True
-        s.add(audio_a); s.commit()
 
-    r = client.get("/api/export/dataset.json?min_status=gold")
+    r = client.get("/api/export/dataset.json?min_status=fast_confirmable")
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["min_status"] == "gold"
+    assert data["min_status"] == "fast_confirmable"
     filenames = [it["audio_file"] for it in data["items"]]
     assert filenames == ["A_Base Game.wav"]
 
 
-def test_export_min_status_cross_includes_lockable_and_gold(client, in_memory_engine):
-    """min_status=cross_annotated 該含 lockable + gold,但不含 untouched / draft。"""
+def test_export_min_status_cross_alias_includes_aligned(client, in_memory_engine):
+    """min_status=cross_annotated（舊 alias，order 2）含 fast_confirmable，排除 creator_draft。"""
     with Session(in_memory_engine) as s:
         audio_draft = _make_audio(s, "D_Base Game.wav")
         audio_cross = _make_audio(s, "C_Base Game.wav")
-        # draft: 1 人
-        _make_annotation(s, audio_draft.id, "amber")
-        # cross: 2 人緊 spread(會被算成 lockable,但 >= cross_annotated)
+        _make_annotation(s, audio_draft.id, "amber")  # creator only → creator_draft
         _make_annotation(s, audio_cross.id, "amber")
-        _make_annotation(s, audio_cross.id, "bob")
+        _make_annotation(s, audio_cross.id, "yyslin1024")  # aligned → fast_confirmable
 
     r = client.get("/api/export/dataset.json?min_status=cross_annotated")
     assert r.status_code == 200
@@ -500,21 +495,21 @@ def test_export_item_includes_status_field(client, in_memory_engine):
     r = client.get("/api/export/dataset.json")
     item = r.json()["items"][0]
     assert "status" in item
-    assert item["status"] == "draft"
+    assert item["status"] == "creator_draft"  # 只 creator 標 → creator_draft
 
 
 def test_export_item_includes_gold_locked_metadata(client, in_memory_engine):
-    """audio_metadata 該帶 is_gold_locked。"""
+    """audio_metadata 仍帶 is_gold_locked（退役欄位但 export 向後相容保留）。"""
     with Session(in_memory_engine) as s:
         audio = _make_audio(s)
         audio.is_gold_locked = True
         s.add(audio); s.commit()
         _make_annotation(s, audio.id, "amber")
-        _make_annotation(s, audio.id, "bob")
+        _make_annotation(s, audio.id, "yyslin1024")  # aligned → fast_confirmable
     r = client.get("/api/export/dataset.json")
     item = r.json()["items"][0]
-    assert item["status"] == "gold"
-    assert item["audio_metadata"]["is_gold_locked"] is True
+    assert item["status"] == "fast_confirmable"  # is_gold_locked 不再驅動 status
+    assert item["audio_metadata"]["is_gold_locked"] is True  # 欄位仍匯出
 
 
 def test_export_schema_version_bumped_to_0_4_0(client, in_memory_engine):
