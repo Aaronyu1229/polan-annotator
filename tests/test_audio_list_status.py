@@ -51,10 +51,11 @@ def test_list_audio_includes_status(client, in_memory_engine):
     _make_annotation(in_memory_engine, a_draft, "amber")
     a_cross = _make_audio(in_memory_engine, "C_X.wav")
     _make_annotation(in_memory_engine, a_cross, "amber", valence=0.1)
-    _make_annotation(in_memory_engine, a_cross, "yyslin1024", valence=0.9)
+    _make_annotation(in_memory_engine, a_cross, "yyslin1024", valence=0.9)  # gap 0.8 > gate
     a_lock = _make_audio(in_memory_engine, "L_X.wav")
     _make_annotation(in_memory_engine, a_lock, "amber")
-    _make_annotation(in_memory_engine, a_lock, "yyslin1024")
+    _make_annotation(in_memory_engine, a_lock, "yyslin1024")  # aligned
+    # is_gold_locked 已退役 → 即使設 flag 也不驅動 status（無 annotation → untouched）
     _make_audio(in_memory_engine, "G_X.wav", is_gold_locked=True)
 
     r = client.get("/api/audio")
@@ -62,22 +63,22 @@ def test_list_audio_includes_status(client, in_memory_engine):
     items = r.json()
     by_fn = {it["filename"]: it for it in items}
     assert by_fn["U_X.wav"]["status"] == "untouched"
-    assert by_fn["D_X.wav"]["status"] == "draft"
-    assert by_fn["C_X.wav"]["status"] == "cross_annotated"
-    assert by_fn["L_X.wav"]["status"] == "lockable"
-    assert by_fn["G_X.wav"]["status"] == "gold"
+    assert by_fn["D_X.wav"]["status"] == "creator_draft"
+    assert by_fn["C_X.wav"]["status"] == "needs_arbitration"
+    assert by_fn["L_X.wav"]["status"] == "fast_confirmable"
+    assert by_fn["G_X.wav"]["status"] == "untouched"
 
 
 def test_list_audio_preserves_annotator_flag(client, in_memory_engine):
-    """is_annotated_by_current_annotator 跟 Phase 12-C 加的 status 並存,行為不變。"""
+    """is_annotated_by_current_annotator 跟 status 並存,行為不變。"""
     aid = _make_audio(in_memory_engine, "A_X.wav")
-    _make_annotation(in_memory_engine, aid, "amber")
+    _make_annotation(in_memory_engine, aid, "amber")  # creator only → creator_draft
     r = client.get("/api/audio?annotator=amber")
     items = r.json()
     assert items[0]["is_annotated_by_current_annotator"] is True
-    assert items[0]["status"] == "draft"
+    assert items[0]["status"] == "creator_draft"
     # 換 annotator 視角,is_annotated 該 False,但 status 不變
     r2 = client.get("/api/audio?annotator=yyslin1024")
     items2 = r2.json()
     assert items2[0]["is_annotated_by_current_annotator"] is False
-    assert items2[0]["status"] == "draft"
+    assert items2[0]["status"] == "creator_draft"

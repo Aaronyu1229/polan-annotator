@@ -36,6 +36,7 @@ def tmp_annotators_config(tmp_path, monkeypatch):
             "status": "active",
             "is_admin": True,
             "joined_at": "2025-12-15",
+            "role": "creator",
         },
         "vvgosick": {
             "name": "老公",
@@ -44,6 +45,7 @@ def tmp_annotators_config(tmp_path, monkeypatch):
             "status": "pending_calibration",
             "is_admin": False,
             "joined_at": "2026-05-12",
+            "role": "audience",
         },
         "yyslin1024": {
             "name": "養心",
@@ -52,6 +54,7 @@ def tmp_annotators_config(tmp_path, monkeypatch):
             "status": "active",
             "is_admin": False,
             "joined_at": "2026-02-01",
+            "role": "industry",
         },
         "ex_user": {
             "name": "Ex",
@@ -60,6 +63,7 @@ def tmp_annotators_config(tmp_path, monkeypatch):
             "status": "archived",
             "is_admin": False,
             "joined_at": "2026-01-01",
+            "role": None,
         },
     }
     path = tmp_path / "annotators_config.json"
@@ -480,51 +484,17 @@ def _make_two_complete_annotations(engine, audio_id: str, valence_a=0.5, valence
             s.commit()
 
 
-def test_lock_gold_success_when_prereq_met(client, in_memory_engine, tmp_annotators_config):
-    audio_id = _make_audio(in_memory_engine)
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)  # spread 0.05 OK
-    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
-    assert r.status_code == 200, r.text
-    assert r.json()["is_gold_locked"] is True
-    assert r.json()["gold_locked_by"]
-
-
-def test_lock_gold_409_when_only_one_annotator(client, in_memory_engine, tmp_annotators_config):
-    audio_id = _make_audio(in_memory_engine)
-    # 只有 amber 一個人標
-    with Session(in_memory_engine) as s:
-        s.add(Annotation(
-            audio_file_id=audio_id, annotator_id="amber",
-            valence=0.5, arousal=0.5, emotional_warmth=0.5,
-            tension_direction=0.5, temporal_position=0.5,
-            event_significance=0.5, world_immersion=0.5,
-            loop_capability=json.dumps([1.0]),
-            source_type=json.dumps(["ambience"]),
-            function_roles=json.dumps(["atmosphere"]),
-            genre_tag=json.dumps([]), style_tag=json.dumps([]),
-            is_complete=True,
-        )); s.commit()
-    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
-    assert r.status_code == 409
-    body = r.json()
-    assert "2 位" in str(body["detail"])
-
-
-def test_lock_gold_409_when_spread_too_wide(client, in_memory_engine, tmp_annotators_config):
-    audio_id = _make_audio(in_memory_engine)
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)  # spread 0.8 > 0.20
-    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
-    assert r.status_code == 409
-    assert "spread" in str(r.json()["detail"]).lower()
-
-
-def test_unlock_gold_reverts_state(client, in_memory_engine, tmp_annotators_config):
+def test_lock_gold_endpoint_retired_returns_410(client, in_memory_engine, tmp_annotators_config):
     audio_id = _make_audio(in_memory_engine)
     _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
-    client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
+    assert r.status_code == 410
+
+
+def test_unlock_gold_endpoint_retired_returns_410(client, in_memory_engine, tmp_annotators_config):
+    audio_id = _make_audio(in_memory_engine)
     r = client.post(f"/api/admin/audio/{audio_id}/unlock_gold?annotator=amber")
-    assert r.status_code == 200, r.text
-    assert r.json()["is_gold_locked"] is False
+    assert r.status_code == 410
 
 
 def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_config):
@@ -549,7 +519,7 @@ def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_
     data = r.json()
     assert data["total"] == 2
     assert data["untouched"] == 1
-    assert data["draft"] == 1
+    assert data["creator_draft"] == 1  # amber-only → creator_draft
 
 
 # ---------------------------------------------------------------------------
@@ -559,16 +529,16 @@ def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_
 def test_reconcile_list_returns_only_cross_annotated(
     client, in_memory_engine, tmp_annotators_config,
 ):
-    """reconcile list 只回 status=cross_annotated 的 audio,不該含 lockable / gold / draft / untouched。"""
+    """reconcile list 只回 status=needs_arbitration 的 audio，不含 fast_confirmable / draft / untouched。"""
     # 1 untouched
     _make_audio(in_memory_engine, "U_X.wav")
-    # 1 draft
+    # 1 creator_draft
     a_draft = _make_audio(in_memory_engine, "D_X.wav")
     _make_amber_completed_annotation(in_memory_engine, a_draft)
-    # 1 cross_annotated (wide spread)
+    # 1 needs_arbitration (gap 0.8 > gate)
     a_cross = _make_audio(in_memory_engine, "C_X.wav")
     _make_two_complete_annotations(in_memory_engine, a_cross, 0.1, 0.9)
-    # 1 lockable (tight spread) — 不該出現
+    # 1 fast_confirmable (gap 0.05) — 不該出現
     a_lock = _make_audio(in_memory_engine, "L_X.wav")
     _make_two_complete_annotations(in_memory_engine, a_lock, 0.5, 0.55)
 
@@ -576,9 +546,9 @@ def test_reconcile_list_returns_only_cross_annotated(
     assert r.status_code == 200, r.text
     items = r.json()
     filenames = [it["filename"] for it in items]
-    assert filenames == ["C_X.wav"]  # 只 cross_annotated
-    assert items[0]["max_spread_dim"] == "valence"
-    assert items[0]["max_spread_value"] == pytest.approx(0.8)
+    assert filenames == ["C_X.wav"]  # 只 needs_arbitration
+    assert items[0]["max_gap_dim"] == "valence"
+    assert items[0]["max_gap_value"] == pytest.approx(0.8)
     assert "amber" in items[0]["annotators"]
     assert items[0]["amber_already_annotated"] is True
 
@@ -597,9 +567,9 @@ def test_reconcile_list_sorts_by_max_spread_desc(
 
     r = client.get("/api/admin/reconcile/list?annotator=amber")
     items = r.json()
-    spreads = [it["max_spread_value"] for it in items]
-    assert spreads == sorted(spreads, reverse=True)
-    assert items[0]["filename"] == "A2_X.wav"  # 最大 spread 在最前
+    gaps = [it["max_gap_value"] for it in items]
+    assert gaps == sorted(gaps, reverse=True)
+    assert items[0]["filename"] == "A2_X.wav"  # 最大 gap 在最前
 
 
 def test_reconcile_detail_returns_all_annotations(
@@ -614,7 +584,7 @@ def test_reconcile_detail_returns_all_annotations(
     assert len(data["annotations"]) == 2
     annotator_ids = {a["annotator_id"] for a in data["annotations"]}
     assert annotator_ids == {"amber", "yyslin1024"}
-    assert data["status"] == "cross_annotated"
+    assert data["status"] == "needs_arbitration"  # gap 0.4 > gate
 
 
 def test_reconcile_detail_404_for_missing_audio(
@@ -667,14 +637,14 @@ def test_reconcile_save_via_annotations_post_updates_amber(
 def test_lockable_list_returns_only_lockable(
     client, in_memory_engine, tmp_annotators_config,
 ):
-    """只回 status=lockable,不該含 cross / gold / draft。"""
-    # 1 lockable (tight spread)
+    """只回 status=fast_confirmable，不含 needs_arbitration / creator_draft。"""
+    # 1 fast_confirmable (gap 0.05)
     a_lock = _make_audio(in_memory_engine, "L_X.wav")
     _make_two_complete_annotations(in_memory_engine, a_lock, 0.5, 0.55)
-    # 1 cross (wide spread) — 不該出現
+    # 1 needs_arbitration (gap 0.8) — 不該出現
     a_cross = _make_audio(in_memory_engine, "C_X.wav")
     _make_two_complete_annotations(in_memory_engine, a_cross, 0.1, 0.9)
-    # 1 draft — 不該出現
+    # 1 creator_draft — 不該出現
     a_draft = _make_audio(in_memory_engine, "D_X.wav")
     _make_amber_completed_annotation(in_memory_engine, a_draft)
 
@@ -683,8 +653,8 @@ def test_lockable_list_returns_only_lockable(
     items = r.json()
     filenames = [it["filename"] for it in items]
     assert filenames == ["L_X.wav"]
-    assert items[0]["max_spread_value"] is not None
-    assert items[0]["max_spread_value"] <= 0.20  # gold threshold
+    assert items[0]["max_gap_value"] is not None
+    assert items[0]["max_gap_value"] <= 0.20  # arbitration gate
 
 
 def test_lockable_list_requires_admin(client, in_memory_engine, tmp_annotators_config):
@@ -700,19 +670,18 @@ def test_lockable_list_requires_admin(client, in_memory_engine, tmp_annotators_c
         main_module.app.dependency_overrides.pop(require_auth, None)
 
 
-def test_lockable_then_lock_gold_full_flow(
+def test_fast_confirmable_appears_in_lockable_list(
     client, in_memory_engine, tmp_annotators_config,
 ):
-    """全流程:lockable 清單看到 → POST lock_gold → 清單空。"""
+    """creator+industry 對齊的檔出現在 fast-confirm 清單（lock_gold 已退役，全流程改 Phase 4 仲裁）。"""
     audio_id = _make_audio(in_memory_engine, "F_X.wav")
     _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
 
     r = client.get("/api/admin/lockable/list?annotator=amber")
     assert len(r.json()) == 1
-    r = client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber")
-    assert r.status_code == 200
-    r = client.get("/api/admin/lockable/list?annotator=amber")
-    assert len(r.json()) == 0  # 鎖完從 lockable 移到 gold
+    assert r.json()[0]["filename"] == "F_X.wav"
+    # lock_gold 已退役
+    assert client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber").status_code == 410
 
 
 # ---------------------------------------------------------------------------

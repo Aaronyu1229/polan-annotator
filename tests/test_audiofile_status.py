@@ -1,37 +1,29 @@
-"""Phase 10 — audiofile_status 邏輯測試。
+"""audiofile_status DB-path 測試（三角架構）。
 
-涵蓋:
-- 5 個狀態 derive 正確性(untouched / draft / cross / lockable / gold)
-- per_dim_spread 計算 + None 處理
-- gold_lock_prerequisites:n<2 reject / spread 超門檻 reject / 都過 → eligible
-- status_meets 過濾邏輯
-- status_summary 聚合
+純函式狀態邏輯在 tests/test_audiofile_status_v2.py；這裡測 DB 版 compute_audiofile_status、
+status_summary、status_meets。角色 id 取自真實 config：creator=amber / industry=yyslin1024 /
+audience=vvgosick。
 """
 from __future__ import annotations
 
 import json
 
-import pytest
 from sqlmodel import Session
 
 from src.audiofile_status import (
-    GOLD_MAX_SPREAD,
     compute_audiofile_status,
-    gold_lock_prerequisites,
-    per_dim_spread,
     status_meets,
     status_summary,
 )
 from src.models import Annotation, AudioFile
 
 
-def _save_audio(engine, filename: str = "X_Base Game.wav", is_gold_locked: bool = False) -> AudioFile:
+def _save_audio(engine, filename: str = "X_Base Game.wav") -> AudioFile:
     with Session(engine) as s:
         audio = AudioFile(
             filename=filename,
             game_name=filename.split("_")[0],
             game_stage=filename.split("_")[1].removesuffix(".wav"),
-            is_gold_locked=is_gold_locked,
         )
         s.add(audio); s.commit(); s.refresh(audio)
         return audio
@@ -57,176 +49,67 @@ def _save_annotation(engine, audio_id: str, annotator: str, **dims):
         s.commit()
 
 
-# ---------------------------------------------------------------------------
-# status_meets
-# ---------------------------------------------------------------------------
+# ─── compute_audiofile_status (DB path) ───────────────────────────
+
+def test_untouched_when_no_annotations(in_memory_engine):
+    audio = _save_audio(in_memory_engine)
+    with Session(in_memory_engine) as s:
+        assert compute_audiofile_status(s.get(AudioFile, audio.id), s) == "untouched"
+
+
+def test_creator_only_is_creator_draft(in_memory_engine):
+    audio = _save_audio(in_memory_engine)
+    _save_annotation(in_memory_engine, audio.id, "amber")
+    with Session(in_memory_engine) as s:
+        assert compute_audiofile_status(s.get(AudioFile, audio.id), s) == "creator_draft"
+
+
+def test_creator_industry_aligned_is_fast_confirmable(in_memory_engine):
+    audio = _save_audio(in_memory_engine)
+    _save_annotation(in_memory_engine, audio.id, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.55)
+    with Session(in_memory_engine) as s:
+        assert compute_audiofile_status(s.get(AudioFile, audio.id), s) == "fast_confirmable"
+
+
+def test_audience_divergence_does_not_block(in_memory_engine):
+    # 回歸舊 spread bug：audience (vvgosick) 大幅偏離不可卡住狀態
+    audio = _save_audio(in_memory_engine)
+    _save_annotation(in_memory_engine, audio.id, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.55)
+    _save_annotation(in_memory_engine, audio.id, "vvgosick", valence=0.95)
+    with Session(in_memory_engine) as s:
+        assert compute_audiofile_status(s.get(AudioFile, audio.id), s) == "fast_confirmable"
+
+
+def test_creator_industry_gap_over_gate_needs_arbitration(in_memory_engine):
+    audio = _save_audio(in_memory_engine)
+    _save_annotation(in_memory_engine, audio.id, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.85)  # gap 0.35
+    with Session(in_memory_engine) as s:
+        assert compute_audiofile_status(s.get(AudioFile, audio.id), s) == "needs_arbitration"
+
+
+# ─── status_meets ─────────────────────────────────────────────────
 
 def test_status_meets_ordering():
-    assert status_meets("gold", "gold")
-    assert status_meets("gold", "lockable")
-    assert status_meets("gold", "untouched")
-    assert status_meets("lockable", "cross_annotated")
-    assert not status_meets("cross_annotated", "lockable")
-    assert not status_meets("draft", "cross_annotated")
-    assert status_meets("untouched", "untouched")
+    assert status_meets("creator_ready", "fast_confirmable")
+    assert status_meets("fast_confirmable", "untouched")
+    assert not status_meets("untouched", "fast_confirmable")
+    # 舊 alias 仍可比對（export min_status 向後相容）
+    assert status_meets("creator_ready", "gold")
+    assert status_meets("fast_confirmable", "lockable")
 
 
-# ---------------------------------------------------------------------------
-# per_dim_spread
-# ---------------------------------------------------------------------------
-
-def test_per_dim_spread_basic(in_memory_engine):
-    aid = _save_audio(in_memory_engine).id
-    _save_annotation(in_memory_engine, aid, "amber",
-                     valence=0.3, arousal=0.5)
-    _save_annotation(in_memory_engine, aid, "yyslin1024",
-                     valence=0.7, arousal=0.5)
-
-    with Session(in_memory_engine) as s:
-        annotations = s.exec(
-            __import__("sqlmodel").select(Annotation).where(Annotation.audio_file_id == aid)
-        ).all()
-        spreads = per_dim_spread(annotations)
-
-    assert spreads["valence"] == pytest.approx(0.4)
-    assert spreads["arousal"] == pytest.approx(0.0)
-
-
-def test_per_dim_spread_single_value_returns_none(in_memory_engine):
-    """單筆 annotation 沒法算 spread。"""
-    aid = _save_audio(in_memory_engine).id
-    _save_annotation(in_memory_engine, aid, "amber")
-
-    with Session(in_memory_engine) as s:
-        annotations = s.exec(
-            __import__("sqlmodel").select(Annotation).where(Annotation.audio_file_id == aid)
-        ).all()
-        spreads = per_dim_spread(annotations)
-
-    for v in spreads.values():
-        assert v is None
-
-
-# ---------------------------------------------------------------------------
-# compute_audiofile_status
-# ---------------------------------------------------------------------------
-
-def test_status_untouched(in_memory_engine):
-    audio = _save_audio(in_memory_engine)
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        assert compute_audiofile_status(audio, s) == "untouched"
-
-
-def test_status_draft_when_one_annotator(in_memory_engine):
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber")
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        assert compute_audiofile_status(audio, s) == "draft"
-
-
-def test_status_lockable_when_two_annotators_tight_spread(in_memory_engine):
-    """2 人標、每維差距 ≤ 0.20 → lockable。"""
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber",  valence=0.5)
-    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.55)
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        assert compute_audiofile_status(audio, s) == "lockable"
-
-
-def test_status_cross_annotated_when_spread_too_wide(in_memory_engine):
-    """2 人標但 valence spread = 0.5 → cross_annotated(未達 lockable)。"""
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber",  valence=0.2)
-    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.7)  # delta 0.5 > 0.20
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        assert compute_audiofile_status(audio, s) == "cross_annotated"
-
-
-def test_status_gold_when_locked(in_memory_engine):
-    """is_gold_locked=True 一律回 gold(無視 annotation 數)。"""
-    audio = _save_audio(in_memory_engine, is_gold_locked=True)
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        assert compute_audiofile_status(audio, s) == "gold"
-
-
-# ---------------------------------------------------------------------------
-# gold_lock_prerequisites
-# ---------------------------------------------------------------------------
-
-def test_prereq_reject_when_only_one_annotator(in_memory_engine):
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber")
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        result = gold_lock_prerequisites(audio, s)
-    assert result["eligible"] is False
-    assert any("2 位" in r for r in result["reasons"])
-
-
-def test_prereq_reject_when_spread_exceeds_threshold(in_memory_engine):
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber",  valence=0.1)
-    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.9)  # spread 0.8
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        result = gold_lock_prerequisites(audio, s)
-    assert result["eligible"] is False
-    assert any("spread" in r.lower() for r in result["reasons"])
-
-
-def test_prereq_eligible_when_2_annotators_tight(in_memory_engine):
-    audio = _save_audio(in_memory_engine)
-    _save_annotation(in_memory_engine, audio.id, "amber",  valence=0.5)
-    _save_annotation(in_memory_engine, audio.id, "yyslin1024", valence=0.55)
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        result = gold_lock_prerequisites(audio, s)
-    assert result["eligible"] is True
-    assert result["reasons"] == []
-
-
-def test_prereq_reject_already_locked(in_memory_engine):
-    audio = _save_audio(in_memory_engine, is_gold_locked=True)
-    with Session(in_memory_engine) as s:
-        audio = s.get(AudioFile, audio.id)
-        result = gold_lock_prerequisites(audio, s)
-    assert result["eligible"] is False
-    assert "已 gold-locked" in result["reasons"][0]
-
-
-# ---------------------------------------------------------------------------
-# status_summary
-# ---------------------------------------------------------------------------
+# ─── status_summary ───────────────────────────────────────────────
 
 def test_status_summary_counts(in_memory_engine):
-    """建 5 個 audio、各種狀態,驗 summary 數對。"""
-    # untouched
-    _save_audio(in_memory_engine, "A1_X.wav")
-    # draft
-    a2 = _save_audio(in_memory_engine, "A2_X.wav")
-    _save_annotation(in_memory_engine, a2.id, "amber")
-    # cross_annotated (寬 spread)
-    a3 = _save_audio(in_memory_engine, "A3_X.wav")
-    _save_annotation(in_memory_engine, a3.id, "amber",  valence=0.1)
-    _save_annotation(in_memory_engine, a3.id, "yyslin1024", valence=0.9)
-    # lockable (緊 spread)
-    a4 = _save_audio(in_memory_engine, "A4_X.wav")
-    _save_annotation(in_memory_engine, a4.id, "amber")
-    _save_annotation(in_memory_engine, a4.id, "yyslin1024")
-    # gold
-    _save_audio(in_memory_engine, "A5_X.wav", is_gold_locked=True)
-
+    a1 = _save_audio(in_memory_engine, "A_Base Game.wav")
+    a2 = _save_audio(in_memory_engine, "B_Base Game.wav")  # noqa: F841 — untouched
+    _save_annotation(in_memory_engine, a1.id, "amber", valence=0.5)
+    _save_annotation(in_memory_engine, a1.id, "yyslin1024", valence=0.55)
     with Session(in_memory_engine) as s:
         summary = status_summary(s)
-
+    assert summary["total"] == 2
+    assert summary["fast_confirmable"] == 1
     assert summary["untouched"] == 1
-    assert summary["draft"] == 1
-    assert summary["cross_annotated"] == 1
-    assert summary["lockable"] == 1
-    assert summary["gold"] == 1
-    assert summary["total"] == 5

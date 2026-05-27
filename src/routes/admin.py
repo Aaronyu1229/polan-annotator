@@ -25,13 +25,15 @@ from src.annotators_loader import (
     list_pending_annotators,
     set_status,
 )
+from src.arbitration import bulk_load_arbitrations_by_audio
 from src.audiofile_status import (
     bulk_load_annotations_by_audio,
     compute_audiofile_status,
     compute_status_from_preload,
-    gold_lock_prerequisites,
+    resolve_role_map,
     status_summary,
 )
+from src.role_gaps import pairwise_gaps
 from src.db import get_session
 from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
@@ -209,86 +211,29 @@ def dimension_review_data(
 
 # ─── Phase 10：AudioFile gold lock ─────────────────────────────────
 
+_GOLD_LOCK_RETIRED = (
+    "gold lock 已退役；creator_ready 改由 arbitration 衍生（見 Phase 3 spec）。"
+)
+
+
 @router.post("/audio/{audio_id}/lock_gold")
 def lock_audio_gold(
-    audio_id: str,
-    current_user: dict[str, Any] = Depends(require_auth),
-    session: Session = Depends(get_session),
+    audio_id: str,  # noqa: ARG001
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001
+    session: Session = Depends(get_session),  # noqa: ARG001
 ) -> dict[str, Any]:
-    """admin 把某筆音檔標記為 gold(可商用)。
-
-    驗 prereq:≥2 人標 + 每維 max-min spread ≤ GOLD_MAX_SPREAD。
-    不符回 409 帶 reasons。
-    """
-    _require_admin(current_user)
-    audio = session.get(AudioFile, audio_id)
-    if audio is None:
-        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
-
-    prereq = gold_lock_prerequisites(audio, session)
-    if not prereq["eligible"]:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "Gold lock prerequisites not met",
-                "prereq": prereq,
-            },
-        )
-
-    from src.models import _utcnow  # noqa: PLC0415 — 避免循環 import
-    audio.is_gold_locked = True
-    audio.gold_locked_at = _utcnow()
-    audio.gold_locked_by = current_user.get("annotator_id") or current_user.get("email")
-    session.add(audio)
-    session.commit()
-    session.refresh(audio)
-
-    log.info(
-        "admin %s gold-locked audio %s (%s)",
-        audio.gold_locked_by, audio.id, audio.filename,
-    )
-    return {
-        "audio_id": audio.id,
-        "filename": audio.filename,
-        "is_gold_locked": True,
-        "gold_locked_at": audio.gold_locked_at.isoformat() if audio.gold_locked_at else None,
-        "gold_locked_by": audio.gold_locked_by,
-    }
+    """已退役 — 三角架構用 arbitration 取代手動 gold lock。"""
+    raise HTTPException(status_code=410, detail=_GOLD_LOCK_RETIRED)
 
 
 @router.post("/audio/{audio_id}/unlock_gold")
 def unlock_audio_gold(
-    audio_id: str,
-    current_user: dict[str, Any] = Depends(require_auth),
-    session: Session = Depends(get_session),
+    audio_id: str,  # noqa: ARG001
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001
+    session: Session = Depends(get_session),  # noqa: ARG001
 ) -> dict[str, Any]:
-    """admin 撤銷某筆音檔的 gold 認證(Amber 改變主意)。
-
-    不驗 prereq — 撤銷永遠允許。
-    """
-    _require_admin(current_user)
-    audio = session.get(AudioFile, audio_id)
-    if audio is None:
-        raise HTTPException(status_code=404, detail=f"找不到音檔:{audio_id}")
-
-    if not audio.is_gold_locked:
-        raise HTTPException(status_code=409, detail="此音檔未鎖,無需 unlock")
-
-    audio.is_gold_locked = False
-    audio.gold_locked_at = None
-    audio.gold_locked_by = None
-    session.add(audio)
-    session.commit()
-
-    log.info(
-        "admin %s gold-unlocked audio %s (%s)",
-        current_user.get("annotator_id"), audio.id, audio.filename,
-    )
-    return {
-        "audio_id": audio.id,
-        "filename": audio.filename,
-        "is_gold_locked": False,
-    }
+    """已退役 — 見 lock_gold。"""
+    raise HTTPException(status_code=410, detail=_GOLD_LOCK_RETIRED)
 
 
 @router.get("/audio/{audio_id}/status")
@@ -306,10 +251,6 @@ def get_audio_status(
         "audio_id": audio.id,
         "filename": audio.filename,
         "status": compute_audiofile_status(audio, session),
-        "is_gold_locked": audio.is_gold_locked,
-        "gold_locked_at": audio.gold_locked_at.isoformat() if audio.gold_locked_at else None,
-        "gold_locked_by": audio.gold_locked_by,
-        "prereq_check": gold_lock_prerequisites(audio, session),
     }
 
 
@@ -327,31 +268,47 @@ def audio_status_summary_endpoint(
 
 # ─── Phase 12-A：lockable 清單(給 Amber 一鍵 lock gold)─────────────
 
+def _max_creator_industry_gap(
+    anns: list[Annotation], role_map: dict[str, Any],
+) -> tuple[str | None, float | None]:
+    """回 (dim, value)：該音檔 creator-industry gap 最大的維度。缺一方 → (None, None)。"""
+    by_id = {a.annotator_id: a for a in anns}
+    by_role = {
+        "creator": by_id.get(role_map.get("creator")),
+        "industry": by_id.get(role_map.get("industry")),
+        "audience": by_id.get(role_map.get("audience")),
+    }
+    gaps = pairwise_gaps(by_role)
+    ci = {d: g["creator_industry"] for d, g in gaps.items() if g["creator_industry"] is not None}
+    if not ci:
+        return None, None
+    max_dim = max(ci, key=ci.get)
+    return max_dim, ci[max_dim]
+
+
 @router.get("/lockable/list")
 def lockable_list(
     current_user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
-    """列出所有 status=lockable 的音檔(達 gold prereq 但 Amber 未鎖)。
+    """列出 status=fast_confirmable 的音檔（creator-industry 已對齊，待 Amber 批次快速確認）。
 
-    Phase 13-A:bulk pre-load 避免 N+1。
-    Sort by max_spread asc — spread 最小的最穩,優先鎖。
+    Sort by creator-industry gap asc — 最對齊的優先。
+    （注：gold lock 已退役；此清單供 Phase 4 批次快速確認 UI 用。）
     """
     _require_admin(current_user)
 
-    from src.audiofile_status import per_dim_spread  # noqa: PLC0415
-
+    role_map = resolve_role_map()
     audios = session.exec(select(AudioFile)).all()
     by_audio = bulk_load_annotations_by_audio(session)
+    arbs_by_audio = bulk_load_arbitrations_by_audio(session)
     items: list[dict[str, Any]] = []
     for audio in audios:
         anns = by_audio.get(audio.id, [])
-        if compute_status_from_preload(audio, anns) != "lockable":
+        st = compute_status_from_preload(audio, anns, arbs_by_audio.get(audio.id, []), role_map)
+        if st != "fast_confirmable":
             continue
-        spreads = per_dim_spread(anns)
-        valid_spreads = {k: v for k, v in spreads.items() if v is not None}
-        max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
-        max_val = valid_spreads.get(max_dim) if max_dim else None
+        max_dim, max_val = _max_creator_industry_gap(anns, role_map)
         items.append({
             "audio_id": audio.id,
             "filename": audio.filename,
@@ -359,10 +316,10 @@ def lockable_list(
             "game_stage": audio.game_stage,
             "duration_sec": audio.duration_sec,
             "annotators": sorted({a.annotator_id for a in anns}),
-            "max_spread_dim": max_dim,
-            "max_spread_value": max_val,
+            "max_gap_dim": max_dim,
+            "max_gap_value": max_val,
         })
-    items.sort(key=lambda x: (x["max_spread_value"] or 0))
+    items.sort(key=lambda x: (x["max_gap_value"] or 0))
     return items
 
 
@@ -373,26 +330,23 @@ def reconcile_list(
     current_user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
-    """列出所有 status=cross_annotated 的音檔 + 每筆 max spread 維度。
+    """列出 status=needs_arbitration 的音檔 + 每筆 creator-industry gap 最大維度。
 
-    Phase 13-A:bulk pre-load 避免 N+1。
-    Sort by max_spread desc — 差距大的優先處理。
+    Sort by gap desc — 差距大的優先處理。
     """
     _require_admin(current_user)
 
-    from src.audiofile_status import per_dim_spread  # noqa: PLC0415
-
+    role_map = resolve_role_map()
     audios = session.exec(select(AudioFile)).all()
     by_audio = bulk_load_annotations_by_audio(session)
+    arbs_by_audio = bulk_load_arbitrations_by_audio(session)
     items: list[dict[str, Any]] = []
     for audio in audios:
         anns = by_audio.get(audio.id, [])
-        if compute_status_from_preload(audio, anns) != "cross_annotated":
+        st = compute_status_from_preload(audio, anns, arbs_by_audio.get(audio.id, []), role_map)
+        if st != "needs_arbitration":
             continue
-        spreads = per_dim_spread(anns)
-        valid_spreads = {k: v for k, v in spreads.items() if v is not None}
-        max_dim = max(valid_spreads, key=valid_spreads.get) if valid_spreads else None
-        max_val = valid_spreads.get(max_dim) if max_dim else None
+        max_dim, max_val = _max_creator_industry_gap(anns, role_map)
         items.append({
             "audio_id": audio.id,
             "filename": audio.filename,
@@ -400,11 +354,11 @@ def reconcile_list(
             "game_stage": audio.game_stage,
             "duration_sec": audio.duration_sec,
             "annotators": sorted({a.annotator_id for a in anns}),
-            "max_spread_dim": max_dim,
-            "max_spread_value": max_val,
+            "max_gap_dim": max_dim,
+            "max_gap_value": max_val,
             "amber_already_annotated": any(a.annotator_id == "amber" for a in anns),
         })
-    items.sort(key=lambda x: (x["max_spread_value"] or 0), reverse=True)
+    items.sort(key=lambda x: (x["max_gap_value"] or 0), reverse=True)
     return items
 
 
