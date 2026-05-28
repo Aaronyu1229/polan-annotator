@@ -1,5 +1,5 @@
 // Phase 11 — 仲裁清單頁。
-// fetch /api/admin/reconcile/list 後渲染表格,按 creator-industry gap desc。
+// fetch /api/admin/reconcile/list 後渲染表格,按 Amber–yyslin gap desc。
 
 const $ = id => document.getElementById(id)
 
@@ -26,7 +26,7 @@ function render(items) {
   if (!items.length) {
     tbody.innerHTML = `
       <tr><td colspan="5" class="p-4 text-sm text-slate-500 text-center">
-        🎉 沒有待仲裁的音檔。所有 creator-industry gap 都 ≤ 0.20(待快速確認)。
+        🎉 沒有待仲裁的音檔。所有 Amber–yyslin gap 都 ≤ 0.20(待快速確認)。
       </td></tr>`
     return
   }
