@@ -1,5 +1,5 @@
 // Phase 11 — 仲裁清單頁。
-// fetch /api/admin/reconcile/list 後渲染表格,按 max_spread desc。
+// fetch /api/admin/reconcile/list 後渲染表格,按 creator-industry gap desc。
 
 const $ = id => document.getElementById(id)
 

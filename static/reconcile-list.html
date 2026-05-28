@@ -12,8 +12,8 @@
       <div>
         <h1 class="text-2xl font-semibold">⚖️ 待仲裁清單</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          被 2 位以上標註員標過,但至少一個維度 max-min spread &gt; 0.20 的音檔。
-          按 max spread 由大到小排,優先處理差距最大的。
+          被 2 位以上標註員標過,但至少一個維度 creator-industry gap &gt; 0.20 的音檔。
+          按 creator-industry gap 由大到小排,優先處理差距最大的。
         </p>
       </div>
       <a href="/dashboard" class="text-sm text-slate-500 hover:text-amber-500">← Dashboard</a>
@@ -26,7 +26,7 @@
           <tr>
             <th class="text-left p-3 font-medium">遊戲 / 段落</th>
             <th class="text-left p-3 font-medium">標註員</th>
-            <th class="text-right p-3 font-medium">最大 spread</th>
+            <th class="text-right p-3 font-medium">最大 gap</th>
             <th class="text-left p-3 font-medium">維度</th>
             <th class="text-right p-3 font-medium w-28">仲裁</th>
           </tr>
@@ -36,7 +36,7 @@
     </section>
 
     <footer class="mt-4 text-xs text-slate-500 dark:text-slate-500">
-      <p>💡 仲裁 = Amber 寫/改自己的 annotation。儲存後 spread 自動重算,若 ≤ 0.20 該檔變 lockable。</p>
+      <p>💡 仲裁 = Amber 寫/改自己的 annotation。儲存後 creator-industry gap 自動重算,若 ≤ 0.20 該檔變「待快速確認」。</p>
     </footer>
   </main>
 
