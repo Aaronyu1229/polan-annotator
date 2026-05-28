@@ -48,7 +48,7 @@ async function load() {
     state.audio = data.audio
     state.annotations = data.annotations || []
     state.amberAnnotation = state.annotations.find(a => a.annotator_id === 'amber') || null
-    // Phase 4：仲裁所需 — Notes 是否強制、哪些維度 creator-industry gap 超標
+    // Phase 4：仲裁所需 — Notes 是否強制、哪些維度 Amber–yyslin gap 超標
     state.notesRequired = !!data.notes_required
     state.needsFullDims = data.needs_full_dims || []
     state.blindAudit = !!data.blind_audit
@@ -363,7 +363,7 @@ async function save() {
 
   // Phase 4：needs_full / 盲審檔 Notes 強制（前端先擋，後端再驗）
   if (state.notesRequired && !notes) {
-    $('save-status').textContent = '❌ 此檔 creator-industry gap 過大（或盲審抽中），Notes 必填。'
+    $('save-status').textContent = '❌ 此檔 Amber–yyslin gap 過大（或盲審抽中），Notes 必填。'
     return
   }
 
