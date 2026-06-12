@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
-from src.annotation_serialization import annotation_to_dict, decode_worldview_tag
+from src.annotation_serialization import decode_worldview_tag
 from src.annotators_loader import (
     AnnotatorsConfigError,
     get_annotator,
@@ -38,11 +38,12 @@ from src.audiofile_status import (
     resolve_role_map,
     status_summary,
 )
+from src.auto_promote import auto_promote_all
 from src.role_gaps import needs_full_arbitration, pairwise_gaps
 from src.db import get_session
 from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
-from src.models import Annotation, Arbitration, AudioFile
+from src.models import Annotation, AudioFile
 from pydantic import BaseModel, Field as PydField
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -292,44 +293,6 @@ def _max_creator_industry_gap(
     return max_dim, ci[max_dim]
 
 
-@router.get("/lockable/list")
-def lockable_list(
-    current_user: dict[str, Any] = Depends(require_auth),
-    session: Session = Depends(get_session),
-) -> list[dict[str, Any]]:
-    """列出 status=fast_confirmable 的音檔（creator-industry 已對齊，待 Amber 批次快速確認）。
-
-    Sort by creator-industry gap asc — 最對齊的優先。
-    （注：gold lock 已退役；此清單供 Phase 4 批次快速確認 UI 用。）
-    """
-    _require_admin(current_user)
-
-    role_map = resolve_role_map()
-    audios = session.exec(select(AudioFile)).all()
-    by_audio = bulk_load_annotations_by_audio(session)
-    arbs_by_audio = bulk_load_arbitrations_by_audio(session)
-    items: list[dict[str, Any]] = []
-    for audio in audios:
-        anns = by_audio.get(audio.id, [])
-        st = compute_status_from_preload(audio, anns, arbs_by_audio.get(audio.id, []), role_map)
-        if st != "fast_confirmable":
-            continue
-        max_dim, max_val = _max_creator_industry_gap(anns, role_map)
-        items.append({
-            "audio_id": audio.id,
-            "filename": audio.filename,
-            "game_name": audio.game_name,
-            "game_stage": audio.game_stage,
-            "duration_sec": audio.duration_sec,
-            "annotators": sorted({a.annotator_id for a in anns}),
-            "max_gap_dim": max_dim,
-            "max_gap_value": max_val,
-            "blind_audit": is_blind_audit(audio.id),  # 抽中者不可快速確認，須走 full
-        })
-    items.sort(key=lambda x: (x["max_gap_value"] or 0))
-    return items
-
-
 # ─── Phase 11：仲裁(reconciliation)— Amber 看 cross_annotated 並更新自己 annotation ─
 
 @router.get("/reconcile/list")
@@ -468,59 +431,22 @@ def _completed_annotations(session: Session, audio_id: str) -> list[Annotation]:
     ).all())
 
 
-class FastConfirmPayload(BaseModel):
-    audio_ids: list[str] = PydField(default_factory=list)
-    notes: str | None = None
-
-
-@router.post("/arbitrate/fast-confirm")
-def arbitrate_fast_confirm(
-    payload: FastConfirmPayload,
+@router.post("/arbitrate/auto-promote-all")
+def arbitrate_auto_promote_all(
     current_user: dict[str, Any] = Depends(require_auth),
     session: Session = Depends(get_session),
-) -> dict[str, Any]:
-    """批次快速確認：fast_confirmable 檔以 creator raw value 寫 Arbitration(path=fast)。
+) -> dict[str, list[str]]:
+    """補晉升：把所有已對齊（gap 全 ≤ GATE）且非盲審的檔一次寫 Arbitration(path=auto)。
 
-    重算 status 防 race；blind-audit 抽中者 skip（必須走 full）。
+    供既有「初標完+對齊但未確認」的舊檔一次性升 creator_ready。
+    盲審抽中的對齊檔不在此晉升（須走完整仲裁），列在 skipped_blind_audit。
     """
     _require_admin(current_user)
-    role_map = resolve_role_map()
-    creator_id = role_map.get("creator")
-    arbitrated_by = current_user.get("annotator_id") or creator_id or "amber"
-
-    confirmed: list[str] = []
-    skipped: list[dict[str, str]] = []
-    for aid in payload.audio_ids:
-        audio = session.get(AudioFile, aid)
-        if audio is None:
-            skipped.append({"audio_id": aid, "reason": "not_found"})
-            continue
-        if is_blind_audit(aid):
-            skipped.append({"audio_id": aid, "reason": "blind_audit"})
-            continue
-        anns = _completed_annotations(session, aid)
-        arbs = list(session.exec(
-            select(Arbitration).where(Arbitration.audio_file_id == aid)
-        ).all())
-        if compute_status_from_preload(audio, anns, arbs, role_map) != "fast_confirmable":
-            skipped.append({"audio_id": aid, "reason": "not_fast_confirmable"})
-            continue
-        creator_ann = next((a for a in anns if a.annotator_id == creator_id), None)
-        if creator_ann is None:
-            skipped.append({"audio_id": aid, "reason": "no_creator_annotation"})
-            continue
-        decoded = annotation_to_dict(creator_ann)
-        fields_values = {f: decoded[f] for f in ARBITRATED_FIELDS}
-        write_arbitration(
-            session, audio_id=aid, fields_values=fields_values,
-            path="fast", notes=payload.notes, arbitrated_by=arbitrated_by,
-        )
-        confirmed.append(aid)
-
+    result = auto_promote_all(session, resolve_role_map())
     session.commit()
-    log.info("fast-confirm by %s: confirmed=%d skipped=%d",
-             arbitrated_by, len(confirmed), len(skipped))
-    return {"confirmed": confirmed, "skipped": skipped}
+    log.info("auto-promote-all: promoted=%d skipped_blind=%d",
+             len(result["promoted"]), len(result["skipped_blind_audit"]))
+    return result
 
 
 class FullArbitrationPayload(BaseModel):

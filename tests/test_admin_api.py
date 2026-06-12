@@ -631,60 +631,6 @@ def test_reconcile_save_via_annotations_post_updates_amber(
 
 
 # ---------------------------------------------------------------------------
-# Phase 12-A: lockable list endpoint
-# ---------------------------------------------------------------------------
-
-def test_lockable_list_returns_only_lockable(
-    client, in_memory_engine, tmp_annotators_config,
-):
-    """只回 status=fast_confirmable，不含 needs_arbitration / creator_draft。"""
-    # 1 fast_confirmable (gap 0.05)
-    a_lock = _make_audio(in_memory_engine, "L_X.wav")
-    _make_two_complete_annotations(in_memory_engine, a_lock, 0.5, 0.55)
-    # 1 needs_arbitration (gap 0.8) — 不該出現
-    a_cross = _make_audio(in_memory_engine, "C_X.wav")
-    _make_two_complete_annotations(in_memory_engine, a_cross, 0.1, 0.9)
-    # 1 creator_draft — 不該出現
-    a_draft = _make_audio(in_memory_engine, "D_X.wav")
-    _make_amber_completed_annotation(in_memory_engine, a_draft)
-
-    r = client.get("/api/admin/lockable/list?annotator=amber")
-    assert r.status_code == 200, r.text
-    items = r.json()
-    filenames = [it["filename"] for it in items]
-    assert filenames == ["L_X.wav"]
-    assert items[0]["max_gap_value"] is not None
-    assert items[0]["max_gap_value"] <= 0.20  # arbitration gate
-
-
-def test_lockable_list_requires_admin(client, in_memory_engine, tmp_annotators_config):
-    from src import main as main_module
-    from src.middleware import require_auth
-    main_module.app.dependency_overrides[require_auth] = lambda: {
-        "annotator_id": "vvgosick", "email": "x", "is_admin": False, "name": None,
-    }
-    try:
-        r = client.get("/api/admin/lockable/list")
-        assert r.status_code == 403
-    finally:
-        main_module.app.dependency_overrides.pop(require_auth, None)
-
-
-def test_fast_confirmable_appears_in_lockable_list(
-    client, in_memory_engine, tmp_annotators_config,
-):
-    """creator+industry 對齊的檔出現在 fast-confirm 清單（lock_gold 已退役，全流程改 Phase 4 仲裁）。"""
-    audio_id = _make_audio(in_memory_engine, "F_X.wav")
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
-
-    r = client.get("/api/admin/lockable/list?annotator=amber")
-    assert len(r.json()) == 1
-    assert r.json()[0]["filename"] == "F_X.wav"
-    # lock_gold 已退役
-    assert client.post(f"/api/admin/audio/{audio_id}/lock_gold?annotator=amber").status_code == 410
-
-
-# ---------------------------------------------------------------------------
 # Phase 13-B: admin HTML page auth gate
 # ---------------------------------------------------------------------------
 
@@ -698,7 +644,7 @@ def test_admin_html_page_redirects_non_admin(client, in_memory_engine, tmp_annot
 
     main_module.app.dependency_overrides[require_auth] = _non_admin
     try:
-        for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
+        for path in ["/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
             r = client.get(path, follow_redirects=False)
             assert r.status_code == 302, f"{path} should redirect non-admin, got {r.status_code}"
             assert r.headers.get("location") == "/"
@@ -708,7 +654,7 @@ def test_admin_html_page_redirects_non_admin(client, in_memory_engine, tmp_annot
 
 def test_admin_html_page_serves_html_to_admin(client, in_memory_engine, tmp_annotators_config):
     """admin 開 /admin/* HTML 該回 200 HTML(dev mode 預設 is_admin=True)。"""
-    for path in ["/admin/lockable", "/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
+    for path in ["/admin/reconcile", "/admin/review-dimensions", "/admin/quality"]:
         r = client.get(path, follow_redirects=False)
         assert r.status_code == 200, f"{path} should serve HTML to admin"
         assert "html" in r.headers.get("content-type", "").lower()
@@ -726,44 +672,6 @@ _FULL_VALUES = {
     "function_roles": ["atmosphere"], "genre_tag": ["博弈"],
     "worldview_tag": ["casino"], "style_tag": ["orchestral"],
 }
-
-
-def _status_of(client, audio_id):
-    return client.get(f"/api/admin/audio/{audio_id}/status?annotator=amber").json()["status"]
-
-
-def test_fast_confirm_makes_creator_ready(client, in_memory_engine, tmp_annotators_config, monkeypatch):
-    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
-    audio_id = _make_audio(in_memory_engine, "F_X.wav")
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)  # aligned → fast_confirmable
-    assert _status_of(client, audio_id) == "fast_confirmable"
-
-    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
-                    json={"audio_ids": [audio_id], "notes": None})
-    assert r.status_code == 200, r.text
-    assert r.json()["confirmed"] == [audio_id]
-    assert _status_of(client, audio_id) == "creator_ready"
-
-
-def test_fast_confirm_skips_non_fast(client, in_memory_engine, tmp_annotators_config, monkeypatch):
-    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: False)
-    audio_id = _make_audio(in_memory_engine, "N_X.wav")
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.1, 0.9)  # gap 0.8 → needs_arbitration
-    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
-                    json={"audio_ids": [audio_id]})
-    assert r.status_code == 200
-    assert r.json()["confirmed"] == []
-    assert r.json()["skipped"][0]["reason"] == "not_fast_confirmable"
-
-
-def test_fast_confirm_skips_blind_audit(client, in_memory_engine, tmp_annotators_config, monkeypatch):
-    monkeypatch.setattr("src.routes.admin.is_blind_audit", lambda _aid: True)
-    audio_id = _make_audio(in_memory_engine, "B_X.wav")
-    _make_two_complete_annotations(in_memory_engine, audio_id, 0.5, 0.55)
-    r = client.post("/api/admin/arbitrate/fast-confirm?annotator=amber",
-                    json={"audio_ids": [audio_id]})
-    assert r.json()["confirmed"] == []
-    assert r.json()["skipped"][0]["reason"] == "blind_audit"
 
 
 def test_full_arbitrate_makes_creator_ready(client, in_memory_engine, tmp_annotators_config, monkeypatch):

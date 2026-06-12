@@ -290,10 +290,21 @@ def upsert_annotation(
 
     next_id = _next_audio_id_for(session, payload.annotator_id, payload.audio_id)
 
+    # 自動晉升：這次完成讓 creator+industry 對齊（gap 全 ≤ GATE）且非盲審 →
+    # 直接以 creator 初標值寫 Arbitration(path="auto")，狀態變 creator_ready，免手動快速確認。
+    auto_promoted = False
+    if is_complete:
+        from src.audiofile_status import resolve_role_map  # noqa: PLC0415 — 避免循環 import
+        from src.auto_promote import maybe_auto_promote  # noqa: PLC0415
+        if maybe_auto_promote(session, audio, resolve_role_map()):
+            session.commit()
+            auto_promoted = True
+
     response: dict[str, Any] = {
         "annotation_id": annotation_id,
         "is_complete": is_complete,
         "next_audio_id": next_id,
+        "auto_promoted": auto_promoted,
     }
 
     # Phase 9：pending_calibration 標註員存校準音檔時,回應加每維三色徽章。

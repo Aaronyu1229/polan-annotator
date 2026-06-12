@@ -92,7 +92,7 @@ async function loadStatusCards() {
         numCls: 'text-indigo-900 dark:text-indigo-200',
       },
       {
-        key: 'fast_confirmable', label: '待快速確認',
+        key: 'fast_confirmable', label: '盲審待仲裁',
         cls: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900',
         labelCls: 'text-amber-700 dark:text-amber-300',
         numCls: 'text-amber-900 dark:text-amber-200',
@@ -104,11 +104,12 @@ async function loadStatusCards() {
         numCls: 'text-emerald-900 dark:text-emerald-200',
       },
     ]
-    // needs_arbitration / fast_confirmable 卡片若 > 0 可點到對應列表
+    // needs_arbitration / fast_confirmable 卡片若 > 0 可點到待仲裁清單。
+    // fast_confirmable 現在只剩盲審抽中的對齊檔（非盲審對齊檔已自動晉升），須走完整仲裁。
     const linkFor = (key, n) => {
       if (n <= 0) return null
       if (key === 'needs_arbitration') return { href: '/admin/reconcile', title: '點開待仲裁清單' }
-      if (key === 'fast_confirmable')  return { href: '/admin/lockable',  title: '點開待快速確認清單' }
+      if (key === 'fast_confirmable')  return { href: '/admin/reconcile', title: '盲審抽中：點開走完整仲裁' }
       return null
     }
     wrap.innerHTML = cards.map(c => {

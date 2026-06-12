@@ -296,7 +296,7 @@ function renderStatusBadge(status) {
     creator_draft:     { label: 'creator 初標', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' },
     industry_only:     { label: '待 creator', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
     needs_arbitration: { label: '待仲裁', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
-    fast_confirmable:  { label: '待快速確認', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+    fast_confirmable:  { label: '盲審待仲裁', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
     creator_ready:     { label: '✅ Creator Ready', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
   }
   const m = map[status] || map.untouched
