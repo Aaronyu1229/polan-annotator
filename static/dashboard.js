@@ -36,6 +36,7 @@ async function loadAll() {
     loadPendingAnnotators(),  // Phase 8 — 待校準 widget(admin only)
     loadStatusCards(),        // Phase 10 — 資料品質狀態分布
     loadExportReadiness(),    // 出貨軌：Dual-View / Expert 可出貨量
+    loadVicCredibility(),     // Vic 可信度：Dual-View 賣點
   ])
   // progress 依 annotator 個別查 — 用 ICC endpoint 回的 annotators
   // 在 loadIcc 裡 trigger
@@ -67,6 +68,52 @@ async function loadExportReadiness() {
     const expert = $('ship-expert')
     if (dual) dual.textContent = d.dual_view_shippable ?? '—'
     if (expert) expert.textContent = d.expert_shippable ?? '—'
+  } catch {
+    // 靜默 — 載入失敗不阻斷其他 widget
+  }
+}
+
+// Vic 可信度：三訊號合成狀態 + 賣點 statement
+async function loadVicCredibility() {
+  try {
+    const res = await fetch('/api/admin/vic_credibility')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const d = await res.json()
+    const badge = $('vic-badge')
+    if (badge) {
+      // Tailwind CDN JIT 需看到完整 class 字串
+      const styles = {
+        trusted: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+        watch: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+        suspect: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+        insufficient: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+      }
+      const labels = { trusted: '可信', watch: '觀察中', suspect: '疑慮', insufficient: '資料不足' }
+      badge.className = `text-xs px-2 py-0.5 rounded font-medium ${styles[d.status] || styles.insufficient}`
+      badge.textContent = labels[d.status] || d.status
+    }
+    const stmt = $('vic-statement')
+    if (stmt) stmt.textContent = d.statement || ''
+    const wrap = $('vic-signals')
+    if (wrap) {
+      const s = d.signals || {}
+      const v = s.variance || {}
+      const e = s.extreme_consensus || {}
+      const i = s.intra_rater || {}
+      const cell = (title, body) =>
+        `<div class="rounded border border-slate-200 dark:border-slate-700 p-3">
+          <div class="text-xs text-slate-500">${title}</div>
+          <div class="text-sm mt-1">${body}</div>
+        </div>`
+      const variance = v.insufficient
+        ? '資料不足'
+        : (v.suspect ? `疑似亂標（${(v.low_variance_dims || []).length} 維低變異）` : '通過 ✓')
+      const extreme = e.insufficient
+        ? `探針僅 ${e.checked} 道,資料不足`
+        : `${e.checked} 道、違反 ${e.violations}（${Math.round(e.violation_rate * 100)}%）${e.pass ? '✓' : '✗'}`
+      const intra = i.insufficient ? '待埋重複題' : `自穩 ${i.value}${i.pass ? ' ✓' : ' ✗'}`
+      wrap.innerHTML = cell('每維方差', variance) + cell('極端共識探針', extreme) + cell('test-retest', intra)
+    }
   } catch {
     // 靜默 — 載入失敗不阻斷其他 widget
   }

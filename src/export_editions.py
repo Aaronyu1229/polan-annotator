@@ -19,13 +19,13 @@ from src.arbitration import (
     deserialize_value,
     latest_by_audio_field,
 )
+from src.audience_credibility import vic_credibility
 from src.audiofile_status import (
     bulk_load_annotations_by_audio,
     compute_status_from_preload,
     resolve_role_map,
 )
 from src.models import AudioFile
-from src.quality_flags import audience_straight_lining
 from src.role_gaps import classify_dim_flags, pairwise_gaps
 from src.thresholds import HUMAN_CONTINUOUS_DIMS
 
@@ -117,11 +117,8 @@ def build_dual_view(session: Session) -> dict[str, Any]:
     ).all()
 
     items: list[dict[str, Any]] = []
-    all_audience_anns = []
     for audio in audios:
         by_id = {a.annotator_id: a for a in anns_by_audio.get(audio.id, [])}
-        if audience_id in by_id:
-            all_audience_anns.append(by_id[audience_id])
         if industry_id not in by_id:
             continue
         audience_ann = by_id.get(audience_id)
@@ -157,7 +154,7 @@ def build_dual_view(session: Session) -> dict[str, Any]:
                 "absent here by design"
             ),
         },
-        audience_quality=audience_straight_lining(all_audience_anns),
+        audience_credibility=vic_credibility(session),
     )
 
 

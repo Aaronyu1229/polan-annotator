@@ -547,6 +547,16 @@ def test_export_readiness_endpoint(client, in_memory_engine, tmp_annotators_conf
     assert body["total"] == 1
 
 
+def test_vic_credibility_endpoint(client, in_memory_engine, tmp_annotators_config):
+    """vic 可信度 endpoint 回 status + 三訊號（無資料 → insufficient）。"""
+    r = client.get("/api/admin/vic_credibility?annotator=amber")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "insufficient"  # 沒有 audience 標註
+    assert set(body["signals"]) == {"variance", "extreme_consensus", "intra_rater"}
+    assert "statement" in body
+
+
 # ---------------------------------------------------------------------------
 # Phase 11: reconciliation endpoints
 # ---------------------------------------------------------------------------

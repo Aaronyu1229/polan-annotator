@@ -27,6 +27,13 @@ AGREEMENT_MIN_N = 30       # CCC / ICC 最低 N（不足回「資料不足」，
 INDUSTRY_CCC_MIN = 0.7     # 業界對齊 CCC CI 下界門檻
 AUDIENCE_WITHIN_CAT_MIN = 5  # within-category 一致性最低組內檔數
 
+# ─── audience(Vic) 可信度 ─── 極端共識探針：錨點(yyslin)給極端值的題，
+# Vic 跨中線到相反半邊 = 違反（合法分歧不算）。賣點：大眾分歧是驗證過的、非雜訊。
+AUDIENCE_EXTREME_LOW = 0.15          # 錨點 ≤ 此值 = 低極端題
+AUDIENCE_EXTREME_HIGH = 0.85         # 錨點 ≥ 此值 = 高極端題
+AUDIENCE_EXTREME_MIN_PROBES = 10     # 極端探針不足此數 → insufficient（不判定）
+AUDIENCE_EXTREME_MAX_VIOLATION = 0.10  # 違反率 ≤ 此值 → pass
+
 # 7 個 human 連續維（acoustic 兩維 librosa deterministic 不計）。放在此 leaf module
 # 供 arbitration / role_gaps / audiofile_status 共用，打破循環 import。
 HUMAN_CONTINUOUS_DIMS: tuple[str, ...] = (

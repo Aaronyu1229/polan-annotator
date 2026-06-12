@@ -283,6 +283,16 @@ def export_readiness_endpoint(
     return export_readiness_summary(session)
 
 
+@router.get("/vic_credibility")
+def vic_credibility_endpoint(
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001 — 純 auth gate
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """audience(Vic)可信度：方差 / 極端共識探針 / test-retest 合成狀態（Dual-View 賣點）。"""
+    from src.audience_credibility import vic_credibility  # noqa: PLC0415
+    return vic_credibility(session)
+
+
 # ─── Phase 12-A：lockable 清單(給 Amber 一鍵 lock gold)─────────────
 
 def _max_creator_industry_gap(
