@@ -103,11 +103,14 @@ def build_creator_edition(session: Session) -> dict[str, Any]:
 
 
 def build_dual_view(session: Session) -> dict[str, Any]:
-    """industry + audience 皆完成的檔，並陳兩 view + flags。audience N=1，誠實標示。"""
+    """獨立出貨軌，不需 creator：industry(yyslin) 標完即收。
+
+    audience(Vic) 有標就帶 audience_view，沒標則 None（視情況加 Vic）。
+    industry 軸目前單一標註員，非多人業界信度；creator 仲裁不在此版（見 meta）。
+    """
     role_map = resolve_role_map()
     industry_id = role_map.get("industry")
     audience_id = role_map.get("audience")
-    creator_id = role_map.get("creator")
     anns_by_audio = bulk_load_annotations_by_audio(session)
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
@@ -119,15 +122,12 @@ def build_dual_view(session: Session) -> dict[str, Any]:
         by_id = {a.annotator_id: a for a in anns_by_audio.get(audio.id, [])}
         if audience_id in by_id:
             all_audience_anns.append(by_id[audience_id])
-        if industry_id not in by_id or audience_id not in by_id:
+        if industry_id not in by_id:
             continue
-        by_role = {
-            "creator": by_id.get(creator_id),
-            "industry": by_id.get(industry_id),
-            "audience": by_id.get(audience_id),
-        }
-        gaps = pairwise_gaps(by_role)
-        flags = classify_dim_flags(gaps)
+        audience_ann = by_id.get(audience_id)
+        # creator 刻意排除：Dual-View 不依賴 creator，creator_industry_gap 無意義
+        by_role = {"creator": None, "industry": by_id[industry_id], "audience": audience_ann}
+        flags = classify_dim_flags(pairwise_gaps(by_role))
         product_dims = sorted(d for d, fs in flags.items() if "product_divergence" in fs)
 
         items.append({
@@ -137,20 +137,55 @@ def build_dual_view(session: Session) -> dict[str, Any]:
                 "duration_sec": audio.duration_sec,
             },
             "industry_view": _view(by_id[industry_id]),
-            "audience_view": _view(by_id[audience_id]),
+            "audience_view": _view(audience_ann) if audience_ann is not None else None,
             "product_divergence_dims": product_dims,
-            "creator_industry_gaps": {d: g["creator_industry"] for d, g in gaps.items()},
         })
 
     return _envelope(
         "dual_view", items,
         dataset_name="polan_dual_view_v1",
         meta={
+            "industry_n": 1,
             "audience_n": 1,
-            "disclaimer": "single end-user reference, not an audience distribution",
+            "industry_disclaimer": (
+                "industry axis is a single annotator (yyslin); "
+                "not a multi-rater industry reliability estimate"
+            ),
+            "audience_disclaimer": "single end-user reference, not an audience distribution",
+            "creator_note": (
+                "creator-arbitrated values are exclusive to the creator (expert) edition; "
+                "absent here by design"
+            ),
         },
         audience_quality=audience_straight_lining(all_audience_anns),
     )
+
+
+def export_readiness_summary(session: Session) -> dict[str, int]:
+    """兩條出貨軌的可出貨筆數（dashboard 用）。
+
+    - dual_view_shippable：industry(yyslin) 標完即可出（不需 creator）。
+    - expert_shippable：creator_ready（creator 仲裁定案）。
+    兩者可重疊（creator_ready 檔也算 dual_view_shippable）—— 是兩個獨立交付，非互斥。
+    """
+    role_map = resolve_role_map()
+    industry_id = role_map.get("industry")
+    anns_by_audio = bulk_load_annotations_by_audio(session)
+    arbs_by_audio = bulk_load_arbitrations_by_audio(session)
+    audios = session.exec(select(AudioFile)).all()
+
+    dual = 0
+    expert = 0
+    for audio in audios:
+        anns = anns_by_audio.get(audio.id, [])
+        if industry_id is not None and any(a.annotator_id == industry_id for a in anns):
+            dual += 1
+        status = compute_status_from_preload(
+            audio, anns, arbs_by_audio.get(audio.id, []), role_map
+        )
+        if status == "creator_ready":
+            expert += 1
+    return {"dual_view_shippable": dual, "expert_shippable": expert, "total": len(audios)}
 
 
 def _view(ann) -> dict[str, Any]:

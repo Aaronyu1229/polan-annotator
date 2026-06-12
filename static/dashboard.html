@@ -30,6 +30,27 @@
 
   <main class="max-w-6xl mx-auto px-6 py-6 space-y-6">
 
+    <!-- 出貨軌：兩條獨立軌的可出貨量 -->
+    <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
+      <h2 class="text-base font-semibold mb-3">出貨軌</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="rounded border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 p-4">
+          <div class="text-xs text-violet-700 dark:text-violet-300">Dual-View 可出貨（只需 yyslin，不靠 Amber）</div>
+          <div class="text-3xl font-semibold font-mono text-violet-900 dark:text-violet-200 mt-1" id="ship-dual">—</div>
+          <a href="/api/export/dual_view.json" class="text-xs text-violet-700 dark:text-violet-300 underline mt-1 inline-block">下載 dual_view.json →</a>
+        </div>
+        <div class="rounded border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+          <div class="text-xs text-emerald-700 dark:text-emerald-300">Expert 可出貨（Amber 仲裁定案）</div>
+          <div class="text-3xl font-semibold font-mono text-emerald-900 dark:text-emerald-200 mt-1" id="ship-expert">—</div>
+          <a href="/api/export/creator_edition.json" class="text-xs text-emerald-700 dark:text-emerald-300 underline mt-1 inline-block">下載 creator_edition.json →</a>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mt-3">
+        兩條軌獨立：Dual-View 只要 yyslin(industry) 標完即可出貨,值為 yyslin + Vic 原始雙欄(Vic 未標則留空),
+        industry 軸目前僅 yyslin 一人、非多人業界信度;Expert 為 Amber 逐檔仲裁定案,creator 仲裁只存在於此版。
+      </p>
+    </section>
+
     <!-- Phase 10：音檔資料品質狀態分布 -->
     <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
       <div class="flex items-baseline justify-between mb-3">

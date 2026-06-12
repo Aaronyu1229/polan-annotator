@@ -273,6 +273,16 @@ def audio_status_summary_endpoint(
     return status_summary(session)
 
 
+@router.get("/export_readiness")
+def export_readiness_endpoint(
+    current_user: dict[str, Any] = Depends(require_auth),  # noqa: ARG001 — 純 auth gate
+    session: Session = Depends(get_session),
+) -> dict[str, int]:
+    """兩條出貨軌可出貨筆數：Dual-View(只需 yyslin) / Expert(creator_ready)。"""
+    from src.export_editions import export_readiness_summary  # noqa: PLC0415
+    return export_readiness_summary(session)
+
+
 # ─── Phase 12-A：lockable 清單(給 Amber 一鍵 lock gold)─────────────
 
 def _max_creator_industry_gap(

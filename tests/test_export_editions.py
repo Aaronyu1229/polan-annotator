@@ -6,7 +6,11 @@ import json
 from sqlmodel import Session
 
 from src.arbitration import write_arbitration
-from src.export_editions import build_creator_edition, build_dual_view
+from src.export_editions import (
+    build_creator_edition,
+    build_dual_view,
+    export_readiness_summary,
+)
 from src.models import Annotation, AudioFile
 
 _DIMS = ["valence", "arousal", "emotional_warmth", "tension_direction",
@@ -80,7 +84,9 @@ def test_dual_view_pairs_industry_and_audience(in_memory_engine):
 
     assert data["edition"] == "dual_view"
     assert data["meta"]["audience_n"] == 1
-    assert "single end-user reference" in data["meta"]["disclaimer"]
+    assert data["meta"]["industry_n"] == 1
+    assert "single annotator" in data["meta"]["industry_disclaimer"]
+    assert "single end-user reference" in data["meta"]["audience_disclaimer"]
     assert len(data["items"]) == 1
     item = data["items"][0]
     assert item["industry_view"]["arousal"] == 0.5
@@ -88,12 +94,47 @@ def test_dual_view_pairs_industry_and_audience(in_memory_engine):
     assert "arousal" in item["product_divergence_dims"]
 
 
-def test_dual_view_excludes_when_audience_missing(in_memory_engine):
+def test_dual_view_includes_industry_only_audience_null(in_memory_engine):
+    """option A：industry(yyslin) 標完即收，Vic 未標 → audience_view=None、無 product flag。"""
     aid = _audio(in_memory_engine, "W_X.wav")
     _ann(in_memory_engine, aid, "yyslin1024")  # industry only
     with Session(in_memory_engine) as s:
         data = build_dual_view(s)
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+    assert item["industry_view"]["valence"] == 0.5
+    assert item["audience_view"] is None
+    assert item["product_divergence_dims"] == []
+
+
+def test_dual_view_excludes_when_industry_missing(in_memory_engine):
+    """沒有 industry → 不收（audience 單獨不足以出 Dual-View）。"""
+    aid = _audio(in_memory_engine, "WA_X.wav")
+    _ann(in_memory_engine, aid, "vvgosick")  # audience only
+    with Session(in_memory_engine) as s:
+        data = build_dual_view(s)
     assert data["items"] == []
+
+
+def test_export_readiness_summary_counts(in_memory_engine):
+    # a1: 只有 yyslin → Dual-View 可出、非 Expert
+    a1 = _audio(in_memory_engine, "R1_X.wav")
+    _ann(in_memory_engine, a1, "yyslin1024")
+    # a2: amber+yyslin 對齊 + 全 13 欄仲裁 → creator_ready → Dual-View + Expert 皆可出
+    a2 = _audio(in_memory_engine, "R2_X.wav")
+    _ann(in_memory_engine, a2, "amber", valence=0.5)
+    _ann(in_memory_engine, a2, "yyslin1024", valence=0.5)
+    with Session(in_memory_engine) as s:
+        write_arbitration(s, audio_id=a2, fields_values=_FULL_VALUES,
+                          path="auto", notes=None, arbitrated_by="amber")
+        s.commit()
+    # a3: untouched → 兩條都不算
+    _audio(in_memory_engine, "R3_X.wav")
+    with Session(in_memory_engine) as s:
+        summ = export_readiness_summary(s)
+    assert summ["dual_view_shippable"] == 2  # a1, a2
+    assert summ["expert_shippable"] == 1     # a2
+    assert summ["total"] == 3
 
 
 def test_creator_edition_endpoint(client, in_memory_engine):

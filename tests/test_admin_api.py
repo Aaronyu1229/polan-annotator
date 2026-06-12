@@ -522,6 +522,31 @@ def test_audio_status_summary_endpoint(client, in_memory_engine, tmp_annotators_
     assert data["creator_draft"] == 1  # amber-only → creator_draft
 
 
+def test_export_readiness_endpoint(client, in_memory_engine, tmp_annotators_config):
+    """出貨軌計數 endpoint 回 dual_view_shippable / expert_shippable / total。"""
+    # yyslin 標完一首 → Dual-View 可出 1
+    aid = _make_audio(in_memory_engine, "E1_X.wav")
+    with Session(in_memory_engine) as s:
+        s.add(Annotation(
+            audio_file_id=aid, annotator_id="yyslin1024",
+            valence=0.5, arousal=0.5, emotional_warmth=0.5,
+            tension_direction=0.5, temporal_position=0.5,
+            event_significance=0.5, world_immersion=0.5,
+            loop_capability=json.dumps([1.0]),
+            source_type=json.dumps(["ambience"]),
+            function_roles=json.dumps(["atmosphere"]),
+            genre_tag=json.dumps([]), style_tag=json.dumps([]),
+            is_complete=True,
+        )); s.commit()
+
+    r = client.get("/api/admin/export_readiness?annotator=amber")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dual_view_shippable"] == 1
+    assert body["expert_shippable"] == 0
+    assert body["total"] == 1
+
+
 # ---------------------------------------------------------------------------
 # Phase 11: reconciliation endpoints
 # ---------------------------------------------------------------------------

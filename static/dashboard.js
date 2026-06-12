@@ -35,6 +35,7 @@ async function loadAll() {
     loadOverlap(includeFixture),
     loadPendingAnnotators(),  // Phase 8 — 待校準 widget(admin only)
     loadStatusCards(),        // Phase 10 — 資料品質狀態分布
+    loadExportReadiness(),    // 出貨軌：Dual-View / Expert 可出貨量
   ])
   // progress 依 annotator 個別查 — 用 ICC endpoint 回的 annotators
   // 在 loadIcc 裡 trigger
@@ -55,6 +56,21 @@ async function showAdminLinks() {
   }
 }
 showAdminLinks()
+
+// 出貨軌：兩條獨立軌可出貨量(Dual-View 不靠 Amber / Expert 靠 Amber 仲裁)
+async function loadExportReadiness() {
+  try {
+    const res = await fetch('/api/admin/export_readiness')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const d = await res.json()
+    const dual = $('ship-dual')
+    const expert = $('ship-expert')
+    if (dual) dual.textContent = d.dual_view_shippable ?? '—'
+    if (expert) expert.textContent = d.expert_shippable ?? '—'
+  } catch {
+    // 靜默 — 載入失敗不阻斷其他 widget
+  }
+}
 
 // Phase 10：5 張資料狀態卡(全 logged-in user 可看)
 async function loadStatusCards() {
