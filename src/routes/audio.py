@@ -88,7 +88,7 @@ def list_audio(
     Phase 8 follow-up: 對 pending_calibration / archived 標註員過濾,
     跟 enforce_annotator_access 的 gate 行為一致,避免「看得到卻載不到」。
     """
-    from src.annotators_loader import AnnotatorsConfigError, get_annotator  # noqa: PLC0415
+    from src.annotator_access import accessible_audio_ids  # noqa: PLC0415
 
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
@@ -108,23 +108,11 @@ def list_audio(
             ann.audio_file_id for ann in all_complete if ann.annotator_id == annotator
         }
 
-    # Phase 8 follow-up: 比對 annotator 狀態,跟 enforce_annotator_access 同邏輯過濾
-    if annotator:
-        try:
-            spec = get_annotator(annotator)
-        except AnnotatorsConfigError:
-            spec = None  # config 壞 → fail-open,跟 gate 同 fallback
-        if spec is not None:
-            status_value = spec.get("status")
-            if status_value == "archived":
-                audios = []
-            elif status_value == "pending_calibration":
-                amber_completed_ids = {
-                    ann.audio_file_id
-                    for ann in all_complete
-                    if ann.annotator_id == "amber"
-                }
-                audios = [a for a in audios if a.id in amber_completed_ids]
+    # Phase 8 follow-up: pending_calibration / archived 過濾,與 enforce_annotator_access
+    # 及 compute_progress / _next_audio_id_for 共用同一 accessible_audio_ids，行為一致。
+    allowed = accessible_audio_ids(session, annotator)
+    if allowed is not None:
+        audios = [a for a in audios if a.id in allowed]
 
     # 三角架構 status：收斂為單一 compute_status_from_preload（不再 inline 重算）。
     from src.arbitration import bulk_load_arbitrations_by_audio  # noqa: PLC0415

@@ -154,7 +154,14 @@ def compute_progress(
     Returns:
         ProgressStats — completed_count=0 時 has_data=False、所有計算欄位 None
     """
+    # pending_calibration / archived 的分母與完成數都應限縮在可存取集合，
+    # 否則 dashboard 進度卡（全資料集）會與清單（過濾後）互相矛盾。
+    from src.annotator_access import accessible_audio_ids  # noqa: PLC0415
+    allowed = accessible_audio_ids(session, annotator_id)
+
     total_audio_files = session.exec(select(AudioFile)).all()
+    if allowed is not None:
+        total_audio_files = [a for a in total_audio_files if a.id in allowed]
     total_count = len(total_audio_files)
 
     completed = session.exec(
@@ -163,6 +170,8 @@ def compute_progress(
             Annotation.is_complete == True,  # noqa: E712
         )
     ).all()
+    if allowed is not None:
+        completed = [c for c in completed if c.audio_file_id in allowed]
     completed_count = len(completed)
 
     if completed_count == 0:

@@ -172,10 +172,13 @@ def _next_audio_id_for(session: Session, annotator_id: str, current_audio_id: st
             )
         ).all()
     )
+    # pending_calibration / archived 只能在可存取集合內找下一個，否則會導向 403 的音檔
+    from src.annotator_access import accessible_audio_ids  # noqa: PLC0415
+    allowed = accessible_audio_ids(session, annotator_id)
     audios = session.exec(
         select(AudioFile).order_by(AudioFile.game_name, AudioFile.game_stage)
     ).all()
-    ids_in_order = [a.id for a in audios]
+    ids_in_order = [a.id for a in audios if allowed is None or a.id in allowed]
     if current_audio_id not in ids_in_order:
         # 退回從頭找
         for aid in ids_in_order:
