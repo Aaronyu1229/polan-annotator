@@ -17,16 +17,19 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
+from src.alignment_db import create_alignment_db
+from src.client_auth import resolve_alignment_access
 from src.config import load_settings
 from src.db import create_db, engine
 from src.routes import (
     admin,
+    alignment,
     annotations,
     audio,
     auth as auth_routes,
@@ -72,6 +75,7 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     create_db()
+    create_alignment_db()  # BGM 對齊獨立庫 data/alignment.db（與 annotations.db 分離）
     with Session(engine) as session:
         result = scan_audio_directory(session)
     log.info(
@@ -116,6 +120,7 @@ app.include_router(feedback.router)
 app.include_router(calibration.api_router)
 app.include_router(calibration.page_router)
 app.include_router(admin.router)
+app.include_router(alignment.router)
 
 
 @app.get("/", include_in_schema=False)
@@ -132,6 +137,14 @@ def annotate_legacy() -> FileResponse:
 @app.get("/annotate/{audio_id}", include_in_schema=False)
 def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參數由前端 JS 解析
     return FileResponse(STATIC_DIR / "annotate.html")
+
+
+@app.get("/alignment", include_in_schema=False)
+def alignment_page(
+    _access=Depends(resolve_alignment_access),
+) -> FileResponse:
+    """BGM 對齊標註頁。prod 須帶有效 token（gate 會種 cookie）；dev 放行。"""
+    return FileResponse(STATIC_DIR / "alignment.html")
 
 
 @app.get("/dashboard", include_in_schema=False)
@@ -160,7 +173,6 @@ def upload_page() -> FileResponse:
 
 
 # Phase 13-B：admin-only HTML page 加 auth gate(非 admin → 302 redirect 到 /)
-from fastapi import Depends  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 
 from src.middleware import require_auth  # noqa: E402

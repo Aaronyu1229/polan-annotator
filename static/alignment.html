@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BGM 對齊 — Pōlán Annotator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 沿用標註頁滑桿視覺：light-base、橙色 thumb。target 滑桿用藍色 thumb 區分。 */
+    input[type="range"].polan-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px; outline: none;
+    }
+    input[type="range"].polan-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; background: #f59e0b; border-radius: 50%;
+      cursor: pointer; border: 2px solid #f8fafc;
+    }
+    input[type="range"].polan-slider.target-slider::-webkit-slider-thumb { background: #3b82f6; }
+    input[type="range"].polan-slider::-moz-range-thumb {
+      width: 18px; height: 18px; background: #f59e0b; border-radius: 50%;
+      cursor: pointer; border: 2px solid #f8fafc;
+    }
+    input[type="range"].polan-slider.target-slider::-moz-range-thumb { background: #3b82f6; }
+    .chip {
+      user-select: none; cursor: pointer;
+      border: 1px solid #cbd5e1; border-radius: 9999px;
+      padding: 4px 12px; font-size: 14px;
+    }
+    .chip[data-on="1"] { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+    @media (prefers-color-scheme: dark) {
+      input[type="range"].polan-slider { background: #334155; }
+      body { background: #0f172a; color: #e2e8f0; }
+      .card { background: #1e293b; border-color: #334155; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="max-w-2xl mx-auto px-4 py-6">
+    <header class="mb-4">
+      <h1 class="text-xl font-bold">BGM 對齊標註</h1>
+      <p id="context-line" class="text-sm text-slate-500 mt-1"></p>
+    </header>
+
+    <!-- 試聽（audio_id 對應主庫 AudioFile.id 時可播；骨架階段沒有則隱藏） -->
+    <audio id="player" controls class="w-full mb-4 hidden"></audio>
+
+    <div id="banner" class="hidden mb-4 px-3 py-2 rounded text-sm"></div>
+
+    <!-- 感受維度（4 條，每條雙值） -->
+    <section id="dimensions" class="space-y-4"></section>
+
+    <!-- 規格區（與感受滑桿視覺分開） -->
+    <section class="card border rounded-lg p-4 mt-6 bg-white">
+      <h2 class="font-semibold mb-3">規格區</h2>
+      <div class="mb-4">
+        <div class="text-sm mb-2">循環方式</div>
+        <div id="loop-chips" class="flex gap-2"></div>
+      </div>
+      <div>
+        <div class="text-sm mb-2">長度</div>
+        <div id="loop-length-chips" class="flex gap-2"></div>
+      </div>
+    </section>
+
+    <button id="submit-btn"
+      class="w-full mt-6 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg">
+      儲存對齊標註
+    </button>
+  </div>
+
+  <script src="/static/alignment.js"></script>
+</body>
+</html>

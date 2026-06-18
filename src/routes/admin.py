@@ -45,6 +45,15 @@ from src.dimensions_loader import load_dimensions
 from src.middleware import require_auth
 from src.models import Annotation, AudioFile
 from pydantic import BaseModel, Field as PydField
+from datetime import datetime
+from urllib.parse import quote
+
+from fastapi import Request
+from sqlalchemy import select as sa_select
+
+from src.alignment_db import ClientLink, get_alignment_session
+from src.alignment_publish import ALIGNMENT_AUDIO_DIR, publish_audio_link  # noqa: F401
+from src.audio_analysis import AUDIO_DIR  # noqa: F401
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 log = logging.getLogger("polan.routes.admin")
@@ -555,3 +564,84 @@ def agreement_layers(
     _require_admin(current_user)
     from src.agreement import compute_agreement_layers  # noqa: PLC0415
     return compute_agreement_layers(session)
+
+
+# ─── BGM alignment：admin 發佈 / 列表 / 撤銷 ──────────────────────
+
+
+class PublishLinkBody(BaseModel):
+    filename: str
+    label: str
+    role: str = "client"
+    annotator_id: str | None = None
+    session_id: str | None = None
+    expires_at: datetime | None = None
+    orig_audio_id: str | None = None
+
+
+@router.post("/alignment/publish")
+def publish_alignment_link(
+    body: PublishLinkBody,
+    request: Request,
+    current_user: dict[str, Any] = Depends(require_auth),
+    align_db: Session = Depends(get_alignment_session),
+) -> dict[str, Any]:
+    """admin：把一支 ref 音檔發佈成客戶可標的連結。回明文 token（只此一次）。"""
+    _require_admin(current_user)
+    if body.role not in {"client", "engineer"}:
+        raise HTTPException(400, f"role 必須是 client 或 engineer，收到 {body.role!r}")
+    try:
+        res = publish_audio_link(
+            src_filename=body.filename, label=body.label, role=body.role,
+            annotator_id=body.annotator_id, session_id=body.session_id,
+            expires_at=body.expires_at, align_db=align_db,
+            src_audio_dir=AUDIO_DIR, dst_audio_dir=ALIGNMENT_AUDIO_DIR,
+            orig_audio_id=body.orig_audio_id,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    base = str(request.base_url).rstrip("/")
+    return {
+        "token": res.token,
+        "client_url": f"{base}/alignment?token={quote(res.token)}",
+        "link_id": res.link_id,
+        "alignment_audio_id": res.alignment_audio_id,
+        "session_id": res.session_id,
+    }
+
+
+@router.get("/alignment/links")
+def list_alignment_links(
+    current_user: dict[str, Any] = Depends(require_auth),
+    align_db: Session = Depends(get_alignment_session),
+) -> dict[str, Any]:
+    """admin：列出所有 client link（不含 token / token_hash）。"""
+    _require_admin(current_user)
+    rows = align_db.scalars(sa_select(ClientLink)).all()
+    return {"links": [
+        {
+            "id": r.id, "role": r.role, "label": r.label,
+            "annotator_id": r.annotator_id, "session_id": r.session_id,
+            "alignment_audio_id": r.alignment_audio_id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+            "revoked": r.revoked,
+        }
+        for r in rows
+    ]}
+
+
+@router.post("/alignment/links/{link_id}/revoke")
+def revoke_alignment_link(
+    link_id: str,
+    current_user: dict[str, Any] = Depends(require_auth),
+    align_db: Session = Depends(get_alignment_session),
+) -> dict[str, Any]:
+    """admin：撤銷一條 link（立即失效）。"""
+    _require_admin(current_user)
+    link = align_db.get(ClientLink, link_id)
+    if link is None:
+        raise HTTPException(404, "找不到此連結")
+    link.revoked = True
+    align_db.commit()
+    return {"revoked": True}

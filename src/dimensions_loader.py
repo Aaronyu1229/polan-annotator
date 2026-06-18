@@ -17,6 +17,10 @@ _REQUIRED_FIELDS = frozenset({
 })
 _VALID_CATEGORIES = frozenset({"emotion", "function", "acoustic"})
 _VALID_TYPES = frozenset({"continuous", "discrete", "multi_discrete"})
+# 若維度帶 bgm block（BGM 對齊模式顯示），這些子欄位必填（fail-fast）。
+_BGM_REQUIRED_FIELDS = frozenset({
+    "display_name", "low_anchor", "mid_anchor", "high_anchor", "client_question",
+})
 
 
 class DimensionsConfigError(ValueError):
@@ -61,6 +65,15 @@ def _validate(config: dict[str, Any]) -> None:
                 raise DimensionsConfigError(
                     f"維度 {dim_id!r} ({spec['type']}) 需要 options 非空陣列"
                 )
+        bgm = spec.get("bgm")
+        if bgm is not None:
+            if not isinstance(bgm, dict):
+                raise DimensionsConfigError(f"維度 {dim_id!r} 的 bgm 必須是物件")
+            missing_bgm = _BGM_REQUIRED_FIELDS - bgm.keys()
+            if missing_bgm:
+                raise DimensionsConfigError(
+                    f"維度 {dim_id!r} 的 bgm block 缺少欄位：{sorted(missing_bgm)}"
+                )
 
 
 @lru_cache(maxsize=1)
@@ -89,3 +102,28 @@ def get_dimension(dim_id: str) -> dict[str, Any]:
 def list_dimension_ids() -> list[str]:
     """依 JSON 中出現的順序回傳維度 id list。"""
     return list(load_dimensions().keys())
+
+
+def get_bgm_view(dim_id: str) -> dict[str, Any]:
+    """回傳某維度的 BGM 版顯示（display_name + 三段錨點 + client_question）。
+
+    無 bgm block 的維度 fallback 用 SFX 的 label/anchor，mid_anchor / client_question = None。
+    UI 在 audio_type=="bgm" 時用這個 view 顯示；底層仍寫同一個維度欄位。
+    """
+    spec = get_dimension(dim_id)
+    bgm = spec.get("bgm")
+    if bgm is None:
+        return {
+            "display_name": spec["label_zh"],
+            "low_anchor": spec["low_anchor"],
+            "mid_anchor": None,
+            "high_anchor": spec["high_anchor"],
+            "client_question": None,
+        }
+    return {
+        "display_name": bgm["display_name"],
+        "low_anchor": bgm["low_anchor"],
+        "mid_anchor": bgm["mid_anchor"],
+        "high_anchor": bgm["high_anchor"],
+        "client_question": bgm["client_question"],
+    }
