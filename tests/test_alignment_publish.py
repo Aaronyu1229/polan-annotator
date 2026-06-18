@@ -59,3 +59,24 @@ def test_publish_missing_source_raises(tmp_path):
         assert False, "should have raised"
     except FileNotFoundError:
         pass
+
+
+def test_publish_engineer_role_leaves_link_fields_none(tmp_path):
+    src_dir = tmp_path / "audio"
+    dst_dir = tmp_path / "alignment_audio"
+    src_dir.mkdir()
+    (src_dir / "ref.wav").write_bytes(b"RIFF0000WAVE")
+
+    db = _align_session()
+    res = publish_audio_link(
+        src_filename="ref.wav", label="工程師自己", role="engineer",
+        annotator_id="eng1", session_id="s1", expires_at=None,
+        align_db=db, src_audio_dir=src_dir, dst_audio_dir=dst_dir,
+    )
+    link = db.scalars(
+        select(ClientLink).where(ClientLink.id == res.link_id)
+    ).first()
+    assert link.role == "engineer"
+    assert link.annotator_id is None
+    assert link.session_id is None
+    assert link.alignment_audio_id is None
