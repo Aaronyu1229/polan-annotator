@@ -218,6 +218,8 @@ def save_readings(
     if access.annotator_id is not None:
         payload.annotator_id = access.annotator_id
         payload.annotator_role = "client"
+    if access.alignment_audio_id is not None:  # client：鎖死綁定的 ref 音檔
+        payload.audio_id = access.alignment_audio_id
 
     existing = db.scalars(
         select(AlignmentReading).where(
@@ -353,6 +355,8 @@ def save_spec(
     if access.annotator_id is not None:
         payload.annotator_id = access.annotator_id
         payload.annotator_role = "client"
+    if access.alignment_audio_id is not None:  # client：鎖死綁定的 ref 音檔
+        payload.audio_id = access.alignment_audio_id
     existing = db.scalars(
         select(AlignmentSpec).where(
             AlignmentSpec.session_id == payload.session_id,

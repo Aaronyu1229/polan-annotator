@@ -41,7 +41,16 @@ def test_publish_returns_url_and_token(admin_client):
     body = r.json()
     assert body["token"]
     assert "/alignment?token=" in body["client_url"]
-    assert body["session_id"]
+    assert isinstance(body["session_id"], str) and body["session_id"]
+
+
+def test_publish_rejects_invalid_role(admin_client):
+    client, _ = admin_client
+    r = client.post("/api/admin/alignment/publish", json={
+        "filename": "ref.wav", "label": "A", "annotator_id": "c1", "role": "boss",
+    })
+    assert r.status_code == 400
+    assert "role" in r.json()["detail"]
 
 
 def test_links_list_excludes_token(admin_client):

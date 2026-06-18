@@ -122,6 +122,7 @@ def test_prod_mode_accepts_token_via_cookie(gate_engine):
                          alignment_audio_id="aa1"))
         s.commit()
     c = TestClient(_app_with_gate(gate_engine, cf_enabled=True))
-    r = c.get("/probe", cookies={CLIENT_COOKIE: tok})
+    c.cookies.set(CLIENT_COOKIE, tok)
+    r = c.get("/probe")
     assert r.status_code == 200
     assert r.json()["role"] == "client"

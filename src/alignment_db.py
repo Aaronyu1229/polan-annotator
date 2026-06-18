@@ -113,7 +113,7 @@ class ClientLink(AlignmentBase):
     __tablename__ = "client_link"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
+    token_hash: Mapped[str] = mapped_column(String, unique=True)
     role: Mapped[str] = mapped_column(String)                # "client" | "engineer"
     label: Mapped[str] = mapped_column(String)               # 客戶名 / 批次標籤
     annotator_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
