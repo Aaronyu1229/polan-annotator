@@ -3,13 +3,14 @@
 // → 規格區（loop / loop_length）→ submit 串 POST /readings ×2（perceived+target）+ POST /spec。
 // 沿用既有慣例：vanilla、無分號、polan-slider、chip toggle、繁中文案、無多餘動畫。
 
-// ========== context（從 query string 取，給合理預設） ==========
+// ========== context ==========
+// client：由 /context 回傳鎖定值。engineer：沿用 query string。
 const qs = new URLSearchParams(window.location.search)
 const CTX = {
   session_id: qs.get('session_id') || 's1',
   annotator_id: qs.get('annotator_id') || 'guest',
   annotator_role: qs.get('annotator_role') || 'client',
-  audio_id: qs.get('audio_id') || '',
+  alignment_audio_id: qs.get('audio_id') || '',
   audio_role: qs.get('audio_role') || 'ref',
   version: parseInt(qs.get('version') || '0', 10),
 }
@@ -139,7 +140,7 @@ async function submit() {
   })
   const base = {
     session_id: CTX.session_id, annotator_id: CTX.annotator_id,
-    annotator_role: CTX.annotator_role, audio_id: CTX.audio_id,
+    annotator_role: CTX.annotator_role, audio_id: CTX.alignment_audio_id,
     audio_role: CTX.audio_role, version: CTX.version,
   }
   try {
@@ -163,13 +164,26 @@ async function submit() {
 
 // ========== init ==========
 async function init() {
+  try {
+    const ctx = await fetchJson('/api/alignment/context')
+    if (ctx.role === 'client') {
+      CTX.session_id = ctx.session_id
+      CTX.annotator_id = ctx.annotator_id
+      CTX.annotator_role = 'client'
+      CTX.alignment_audio_id = ctx.alignment_audio_id
+    }
+  } catch (err) {
+    showBanner(`無法載入存取資訊：${err.message}`, false)
+    return
+  }
+
   $('context-line').textContent =
     `session ${CTX.session_id} ・ ${CTX.annotator_role} ${CTX.annotator_id} ・ ${CTX.audio_role} v${CTX.version}` +
-    (CTX.audio_id ? ` ・ ${CTX.audio_id}` : '（未指定 audio_id）')
+    (CTX.alignment_audio_id ? ` ・ ${CTX.alignment_audio_id}` : '（未指定音檔）')
 
-  if (CTX.audio_id) {
+  if (CTX.alignment_audio_id) {
     const player = $('player')
-    player.src = `/api/audio/${encodeURIComponent(CTX.audio_id)}/stream`
+    player.src = `/api/alignment/audio/${encodeURIComponent(CTX.alignment_audio_id)}/stream`
     player.classList.remove('hidden')
   }
 
