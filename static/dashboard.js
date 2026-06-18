@@ -37,6 +37,7 @@ async function loadAll() {
     loadStatusCards(),        // Phase 10 — 資料品質狀態分布
     loadExportReadiness(),    // 出貨軌：Dual-View / Expert 可出貨量
     loadVicCredibility(),     // Vic 可信度：Dual-View 賣點
+    loadAlignmentLinks(),     // Task 8 — 發佈客戶對齊連結 (admin only)
   ])
   // progress 依 annotator 個別查 — 用 ICC endpoint 回的 annotators
   // 在 loadIcc 裡 trigger
@@ -412,6 +413,101 @@ function renderOverlapTable(items) {
       <td class="p-3 text-xs text-slate-600 dark:text-slate-400">${it.annotators.map(escapeHtml).join(', ')}</td>
     </tr>
   `).join('')
+}
+
+// 發佈客戶對齊連結（admin only；403 → 靜默隱藏整個 section）
+async function loadAlignmentLinks() {
+  const section = $('alignment-links-section')
+  try {
+    const res = await fetch('/api/admin/alignment/links')
+    if (res.status === 403) { section.classList.add('hidden'); return }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    section.classList.remove('hidden')
+    await fillAudioOptions()
+    renderAlignmentLinks((await res.json()).links)
+    const btn = $('al-publish')
+    if (!btn.dataset.bound) {
+      btn.dataset.bound = '1'
+      btn.addEventListener('click', publishAlignmentLink)
+    }
+  } catch {
+    section.classList.add('hidden')
+  }
+}
+
+async function fillAudioOptions() {
+  const sel = $('al-audio')
+  if (sel.dataset.filled) return
+  try {
+    const res = await fetch('/api/audio')
+    if (!res.ok) return
+    const items = await res.json()
+    sel.innerHTML = items.map(a =>
+      `<option value="${escapeAttr(a.filename)}">${escapeHtml(a.game_name)} – ${escapeHtml(a.game_stage)}</option>`
+    ).join('')
+    sel.dataset.filled = '1'
+  } catch {
+    // 靜默
+  }
+}
+
+async function publishAlignmentLink() {
+  const filename = $('al-audio').value
+  const label = $('al-label').value.trim()
+  if (!filename || !label) { alert('請選音檔並填客戶標籤'); return }
+  const btn = $('al-publish')
+  btn.disabled = true
+  try {
+    const res = await fetch('/api/admin/alignment/publish', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, label, role: 'client', annotator_id: label }),
+    })
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+      throw new Error(e.detail || `HTTP ${res.status}`)
+    }
+    const d = await res.json()
+    const box = $('al-result')
+    box.classList.remove('hidden')
+    box.innerHTML =
+      `連結（只顯示一次，請複製）：<input readonly value="${escapeAttr(d.client_url)}"
+        class="w-full border rounded px-2 py-1 mt-1 font-mono text-xs" onclick="this.select()" />`
+    $('al-label').value = ''
+    await loadAlignmentLinks()
+  } catch (err) {
+    alert(`發佈失敗：${err.message}`)
+  } finally {
+    btn.disabled = false
+  }
+}
+
+function renderAlignmentLinks(links) {
+  const wrap = $('al-links')
+  if (!links.length) { wrap.innerHTML = '<div class="text-sm text-slate-500">尚無連結</div>'; return }
+  wrap.innerHTML = links.map(l => `
+    <div class="flex items-center gap-3 p-2 border-t border-slate-200 dark:border-slate-700">
+      <div class="flex-1 min-w-0">
+        <span class="font-medium">${escapeHtml(l.label)}</span>
+        <span class="text-xs text-slate-500">(${escapeHtml(l.role)}・session ${escapeHtml(l.session_id || '—')})</span>
+        ${l.revoked ? '<span class="text-xs text-rose-600">已撤銷</span>' : ''}
+      </div>
+      ${l.revoked ? '' : `<button type="button" data-revoke="${escapeAttr(l.id)}"
+        class="px-2 py-1 text-xs rounded bg-rose-600 text-white hover:bg-rose-700">撤銷</button>`}
+    </div>
+  `).join('')
+  wrap.querySelectorAll('button[data-revoke]').forEach(b =>
+    b.addEventListener('click', () => revokeAlignmentLink(b.dataset.revoke)))
+}
+
+async function revokeAlignmentLink(linkId) {
+  if (!confirm('確定撤銷此連結？客戶將立即無法存取。')) return
+  try {
+    const res = await fetch(`/api/admin/alignment/links/${encodeURIComponent(linkId)}/revoke`, { method: 'POST' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    await loadAlignmentLinks()
+  } catch (err) {
+    alert(`撤銷失敗：${err.message}`)
+  }
 }
 
 // ─── helpers ──────────────────────────

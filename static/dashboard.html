@@ -89,6 +89,25 @@
       <div id="pending-list" class="space-y-2"></div>
     </section>
 
+    <section id="alignment-links-section" class="hidden mt-6">
+      <h2 class="text-lg font-semibold mb-2">發佈客戶對齊連結</h2>
+      <div class="flex flex-wrap items-end gap-2 mb-3">
+        <label class="text-sm">音檔
+          <select id="al-audio" class="block border rounded px-2 py-1 text-sm"></select>
+        </label>
+        <label class="text-sm">客戶標籤
+          <input id="al-label" type="text" placeholder="例：客戶A 第一批"
+                 class="block border rounded px-2 py-1 text-sm" />
+        </label>
+        <button id="al-publish" type="button"
+                class="px-3 py-1.5 text-sm font-medium rounded bg-amber-600 text-white hover:bg-amber-700">
+          發佈連結
+        </button>
+      </div>
+      <div id="al-result" class="hidden text-sm mb-3"></div>
+      <div id="al-links"></div>
+    </section>
+
     <!-- 1. 各標註員進度 -->
     <section class="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-4">
       <h2 class="text-base font-semibold mb-3">各標註員進度</h2>
