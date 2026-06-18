@@ -23,7 +23,6 @@ from src.alignment_compare import (
     PairResult,
     Reading,
     ReadingSet,
-    SetIdentity,
     compute_variance,
     group_into_sets,
     pair_comparison,
