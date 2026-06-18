@@ -76,3 +76,26 @@ def test_stream_rejects_audio_outside_link(iso):
 def test_context_without_token_rejected(iso):
     client, _tok = iso
     assert client.get("/api/alignment/context").status_code == 401
+
+
+def test_compare_pair_forces_bound_session(iso):
+    client, tok = iso
+    ident = {
+        "session_id": "victim-session", "annotator_id": "x", "annotator_role": "client",
+        "audio_id": "aa1", "audio_role": "ref", "version": 0, "reading_type": "perceived",
+    }
+    r = client.post(f"/api/alignment/compare/pair?token={tok}",
+                    json={"a": ident, "b": ident})
+    # bound session "s1" has no readings → 404, NOT victim-session's data
+    assert r.status_code == 404
+
+
+def test_save_readings_forces_client_session(iso):
+    client, tok = iso
+    r = client.post(f"/api/alignment/readings?token={tok}", json={
+        "session_id": "attacker-chosen", "annotator_id": "x", "annotator_role": "client",
+        "audio_id": "aa1", "audio_role": "ref", "version": 0, "reading_type": "perceived",
+        "values": {"valence": 0.5},
+    })
+    assert r.status_code == 200
+    assert r.json()["session_id"] == "s1"

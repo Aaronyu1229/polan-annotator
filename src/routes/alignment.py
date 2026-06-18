@@ -193,7 +193,9 @@ def stream_alignment_audio(
     audio = db.get(AlignmentAudio, alignment_audio_id)
     if audio is None:
         raise HTTPException(404, f"找不到音檔：{alignment_audio_id}")
-    path = ALIGNMENT_AUDIO_DIR / audio.filename
+    path = (ALIGNMENT_AUDIO_DIR / audio.filename).resolve()
+    if not path.is_relative_to(ALIGNMENT_AUDIO_DIR.resolve()):
+        raise HTTPException(500, "音檔路徑異常")
     if not path.exists():
         raise HTTPException(404, f"音檔檔案不存在：{audio.filename}")
     media_type, _ = mimetypes.guess_type(audio.filename)
@@ -278,9 +280,13 @@ def list_readings(
 @router.post("/compare/pair")
 def compare_pair_endpoint(
     req: PairRequest,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """比對 1/2/4：載入 A、B 兩筆 set，回每維差距 + 是否只變一軸。"""
+    if access.session_id is not None:
+        req.a.session_id = access.session_id
+        req.b.session_id = access.session_id
     set_a = _load_set(db, req.a)
     set_b = _load_set(db, req.b)
     if set_a is None or set_b is None:
@@ -297,9 +303,12 @@ def compare_pair_endpoint(
 @router.post("/compare/variance")
 def compare_variance_endpoint(
     req: VarianceRequest,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """比對 3：載入同一人 / 同 reading_type 下多首 ref 的 set，回每維 spread。"""
+    if access.session_id is not None:
+        req.session_id = access.session_id
     sets: list[ReadingSet] = []
     for audio_id in req.audio_ids:
         idt = Identity(
