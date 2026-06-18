@@ -138,6 +138,12 @@ def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參�
     return FileResponse(STATIC_DIR / "annotate.html")
 
 
+@app.get("/alignment", include_in_schema=False)
+def alignment_page() -> FileResponse:
+    """BGM 對齊標註頁（context 由前端從 query string 解析）。"""
+    return FileResponse(STATIC_DIR / "alignment.html")
+
+
 @app.get("/dashboard", include_in_schema=False)
 def dashboard_page() -> FileResponse:
     """Phase 3：跨標註員 ICC 紅綠燈 + 重疊檔案清單。"""

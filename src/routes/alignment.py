@@ -28,6 +28,7 @@ from src.alignment_compare import (
     pair_comparison,
 )
 from src.alignment_db import AlignmentReading, AlignmentSpec, get_alignment_session
+from src.dimensions_loader import get_bgm_view
 
 router = APIRouter(prefix="/api/alignment", tags=["alignment"])
 log = logging.getLogger("polan.routes.alignment")
@@ -264,6 +265,14 @@ def compare_variance_endpoint(
         if s is not None:
             sets.append(s)
     return {"spread": compute_variance(sets), "n": len(sets)}
+
+
+@router.get("/dimensions")
+def bgm_dimensions() -> dict:
+    """BGM 模式四條感受維度的顯示 view（display_name + 三段錨點 + client_question），依序。"""
+    return {"dimensions": [
+        {"key": key, **get_bgm_view(key)} for key in BGM_DIMENSIONS
+    ]}
 
 
 @router.get("/style-options")

@@ -42,6 +42,18 @@ def _post_set(client, **kw):
 
 
 # ── save + validation ─────────────────────────────────────────────────────
+def test_bgm_dimensions_endpoint(align_client):
+    r = align_client.get("/api/alignment/dimensions")
+    dims = r.json()["dimensions"]
+    assert [d["key"] for d in dims] == [
+        "valence", "tension_direction", "emotional_warmth", "world_immersion",
+    ]
+    ew = next(d for d in dims if d["key"] == "emotional_warmth")
+    assert ew["display_name"] == "柔烈度"
+    assert ew["mid_anchor"] == "柔中帶亮"
+    assert ew["client_question"]
+
+
 def test_save_readings_persists(align_client):
     r = _post_set(align_client)
     assert r.status_code == 200
