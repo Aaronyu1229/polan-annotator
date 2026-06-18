@@ -17,13 +17,14 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
 from src.alignment_db import create_alignment_db
+from src.client_auth import resolve_alignment_access
 from src.config import load_settings
 from src.db import create_db, engine
 from src.routes import (
@@ -139,8 +140,10 @@ def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參�
 
 
 @app.get("/alignment", include_in_schema=False)
-def alignment_page() -> FileResponse:
-    """BGM 對齊標註頁（context 由前端從 query string 解析）。"""
+def alignment_page(
+    _access=Depends(resolve_alignment_access),
+) -> FileResponse:
+    """BGM 對齊標註頁。prod 須帶有效 token（gate 會種 cookie）；dev 放行。"""
     return FileResponse(STATIC_DIR / "alignment.html")
 
 
@@ -170,7 +173,6 @@ def upload_page() -> FileResponse:
 
 
 # Phase 13-B：admin-only HTML page 加 auth gate(非 admin → 302 redirect 到 /)
-from fastapi import Depends  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 
 from src.middleware import require_auth  # noqa: E402
