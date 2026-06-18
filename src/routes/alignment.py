@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,10 +29,16 @@ from src.alignment_compare import (
     group_into_sets,
     pair_comparison,
 )
-from src.alignment_db import AlignmentReading, AlignmentSpec, get_alignment_session
+from src.alignment_db import AlignmentAudio, AlignmentReading, AlignmentSpec, get_alignment_session
+from src.alignment_publish import ALIGNMENT_AUDIO_DIR
+from src.client_auth import AlignmentAccess, resolve_alignment_access
 from src.dimensions_loader import get_bgm_view
 
-router = APIRouter(prefix="/api/alignment", tags=["alignment"])
+router = APIRouter(
+    prefix="/api/alignment",
+    tags=["alignment"],
+    dependencies=[Depends(resolve_alignment_access)],
+)
 log = logging.getLogger("polan.routes.alignment")
 
 ANNOTATOR_ROLES: set[str] = {"engineer", "client"}
@@ -160,14 +168,54 @@ def _load_set(db: Session, idt: Identity) -> ReadingSet | None:
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────
+@router.get("/context")
+def alignment_context(
+    access: AlignmentAccess = Depends(resolve_alignment_access),
+) -> dict:
+    """回前端要載入的上下文。client 為鎖定值；engineer 三欄為 None（前端改讀 query）。"""
+    return {
+        "role": access.role,
+        "annotator_id": access.annotator_id,
+        "session_id": access.session_id,
+        "alignment_audio_id": access.alignment_audio_id,
+    }
+
+
+@router.get("/audio/{alignment_audio_id}/stream")
+def stream_alignment_audio(
+    alignment_audio_id: str,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
+    db: Session = Depends(get_alignment_session),
+) -> FileResponse:
+    """只從 data/alignment_audio/ serve；client 只能串 token 綁定的那支。"""
+    if access.role == "client" and access.alignment_audio_id != alignment_audio_id:
+        raise HTTPException(403, "無權存取此音檔")
+    audio = db.get(AlignmentAudio, alignment_audio_id)
+    if audio is None:
+        raise HTTPException(404, f"找不到音檔：{alignment_audio_id}")
+    path = ALIGNMENT_AUDIO_DIR / audio.filename
+    if not path.exists():
+        raise HTTPException(404, f"音檔檔案不存在：{audio.filename}")
+    media_type, _ = mimetypes.guess_type(audio.filename)
+    if not media_type or not media_type.startswith("audio/"):
+        media_type = "audio/wav"
+    return FileResponse(path=path, media_type=media_type, filename=audio.filename)
+
+
 @router.post("/readings")
 def save_readings(
     payload: ReadingSetPayload,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """Upsert 一組維度值：先刪同身分的舊 row，再寫入新值（idempotent）。"""
     _validate_identity(payload)
     _validate_values(payload.values)
+    if access.session_id is not None:        # client：鎖死 session
+        payload.session_id = access.session_id
+    if access.annotator_id is not None:
+        payload.annotator_id = access.annotator_id
+        payload.annotator_role = "client"
 
     existing = db.scalars(
         select(AlignmentReading).where(
@@ -202,12 +250,14 @@ def save_readings(
 
 @router.get("/readings")
 def list_readings(
-    session_id: str = Query(...),
+    session_id: str = Query(default=""),
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
-    """回傳某 session 全部 reading，已聚成 set（每身分一組維度→值）。"""
+    """回傳某 session 全部 reading；client 一律用 token 綁定的 session_id。"""
+    sid = access.session_id or session_id
     rows = db.scalars(
-        select(AlignmentReading).where(AlignmentReading.session_id == session_id)
+        select(AlignmentReading).where(AlignmentReading.session_id == sid)
     ).all()
     sets = group_into_sets([_row_to_reading(r) for r in rows])
     return {"sets": [
@@ -284,10 +334,16 @@ def style_options() -> dict:
 @router.post("/spec")
 def save_spec(
     payload: SpecPayload,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """Upsert 規格區：先刪同身分舊 row 再寫入（一身分一筆規格）。"""
     _validate_spec(payload)
+    if access.session_id is not None:        # client：鎖死 session
+        payload.session_id = access.session_id
+    if access.annotator_id is not None:
+        payload.annotator_id = access.annotator_id
+        payload.annotator_role = "client"
     existing = db.scalars(
         select(AlignmentSpec).where(
             AlignmentSpec.session_id == payload.session_id,
@@ -317,12 +373,14 @@ def save_spec(
 
 @router.get("/spec")
 def list_specs(
-    session_id: str = Query(...),
+    session_id: str = Query(default=""),
+    access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
-    """回傳某 session 的所有規格區資料。"""
+    """回傳某 session 的所有規格區資料；client 一律用 token 綁定的 session_id。"""
+    sid = access.session_id or session_id
     rows = db.scalars(
-        select(AlignmentSpec).where(AlignmentSpec.session_id == session_id)
+        select(AlignmentSpec).where(AlignmentSpec.session_id == sid)
     ).all()
     return {"specs": [
         {
