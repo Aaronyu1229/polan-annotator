@@ -19,6 +19,19 @@ from src.alignment_db import ClientLink, get_alignment_session
 from src.middleware import _get_settings
 
 CLIENT_COOKIE = "polan_align"
+CLIENT_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 天
+
+
+def set_client_cookie(response: Response, token: str) -> None:
+    """把已驗過的 client token 種成 cookie（gate 與 /alignment 頁路由共用，避免參數漂移）。
+
+    注意：FastAPI 路由直接 return FileResponse 時會丟掉 dependency 在注入 Response 上種的
+    cookie，故 /alignment 頁路由必須在它「實際回傳的」FileResponse 上呼叫本函式。
+    """
+    response.set_cookie(
+        key=CLIENT_COOKIE, value=token, httponly=True, secure=True,
+        samesite="lax", max_age=CLIENT_COOKIE_MAX_AGE,
+    )
 
 
 def generate_token() -> str:
@@ -89,8 +102,5 @@ def resolve_alignment_access(
             raise HTTPException(status.HTTP_403_FORBIDDEN, "此連結已過期")
 
     if from_query:
-        response.set_cookie(
-            key=CLIENT_COOKIE, value=raw, httponly=True, secure=True,
-            samesite="lax", max_age=60 * 60 * 24 * 30,
-        )
+        set_client_cookie(response, raw)
     return _link_to_access(link)

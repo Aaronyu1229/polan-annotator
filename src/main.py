@@ -17,14 +17,14 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
 from src.alignment_db import create_alignment_db
-from src.client_auth import resolve_alignment_access
+from src.client_auth import resolve_alignment_access, set_client_cookie
 from src.config import load_settings
 from src.db import create_db, engine
 from src.routes import (
@@ -141,10 +141,20 @@ def annotate_page(audio_id: str) -> FileResponse:  # noqa: ARG001 — 路徑參�
 
 @app.get("/alignment", include_in_schema=False)
 def alignment_page(
+    request: Request,
     _access=Depends(resolve_alignment_access),
 ) -> FileResponse:
-    """BGM 對齊標註頁。prod 須帶有效 token（gate 會種 cookie）；dev 放行。"""
-    return FileResponse(STATIC_DIR / "alignment.html")
+    """BGM 對齊標註頁。prod 須帶有效 token；dev 放行。
+
+    cookie 必須種在「實際回傳的」FileResponse 上：gate(dependency) 在注入的 Response
+    上種的 cookie 會被直接回傳的 FileResponse 丟掉，導致前端隨後打 /api/alignment/*
+    缺 cookie → 401。token 已由 gate 驗過（無效會在進函式前就 401）。
+    """
+    resp = FileResponse(STATIC_DIR / "alignment.html")
+    token = (request.query_params.get("token") or "").strip()
+    if token:
+        set_client_cookie(resp, token)
+    return resp
 
 
 @app.get("/dashboard", include_in_schema=False)
