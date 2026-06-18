@@ -7,7 +7,14 @@
     "definition": "讓玩家感覺「好」還是「壞」。0=負面失落，1=正向愉悅。博弈音效大多落在 0.5 以上 — 設計原則是即使沒中獎也不要讓玩家感到挫折。",
     "low_anchor": "0.3-0.4: Base Game 連續沒中獎時的 reel stop 聲（刻意做得平淡，讓後面中獎對比更強）",
     "high_anchor": "0.95: Jackpot 中獎的慶祝短樂",
-    "amber_confirmed": true
+    "amber_confirmed": true,
+    "bgm": {
+      "display_name": "情緒正負向",
+      "low_anchor": "陰暗、壓迫、緊繃、憤怒",
+      "mid_anchor": "中性、平穩，無明顯好壞情緒",
+      "high_anchor": "明亮、歡樂、狂喜",
+      "client_question": "這首的底色是明亮歡樂，還是陰暗緊繃？"
+    }
   },
   "arousal": {
     "label_zh": "Arousal 喚醒強度",
@@ -28,7 +35,14 @@
     "low_anchor": "0.1-0.2: 純電子合成音、機械故障警示、金屬摩擦聲、科技感冰冷 UI",
     "high_anchor": "0.85-0.95: 童聲哼唱、溫暖木質樂器（木吉他、直笛、烏克麗麗）、充滿人情味的民謠配器",
     "amber_confirmed": false,
-    "todo_amber": "此維度定義與錨定範例為 Aaron 依你的設計脈絡推敲，請於 Phase 2 試標時確認是否符合你的設計意圖（特別是與 Valence 的獨立性）"
+    "todo_amber": "此維度定義與錨定範例為 Aaron 依你的設計脈絡推敲，請於 Phase 2 試標時確認是否符合你的設計意圖（特別是與 Valence 的獨立性）",
+    "bgm": {
+      "display_name": "柔烈度",
+      "low_anchor": "柔：暖呼呼、圓潤、溫柔的喜慶（像圍爐團圓的暖）",
+      "mid_anchor": "柔中帶亮",
+      "high_anchor": "烈：又亮又衝、鏗鏘炸裂的熱鬧（像廟會、舞龍舞獅的衝）",
+      "client_question": "這首偏柔暖，還是偏明亮衝勁？"
+    }
   },
   "tension_direction": {
     "label_zh": "Tension Direction 張力方向",
@@ -39,7 +53,14 @@
     "low_anchor": "0.05-0.1: Total Win 結算的最後和弦、關卡通關的收尾樂句",
     "high_anchor": "0.9-0.95: 瞇牌時的長 riser、Free Game 觸發前的拉升段、Boss 登場前的鋪墊",
     "amber_confirmed": false,
-    "todo_amber": "舊版 Anticipation 和 Resolution 是分開兩軸，最終版合併為單軸方向。請確認合併方式與 0/1 兩極對應是否正確"
+    "todo_amber": "舊版 Anticipation 和 Resolution 是分開兩軸，最終版合併為單軸方向。請確認合併方式與 0/1 兩極對應是否正確",
+    "bgm": {
+      "display_name": "張力方向",
+      "low_anchor": "穩定維持、有律動但不堆疊（main game 床最常見）",
+      "mid_anchor": "略有起伏",
+      "high_anchor": "明顯起伏推進、越來越緊（觸發前 build-up）",
+      "client_question": "這首是穩穩鋪著，還是一直往上推？"
+    }
   },
   "temporal_position": {
     "label_zh": "Temporal Position 時序位置",
@@ -113,6 +134,13 @@
     "low_anchor": "0.1-0.2: 通用 UI 嗶聲、無風格 tick 音、純抽象合成短音",
     "high_anchor": "0.85-0.95: 中國神話主題的五聲音階＋中國樂器配器（如 Treasure Dragon Bonus Game）、恐怖片式環境氛圍（如 Haunted Spirit）、太空歌劇的宏大管弦樂",
     "amber_confirmed": false,
-    "todo_amber": "此維度可能與 Emotional Warmth、Style Tag 有重疊風險（P1 #5 提到要跑 correlation matrix）。請確認定義方向與獨立性"
+    "todo_amber": "此維度可能與 Emotional Warmth、Style Tag 有重疊風險（P1 #5 提到要跑 correlation matrix）。請確認定義方向與獨立性",
+    "bgm": {
+      "display_name": "世界沉浸感",
+      "low_anchor": "通用、無國界（generic casino 曲，聽不出主題）",
+      "mid_anchor": "有點主題色彩，混搭為主",
+      "high_anchor": "濃烈鮮明的特定世界觀（一聽就知道是中國風）",
+      "client_question": "主題濃度多強？一聽就知道是哪個世界嗎？"
+    }
   }
 }
