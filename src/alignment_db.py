@@ -59,6 +59,32 @@ class AlignmentReading(AlignmentBase):
     )
 
 
+class AlignmentSpec(AlignmentBase):
+    """規格區：某人對某音檔在某 session 的循環/長度/風格要求（非感受值）。
+
+    一筆 = 一個 (session, annotator, role, audio, audio_role, version) 的規格。
+    與感受值（AlignmentReading）分表 —— loop/length/style 不是 0–1 維度、也不分 perceived/target。
+    style_tags 以 JSON list[str] 存（白名單由 API 層驗，spec 明訂不可自由輸入）。
+    """
+    __tablename__ = "alignment_spec"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String, index=True)
+    annotator_id: Mapped[str] = mapped_column(String, index=True)
+    annotator_role: Mapped[str] = mapped_column(String)
+    audio_id: Mapped[str] = mapped_column(String, index=True)
+    audio_role: Mapped[str] = mapped_column(String)
+    version: Mapped[int] = mapped_column(Integer, default=0)
+    loop: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)        # "loop" | "one_shot"
+    loop_length: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)  # 15 | 30 | 60
+    style_tags: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)    # JSON list[str]
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    __table_args__ = (
+        Index("ix_alignment_spec_session_audio", "session_id", "audio_id"),
+    )
+
+
 def make_alignment_engine(path: Path = ALIGNMENT_DB_PATH) -> Engine:
     """建一個指向 alignment.db 的 engine。path 可覆寫（測試用）。"""
     return create_engine(

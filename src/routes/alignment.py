@@ -10,6 +10,7 @@ spec: docs/superpowers/specs/2026-06-18-bgm-alignment-mode-design.md
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,7 +28,7 @@ from src.alignment_compare import (
     group_into_sets,
     pair_comparison,
 )
-from src.alignment_db import AlignmentReading, get_alignment_session
+from src.alignment_db import AlignmentReading, AlignmentSpec, get_alignment_session
 
 router = APIRouter(prefix="/api/alignment", tags=["alignment"])
 log = logging.getLogger("polan.routes.alignment")
@@ -36,6 +37,18 @@ ANNOTATOR_ROLES: set[str] = {"engineer", "client"}
 AUDIO_ROLES: set[str] = {"ref", "deliverable"}
 READING_TYPES: set[str] = {"perceived", "target"}
 _DIMENSIONS: set[str] = set(BGM_DIMENSIONS)
+
+# 規格區（spec §5）
+LOOP_VALUES: set[str] = {"loop", "one_shot"}
+LOOP_LENGTHS: set[int] = {15, 30, 60}
+# 風格標籤白名單（spec §4）— 只能點選、不可自由輸入
+STYLE_TAG_OPTIONS: tuple[str, ...] = (
+    "electronic", "celtic", "orchestral", "modern_pop", "trap", "jazz", "lofi",
+    "chinese_traditional", "epic", "ambient", "kpop", "world", "fantasy", "cute",
+    "realistic", "asian_mythology", "horror", "cyberpunk", "western", "racing",
+    "mystery", "japanese", "undersea", "festival",
+)
+_STYLE_TAG_SET: set[str] = set(STYLE_TAG_OPTIONS)
 
 
 # ── schemas ───────────────────────────────────────────────────────────────
@@ -69,6 +82,19 @@ class VarianceRequest(BaseModel):
     audio_ids: list[str]
 
 
+class SpecPayload(BaseModel):
+    """規格區提交：循環/長度/風格（非感受值、不分 perceived/target）。"""
+    session_id: str
+    annotator_id: str
+    annotator_role: str
+    audio_id: str
+    audio_role: str
+    version: int = 0
+    loop: str | None = None
+    loop_length: int | None = None
+    style_tags: list[str] = Field(default_factory=list)
+
+
 # ── validation ────────────────────────────────────────────────────────────
 def _validate_identity(idt: Identity) -> None:
     if idt.annotator_role not in ANNOTATOR_ROLES:
@@ -85,6 +111,20 @@ def _validate_values(values: dict[str, float]) -> None:
             raise HTTPException(400, f"未知維度 {dim!r}；BGM 模式只接受 {sorted(_DIMENSIONS)}")
         if not 0.0 <= val <= 1.0:
             raise HTTPException(400, f"維度 {dim} 值 {val} 超出範圍 0-1")
+
+
+def _validate_spec(payload: SpecPayload) -> None:
+    if payload.annotator_role not in ANNOTATOR_ROLES:
+        raise HTTPException(400, f"annotator_role 必須是 {sorted(ANNOTATOR_ROLES)}，收到 {payload.annotator_role!r}")
+    if payload.audio_role not in AUDIO_ROLES:
+        raise HTTPException(400, f"audio_role 必須是 {sorted(AUDIO_ROLES)}，收到 {payload.audio_role!r}")
+    if payload.loop is not None and payload.loop not in LOOP_VALUES:
+        raise HTTPException(400, f"loop 必須是 {sorted(LOOP_VALUES)}，收到 {payload.loop!r}")
+    if payload.loop_length is not None and payload.loop_length not in LOOP_LENGTHS:
+        raise HTTPException(400, f"loop_length 必須是 {sorted(LOOP_LENGTHS)}，收到 {payload.loop_length}")
+    bad = [t for t in payload.style_tags if t not in _STYLE_TAG_SET]
+    if bad:
+        raise HTTPException(400, f"未知風格標籤 {bad}；只能從白名單點選，不可自由輸入")
 
 
 # ── db helpers ────────────────────────────────────────────────────────────
@@ -225,3 +265,68 @@ def compare_variance_endpoint(
         if s is not None:
             sets.append(s)
     return {"spread": compute_variance(sets), "n": len(sets)}
+
+
+@router.get("/style-options")
+def style_options() -> dict:
+    """風格標籤白名單（前端只能從這裡點選）。"""
+    return {"style_tags": list(STYLE_TAG_OPTIONS)}
+
+
+@router.post("/spec")
+def save_spec(
+    payload: SpecPayload,
+    db: Session = Depends(get_alignment_session),
+) -> dict:
+    """Upsert 規格區：先刪同身分舊 row 再寫入（一身分一筆規格）。"""
+    _validate_spec(payload)
+    existing = db.scalars(
+        select(AlignmentSpec).where(
+            AlignmentSpec.session_id == payload.session_id,
+            AlignmentSpec.annotator_id == payload.annotator_id,
+            AlignmentSpec.annotator_role == payload.annotator_role,
+            AlignmentSpec.audio_id == payload.audio_id,
+            AlignmentSpec.audio_role == payload.audio_role,
+            AlignmentSpec.version == payload.version,
+        )
+    ).all()
+    for row in existing:
+        db.delete(row)
+    db.add(AlignmentSpec(
+        session_id=payload.session_id,
+        annotator_id=payload.annotator_id,
+        annotator_role=payload.annotator_role,
+        audio_id=payload.audio_id,
+        audio_role=payload.audio_role,
+        version=payload.version,
+        loop=payload.loop,
+        loop_length=payload.loop_length,
+        style_tags=json.dumps(payload.style_tags, ensure_ascii=False),
+    ))
+    db.commit()
+    return {"saved": True, "session_id": payload.session_id, "audio_id": payload.audio_id}
+
+
+@router.get("/spec")
+def list_specs(
+    session_id: str = Query(...),
+    db: Session = Depends(get_alignment_session),
+) -> dict:
+    """回傳某 session 的所有規格區資料。"""
+    rows = db.scalars(
+        select(AlignmentSpec).where(AlignmentSpec.session_id == session_id)
+    ).all()
+    return {"specs": [
+        {
+            "session_id": r.session_id,
+            "annotator_id": r.annotator_id,
+            "annotator_role": r.annotator_role,
+            "audio_id": r.audio_id,
+            "audio_role": r.audio_role,
+            "version": r.version,
+            "loop": r.loop,
+            "loop_length": r.loop_length,
+            "style_tags": json.loads(r.style_tags) if r.style_tags else [],
+        }
+        for r in rows
+    ]}

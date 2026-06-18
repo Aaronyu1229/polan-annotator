@@ -18,20 +18,21 @@ from src.alignment_db import (
 def test_alignment_table_not_in_main_metadata():
     # 若洩漏，db.create_db() 會把它建進 annotations.db
     assert "alignment_reading" not in SQLModel.metadata.tables
+    assert "alignment_spec" not in SQLModel.metadata.tables
 
 
 def test_main_tables_not_in_alignment_metadata():
     names = set(AlignmentBase.metadata.tables.keys())
-    assert names == {"alignment_reading"}
+    assert names == {"alignment_reading", "alignment_spec"}
     assert "annotation" not in names
     assert "audiofile" not in names
 
 
-def test_create_alignment_db_creates_only_alignment_table(tmp_path):
+def test_create_alignment_db_creates_only_alignment_tables(tmp_path):
     db = tmp_path / "alignment.db"
     eng = create_engine(f"sqlite:///{db}")
     create_alignment_db(eng)
-    assert inspect(eng).get_table_names() == ["alignment_reading"]
+    assert sorted(inspect(eng).get_table_names()) == ["alignment_reading", "alignment_spec"]
 
 
 def test_reading_round_trip(tmp_path):
