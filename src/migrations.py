@@ -22,6 +22,8 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     # 2026-05-21: started_at 補足「平均單筆耗時」量測 — created_at - started_at 才是真實
     # 標註花費時間(原本算 updated_at - created_at 量到的是「事後 edit 延遲」,大量為 0)。
     ("annotation", "started_at", "DATETIME"),
+    # 2026-06-18: audio_type (bgm|sfx) — BGM 對齊模式分類。既有列回填 'sfx'(向後相容)。
+    ("audiofile", "audio_type", "TEXT NOT NULL DEFAULT 'sfx'"),
 )
 
 

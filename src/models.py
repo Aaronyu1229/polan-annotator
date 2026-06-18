@@ -32,6 +32,9 @@ class AudioFile(SQLModel, table=True):
     spectral_density_auto: Optional[float] = None
     # 三段式品牌主題曲 flag：temporal_position 的 filename auto-suggest 要跳過這些
     is_brand_theme: bool = Field(default=False)
+    # BGM 對齊模式分類：bgm 走 BGM 錨點/隱藏 arousal 等；既有資料一律 sfx（向後相容）。
+    # 不影響資料集 pipeline，只決定標註 UI 顯示哪套錨點。
+    audio_type: str = Field(default="sfx")
     discovered_at: datetime = Field(default_factory=_utcnow)
     # Phase 10 gold lock：Amber 認證該檔可商用(Sample Pack / Standard / Enterprise)。
     # 其他狀態(untouched / draft / cross_annotated / lockable)由 annotation count 即時推導，
