@@ -1,5 +1,6 @@
 """token 工具 + resolve_alignment_access 依賴。"""
-from datetime import UTC
+import base64
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -22,7 +23,7 @@ from src.client_auth import (
 def test_generate_token_is_high_entropy_and_unique():
     a, b = generate_token(), generate_token()
     assert a != b
-    assert len(a) >= 32
+    assert len(base64.urlsafe_b64decode(a + "==")) >= 32
 
 
 def test_hash_and_verify_roundtrip():
@@ -99,3 +100,28 @@ def test_prod_mode_rejects_revoked_token(gate_engine):
         s.commit()
     c = TestClient(_app_with_gate(gate_engine, cf_enabled=True))
     assert c.get(f"/probe?token={tok}").status_code == 403
+
+
+def test_prod_mode_rejects_expired_token(gate_engine):
+    tok = generate_token()
+    with Session(gate_engine) as s:
+        s.add(ClientLink(id="cl3", token_hash=hash_token(tok), role="client",
+                         label="A", annotator_id="cli1", session_id="s1",
+                         alignment_audio_id="aa1",
+                         expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        s.commit()
+    c = TestClient(_app_with_gate(gate_engine, cf_enabled=True))
+    assert c.get(f"/probe?token={tok}").status_code == 403
+
+
+def test_prod_mode_accepts_token_via_cookie(gate_engine):
+    tok = generate_token()
+    with Session(gate_engine) as s:
+        s.add(ClientLink(id="cl4", token_hash=hash_token(tok), role="client",
+                         label="A", annotator_id="cli1", session_id="s1",
+                         alignment_audio_id="aa1"))
+        s.commit()
+    c = TestClient(_app_with_gate(gate_engine, cf_enabled=True))
+    r = c.get("/probe", cookies={CLIENT_COOKIE: tok})
+    assert r.status_code == 200
+    assert r.json()["role"] == "client"

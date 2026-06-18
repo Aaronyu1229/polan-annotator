@@ -83,8 +83,10 @@ def resolve_alignment_access(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token 無效")
     if link.revoked:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "此連結已被撤銷")
-    if link.expires_at is not None and datetime.now(UTC) > link.expires_at.replace(tzinfo=UTC):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "此連結已過期")
+    if link.expires_at is not None:
+        exp = link.expires_at if link.expires_at.tzinfo is not None else link.expires_at.replace(tzinfo=UTC)
+        if datetime.now(UTC) > exp:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "此連結已過期")
 
     if from_query:
         response.set_cookie(
