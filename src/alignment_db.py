@@ -16,7 +16,7 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import create_engine, Index, String, Float, Integer, DateTime
+from sqlalchemy import create_engine, Index, String, Float, Integer, DateTime, Boolean
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -83,6 +83,45 @@ class AlignmentSpec(AlignmentBase):
     __table_args__ = (
         Index("ix_alignment_spec_session_audio", "session_id", "audio_id"),
     )
+
+
+def _uuid() -> str:
+    import uuid
+    return str(uuid.uuid4())
+
+
+class AlignmentAudio(AlignmentBase):
+    """客戶端音檔倉的一筆。實體檔放 data/alignment_audio/，與 data/audio/ 完全分離。
+
+    orig_audio_id 留存出處（annotations.db 的 AudioFile.id，軟參照、僅供追溯），
+    客戶端 streaming 只認本表 + 本目錄，碰不到內部音檔。
+    """
+    __tablename__ = "alignment_audio"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    filename: Mapped[str] = mapped_column(String)            # data/alignment_audio/ 下的檔名
+    orig_audio_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class ClientLink(AlignmentBase):
+    """一條可分享的存取連結 = 一組 token。token 只存 SHA-256 hash，明文不落地。
+
+    role="client"：鎖死 annotator_id / session_id / alignment_audio_id（客戶只能標自己那份）。
+    role="engineer"：三者為 None，沿用 query string（工程師為信任內部）。
+    """
+    __tablename__ = "client_link"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
+    role: Mapped[str] = mapped_column(String)                # "client" | "engineer"
+    label: Mapped[str] = mapped_column(String)               # 客戶名 / 批次標籤
+    annotator_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    session_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    alignment_audio_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, default=None)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 def make_alignment_engine(path: Path = ALIGNMENT_DB_PATH) -> Engine:

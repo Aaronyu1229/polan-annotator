@@ -9,8 +9,10 @@ from sqlmodel import SQLModel
 
 import src.models  # noqa: F401  確保主 metadata 註冊
 from src.alignment_db import (
+    AlignmentAudio,
     AlignmentBase,
     AlignmentReading,
+    ClientLink,
     create_alignment_db,
 )
 
@@ -23,7 +25,7 @@ def test_alignment_table_not_in_main_metadata():
 
 def test_main_tables_not_in_alignment_metadata():
     names = set(AlignmentBase.metadata.tables.keys())
-    assert names == {"alignment_reading", "alignment_spec"}
+    assert names == {"alignment_reading", "alignment_spec", "alignment_audio", "client_link"}
     assert "annotation" not in names
     assert "audiofile" not in names
 
@@ -32,7 +34,7 @@ def test_create_alignment_db_creates_only_alignment_tables(tmp_path):
     db = tmp_path / "alignment.db"
     eng = create_engine(f"sqlite:///{db}")
     create_alignment_db(eng)
-    assert sorted(inspect(eng).get_table_names()) == ["alignment_reading", "alignment_spec"]
+    assert sorted(inspect(eng).get_table_names()) == ["alignment_audio", "alignment_reading", "alignment_spec", "client_link"]
 
 
 def test_reading_round_trip(tmp_path):
