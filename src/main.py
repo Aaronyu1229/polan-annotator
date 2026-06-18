@@ -23,10 +23,12 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
+from src.alignment_db import create_alignment_db
 from src.config import load_settings
 from src.db import create_db, engine
 from src.routes import (
     admin,
+    alignment,
     annotations,
     audio,
     auth as auth_routes,
@@ -72,6 +74,7 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     create_db()
+    create_alignment_db()  # BGM 對齊獨立庫 data/alignment.db（與 annotations.db 分離）
     with Session(engine) as session:
         result = scan_audio_directory(session)
     log.info(
@@ -116,6 +119,7 @@ app.include_router(feedback.router)
 app.include_router(calibration.api_router)
 app.include_router(calibration.page_router)
 app.include_router(admin.router)
+app.include_router(alignment.router)
 
 
 @app.get("/", include_in_schema=False)
