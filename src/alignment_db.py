@@ -51,6 +51,7 @@ class AlignmentReading(AlignmentBase):
     dimension: Mapped[str] = mapped_column(String)                # valence … world_immersion
     value: Mapped[float] = mapped_column(Float)                   # 0.00–1.00（範圍由 API 層驗）
     reading_type: Mapped[str] = mapped_column(String)            # "perceived" | "target"
+    level_id: Mapped[str] = mapped_column(String, index=True, server_default="", default="")
     note: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
@@ -75,6 +76,7 @@ class AlignmentSpec(AlignmentBase):
     audio_id: Mapped[str] = mapped_column(String, index=True)
     audio_role: Mapped[str] = mapped_column(String)
     version: Mapped[int] = mapped_column(Integer, default=0)
+    level_id: Mapped[str] = mapped_column(String, index=True, server_default="", default="")
     loop: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)        # "loop" | "one_shot"
     loop_length: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)  # 15 | 30 | 60
     style_tags: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)    # JSON list[str]
@@ -140,6 +142,31 @@ def create_alignment_db(eng: Engine = engine) -> None:
     """建立 alignment 表；idempotent。預設建在 data/alignment.db。"""
     ALIGNMENT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     AlignmentBase.metadata.create_all(eng)
+
+
+def _column_exists(conn, table: str, column: str) -> bool:
+    """SQLite PRAGMA table_info 查 column 是否存在（純 SQLAlchemy connection）。"""
+    rows = conn.exec_driver_sql(f"PRAGMA table_info({table})").all()
+    return any(r[1] == column for r in rows)
+
+
+def apply_alignment_migrations(eng: Engine = engine) -> list[str]:
+    """idempotent ALTER：補 level_id 欄到既有 alignment.db。
+
+    與 src/migrations.py（SQLModel session.exec）分離 —— alignment 側是純
+    SQLAlchemy，用 exec_driver_sql。SQLite ADD COLUMN 是 O(1) metadata op。
+    """
+    pending = [
+        ("alignment_reading", "level_id", "VARCHAR NOT NULL DEFAULT ''"),
+        ("alignment_spec", "level_id", "VARCHAR NOT NULL DEFAULT ''"),
+    ]
+    applied: list[str] = []
+    with eng.begin() as conn:
+        for table, column, col_def in pending:
+            if not _column_exists(conn, table, column):
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+                applied.append(f"{table}.{column}")
+    return applied
 
 
 def get_alignment_session() -> Session:

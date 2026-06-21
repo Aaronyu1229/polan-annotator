@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from src.audio_scanner import scan_audio_directory
-from src.alignment_db import create_alignment_db
+from src.alignment_db import apply_alignment_migrations, create_alignment_db
 from src.client_auth import resolve_alignment_access, set_client_cookie
 from src.config import load_settings
 from src.db import create_db, engine
@@ -76,6 +76,7 @@ async def lifespan(app: FastAPI):
     )
     create_db()
     create_alignment_db()  # BGM 對齊獨立庫 data/alignment.db（與 annotations.db 分離）
+    apply_alignment_migrations()  # 補 level_id 欄到既有 alignment.db（idempotent）
     with Session(engine) as session:
         result = scan_audio_directory(session)
     log.info(
