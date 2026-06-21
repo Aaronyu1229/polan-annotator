@@ -57,8 +57,11 @@ function clamp(value, min, max) {
 }
 
 function deltaBadge(delta) {
-  if (delta < 0.1) return { label: '鎖定 · 保留', klass: 'lock' }
-  if (delta < 0.2) return { label: '偏鎖定', klass: 'lock' }
+  // 四捨五入到 2 位再比門檻，與顯示值（toFixed(2)）一致，避免浮點誤差讓
+  // 兩個都顯示 0.10 的 spread 落在不同段（滑桿 step 0.01，差值常是 .10/.20 整數倍）。
+  const d = Math.round(delta * 100) / 100
+  if (d < 0.1) return { label: '鎖定 · 保留', klass: 'lock' }
+  if (d < 0.2) return { label: '偏鎖定', klass: 'lock' }
   return { label: '需確認', klass: 'check' }
 }
 

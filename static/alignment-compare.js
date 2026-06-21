@@ -100,11 +100,16 @@ function formatSigned(value) {
 }
 
 // Spec §7：門檻與 P2 alignment.js 同源；避免回頭抽共用模組動到已驗收頁。
+// 四捨五入到 2 位：讓門檻判定與顯示值（.toFixed(2)）一致，避免 0.55-0.45 之類
+// 浮點誤差讓兩個都顯示 0.10 的值落在不同段（滑桿 step 0.01，差值常是 .10/.20 整數倍）。
+const r2 = (x) => Math.round(x * 100) / 100
+
 function deltaBadge(delta, mode) {
-  if (delta < 0.1) {
+  const d = r2(delta)
+  if (d < 0.1) {
     return { label: mode === 'variance' ? '鎖定 · 保留' : '對齊', klass: 'ok' }
   }
-  if (delta < 0.2) {
+  if (d < 0.2) {
     return { label: mode === 'variance' ? '偏鎖定' : '接近', klass: 'mid' }
   }
   return { label: mode === 'variance' ? '分歧 · 需確認' : '認知落差', klass: 'hot' }
@@ -322,7 +327,7 @@ async function renderTab4(panel) {
     const dir = directionText(dim, diff)
     if (dir.text !== '保持') instructions.push(`${dim.display_name}${dir.text}`)
     return `
-      <tr class="${Math.abs(diff) >= 0.1 ? 'row-hot' : ''}">
+      <tr class="${r2(Math.abs(diff)) >= 0.1 ? 'row-hot' : ''}">
         <td class="dimn">${dim.display_name}</td>
         <td>${trackDots([{ klass: 'cli', value: perceivedValue }, { klass: 'cli', value: targetValue, target: true }])}</td>
         <td class="center num">${formatValue(perceivedValue)}</td>
@@ -461,7 +466,7 @@ async function renderTab2(panel) {
     const d2 = version2 ? version2.diffs[dim.key] : undefined
     const lastDelta = typeof d2 === 'number' ? d2 : d1
     const firstDelta = typeof d1 === 'number' ? d1 : d2
-    const ok = typeof lastDelta === 'number' && lastDelta < 0.1
+    const ok = typeof lastDelta === 'number' && r2(lastDelta) < 0.1
     const conv = `${formatDelta(firstDelta)}→${formatDelta(lastDelta)} ${ok ? '✓' : '✗'}`
     return `
       <tr class="${ok ? '' : 'row-hot'}">
@@ -478,7 +483,7 @@ async function renderTab2(panel) {
 
   const lastVersion = version2 || version1
   const nextVersion = lastVersion.version + 1
-  const openDims = dimensions.filter((dim) => (lastVersion.diffs[dim.key] || 0) >= 0.1)
+  const openDims = dimensions.filter((dim) => r2(lastVersion.diffs[dim.key] || 0) >= 0.1)
   let reading = '其餘已達標別再動'
   if (openDims.length) {
     const dim = openDims.reduce((best, item) => {
