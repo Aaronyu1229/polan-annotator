@@ -94,6 +94,21 @@ def test_list_groups_into_sets(align_client):
     assert len(r.json()["sets"]) == 2
 
 
+def test_readings_scoped_by_level(align_client):
+    base = dict(session_id="s1", annotator_id="amber", annotator_role="engineer",
+                audio_role="ref", version=0, reading_type="perceived")
+    # 同 session、不同 level 各存一筆
+    align_client.post("/api/alignment/readings", json={
+        **base, "level_id": "L1", "audio_id": "refA", "values": {"valence": 0.9}})
+    align_client.post("/api/alignment/readings", json={
+        **base, "level_id": "L2", "audio_id": "refB", "values": {"valence": 0.2}})
+    r = align_client.get("/api/alignment/readings", params={"session_id": "s1", "level_id": "L1"})
+    sets = r.json()["sets"]
+    assert len(sets) == 1
+    assert sets[0]["audio_id"] == "refA"
+    assert sets[0]["level_id"] == "L1"
+
+
 # ── compare/pair ──────────────────────────────────────────────────────────
 def test_compare_pair_engineer_vs_client(align_client):
     _post_set(align_client, annotator_role="engineer", annotator_id="eng1",
