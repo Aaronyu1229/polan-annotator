@@ -25,6 +25,7 @@ from src.alignment_compare import (
     PairResult,
     Reading,
     ReadingSet,
+    compare_pair,
     compute_variance,
     group_into_sets,
     pair_comparison,
@@ -67,6 +68,7 @@ class Identity(BaseModel):
     audio_id: str
     audio_role: str
     version: int = 0
+    level_id: str = ""
     reading_type: str
 
 
@@ -82,6 +84,7 @@ class PairRequest(BaseModel):
 
 class VarianceRequest(BaseModel):
     session_id: str
+    level_id: str = ""
     annotator_id: str
     annotator_role: str
     audio_role: str
@@ -90,9 +93,20 @@ class VarianceRequest(BaseModel):
     audio_ids: list[str]
 
 
+class ConvergenceRequest(BaseModel):
+    session_id: str
+    level_id: str = ""
+    annotator_id: str
+    annotator_role: str
+    goal_audio_id: str          # 主 ref（取其 reading_type=target）
+    deliverable_audio_id: str   # 新曲
+    versions: list[int]
+
+
 class SpecPayload(BaseModel):
     """規格區提交：循環/長度/風格（非感受值、不分 perceived/target）。"""
     session_id: str
+    level_id: str = ""
     annotator_id: str
     annotator_role: str
     audio_id: str
@@ -147,6 +161,7 @@ def _row_to_reading(row: AlignmentReading) -> Reading:
         dimension=row.dimension,
         value=row.value,
         reading_type=row.reading_type,
+        level_id=row.level_id,
     )
 
 
@@ -154,6 +169,7 @@ def _load_set(db: Session, idt: Identity) -> ReadingSet | None:
     rows = db.scalars(
         select(AlignmentReading).where(
             AlignmentReading.session_id == idt.session_id,
+            AlignmentReading.level_id == idt.level_id,
             AlignmentReading.annotator_id == idt.annotator_id,
             AlignmentReading.annotator_role == idt.annotator_role,
             AlignmentReading.audio_id == idt.audio_id,
@@ -224,6 +240,7 @@ def save_readings(
     existing = db.scalars(
         select(AlignmentReading).where(
             AlignmentReading.session_id == payload.session_id,
+            AlignmentReading.level_id == payload.level_id,
             AlignmentReading.annotator_id == payload.annotator_id,
             AlignmentReading.annotator_role == payload.annotator_role,
             AlignmentReading.audio_id == payload.audio_id,
@@ -238,6 +255,7 @@ def save_readings(
     for dim, val in payload.values.items():
         db.add(AlignmentReading(
             session_id=payload.session_id,
+            level_id=payload.level_id,
             annotator_id=payload.annotator_id,
             annotator_role=payload.annotator_role,
             audio_id=payload.audio_id,
@@ -255,18 +273,21 @@ def save_readings(
 @router.get("/readings")
 def list_readings(
     session_id: str = Query(default=""),
+    level_id: str = Query(default=""),
     access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """回傳某 session 全部 reading；client 一律用 token 綁定的 session_id。"""
     sid = access.session_id or session_id
-    rows = db.scalars(
-        select(AlignmentReading).where(AlignmentReading.session_id == sid)
-    ).all()
+    stmt = select(AlignmentReading).where(AlignmentReading.session_id == sid)
+    if level_id:
+        stmt = stmt.where(AlignmentReading.level_id == level_id)
+    rows = db.scalars(stmt).all()
     sets = group_into_sets([_row_to_reading(r) for r in rows])
     return {"sets": [
         {
             "session_id": s.identity.session_id,
+            "level_id": s.identity.level_id,
             "annotator_id": s.identity.annotator_id,
             "annotator_role": s.identity.annotator_role,
             "audio_id": s.identity.audio_id,
@@ -315,6 +336,7 @@ def compare_variance_endpoint(
     for audio_id in req.audio_ids:
         idt = Identity(
             session_id=req.session_id,
+            level_id=req.level_id,
             annotator_id=req.annotator_id,
             annotator_role=req.annotator_role,
             audio_id=audio_id,
@@ -326,6 +348,46 @@ def compare_variance_endpoint(
         if s is not None:
             sets.append(s)
     return {"spread": compute_variance(sets), "n": len(sets)}
+
+
+@router.post("/compare/convergence")
+def compare_convergence_endpoint(
+    req: ConvergenceRequest,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
+    db: Session = Depends(get_alignment_session),
+) -> dict:
+    """比對②：主 ref 的 target 當目標，逐版算新曲 deliverable perceived 的差距。
+
+    刻意繞過『一次只變一軸』守門 —— goal↔deliverable 本就是跨軸的目標比對。
+    """
+    if access.session_id is not None:
+        req.session_id = access.session_id
+    goal_idt = Identity(
+        session_id=req.session_id, level_id=req.level_id,
+        annotator_id=req.annotator_id, annotator_role=req.annotator_role,
+        audio_id=req.goal_audio_id, audio_role="ref", version=0,
+        reading_type="target",
+    )
+    goal = _load_set(db, goal_idt)
+    if goal is None:
+        raise HTTPException(404, f"查無主 ref 的 target：{req.goal_audio_id}")
+    out_versions: list[dict] = []
+    for v in req.versions:
+        ver_idt = Identity(
+            session_id=req.session_id, level_id=req.level_id,
+            annotator_id=req.annotator_id, annotator_role=req.annotator_role,
+            audio_id=req.deliverable_audio_id, audio_role="deliverable", version=v,
+            reading_type="perceived",
+        )
+        ver = _load_set(db, ver_idt)
+        if ver is None:
+            continue
+        out_versions.append({
+            "version": v,
+            "values": ver.values,
+            "diffs": compare_pair(goal, ver),  # per-dim abs diff，不套守門
+        })
+    return {"goal": goal.values, "versions": out_versions}
 
 
 @router.get("/dimensions")
@@ -360,6 +422,7 @@ def save_spec(
     existing = db.scalars(
         select(AlignmentSpec).where(
             AlignmentSpec.session_id == payload.session_id,
+            AlignmentSpec.level_id == payload.level_id,
             AlignmentSpec.annotator_id == payload.annotator_id,
             AlignmentSpec.annotator_role == payload.annotator_role,
             AlignmentSpec.audio_id == payload.audio_id,
@@ -371,6 +434,7 @@ def save_spec(
         db.delete(row)
     db.add(AlignmentSpec(
         session_id=payload.session_id,
+        level_id=payload.level_id,
         annotator_id=payload.annotator_id,
         annotator_role=payload.annotator_role,
         audio_id=payload.audio_id,
@@ -387,17 +451,20 @@ def save_spec(
 @router.get("/spec")
 def list_specs(
     session_id: str = Query(default=""),
+    level_id: str = Query(default=""),
     access: AlignmentAccess = Depends(resolve_alignment_access),
     db: Session = Depends(get_alignment_session),
 ) -> dict:
     """回傳某 session 的所有規格區資料；client 一律用 token 綁定的 session_id。"""
     sid = access.session_id or session_id
-    rows = db.scalars(
-        select(AlignmentSpec).where(AlignmentSpec.session_id == sid)
-    ).all()
+    stmt = select(AlignmentSpec).where(AlignmentSpec.session_id == sid)
+    if level_id:
+        stmt = stmt.where(AlignmentSpec.level_id == level_id)
+    rows = db.scalars(stmt).all()
     return {"specs": [
         {
             "session_id": r.session_id,
+            "level_id": r.level_id,
             "annotator_id": r.annotator_id,
             "annotator_role": r.annotator_role,
             "audio_id": r.audio_id,

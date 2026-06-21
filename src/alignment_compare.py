@@ -37,6 +37,7 @@ class Reading:
     dimension: str
     value: float
     reading_type: str     # perceived | target
+    level_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class SetIdentity:
     audio_role: str
     version: int
     reading_type: str
+    level_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,7 @@ class PairResult:
 def _identity_of(r: Reading) -> SetIdentity:
     return SetIdentity(
         session_id=r.session_id,
+        level_id=r.level_id,
         annotator_id=r.annotator_id,
         annotator_role=r.annotator_role,
         audio_id=r.audio_id,
@@ -106,6 +109,8 @@ def differing_axes(a: SetIdentity, b: SetIdentity) -> list[str]:
         axes.append("who")
     if a.session_id != b.session_id:
         axes.append("session")
+    if a.level_id != b.level_id:
+        axes.append("level")
     if a.audio_role != b.audio_role:
         axes.append("audio_role")
     if a.version != b.version:

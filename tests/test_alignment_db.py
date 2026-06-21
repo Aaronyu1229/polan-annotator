@@ -13,7 +13,9 @@ from src.alignment_db import (
     AlignmentBase,
     AlignmentReading,
     ClientLink,
+    apply_alignment_migrations,
     create_alignment_db,
+    make_alignment_engine,
 )
 
 
@@ -53,3 +55,29 @@ def test_reading_round_trip(tmp_path):
         assert row.value == 0.9
         assert row.reading_type == "perceived"
         assert row.created_at is not None
+
+
+def _column_names(eng, table):
+    with eng.begin() as conn:
+        rows = conn.exec_driver_sql(f"PRAGMA table_info({table})").all()
+    return {r[1] for r in rows}
+
+
+def test_level_id_column_added_and_idempotent(tmp_path):
+    db = tmp_path / "alignment.db"
+    eng = make_alignment_engine(db)
+    # 先建一個「沒有 level_id」的舊版表，模擬既有 alignment.db
+    with eng.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE TABLE alignment_reading (id INTEGER PRIMARY KEY, session_id VARCHAR)"
+        )
+        conn.exec_driver_sql(
+            "CREATE TABLE alignment_spec (id INTEGER PRIMARY KEY, session_id VARCHAR)"
+        )
+    applied = apply_alignment_migrations(eng)
+    assert "alignment_reading.level_id" in applied
+    assert "alignment_spec.level_id" in applied
+    assert "level_id" in _column_names(eng, "alignment_reading")
+    assert "level_id" in _column_names(eng, "alignment_spec")
+    # 再跑一次不應重複套用
+    assert apply_alignment_migrations(eng) == []

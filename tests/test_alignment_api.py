@@ -94,6 +94,21 @@ def test_list_groups_into_sets(align_client):
     assert len(r.json()["sets"]) == 2
 
 
+def test_readings_scoped_by_level(align_client):
+    base = dict(session_id="s1", annotator_id="amber", annotator_role="engineer",
+                audio_role="ref", version=0, reading_type="perceived")
+    # 同 session、不同 level 各存一筆
+    align_client.post("/api/alignment/readings", json={
+        **base, "level_id": "L1", "audio_id": "refA", "values": {"valence": 0.9}})
+    align_client.post("/api/alignment/readings", json={
+        **base, "level_id": "L2", "audio_id": "refB", "values": {"valence": 0.2}})
+    r = align_client.get("/api/alignment/readings", params={"session_id": "s1", "level_id": "L1"})
+    sets = r.json()["sets"]
+    assert len(sets) == 1
+    assert sets[0]["audio_id"] == "refA"
+    assert sets[0]["level_id"] == "L1"
+
+
 # ── compare/pair ──────────────────────────────────────────────────────────
 def test_compare_pair_engineer_vs_client(align_client):
     _post_set(align_client, annotator_role="engineer", annotator_id="eng1",
@@ -152,3 +167,30 @@ def test_compare_variance_across_refs(align_client):
     assert body["n"] == 2
     assert round(body["spread"]["valence"], 2) == 0.05
     assert round(body["spread"]["emotional_warmth"], 2) == 0.55
+
+
+def test_convergence_diffs_against_goal(align_client):
+    # goal = 主 ref 的 target
+    align_client.post("/api/alignment/readings", json={
+        "session_id": "s1", "level_id": "L1", "annotator_id": "amber",
+        "annotator_role": "client", "audio_id": "refA", "audio_role": "ref",
+        "version": 0, "reading_type": "target", "values": {"valence": 0.90}})
+    # v1 / v2 = 新曲 deliverable perceived
+    align_client.post("/api/alignment/readings", json={
+        "session_id": "s1", "level_id": "L1", "annotator_id": "amber",
+        "annotator_role": "client", "audio_id": "song", "audio_role": "deliverable",
+        "version": 1, "reading_type": "perceived", "values": {"valence": 0.80}})
+    align_client.post("/api/alignment/readings", json={
+        "session_id": "s1", "level_id": "L1", "annotator_id": "amber",
+        "annotator_role": "client", "audio_id": "song", "audio_role": "deliverable",
+        "version": 2, "reading_type": "perceived", "values": {"valence": 0.88}})
+    r = align_client.post("/api/alignment/compare/convergence", json={
+        "session_id": "s1", "level_id": "L1", "annotator_id": "amber",
+        "annotator_role": "client", "goal_audio_id": "refA",
+        "deliverable_audio_id": "song", "versions": [1, 2]})
+    body = r.json()
+    assert body["goal"]["valence"] == 0.90
+    v1 = next(v for v in body["versions"] if v["version"] == 1)
+    v2 = next(v for v in body["versions"] if v["version"] == 2)
+    assert abs(v1["diffs"]["valence"] - 0.10) < 1e-9
+    assert abs(v2["diffs"]["valence"] - 0.02) < 1e-9
