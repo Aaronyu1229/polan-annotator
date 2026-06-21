@@ -67,6 +67,7 @@ function setRole(role) {
   $('role-client').classList.toggle('on', role === 'client')
   $('role-engineer').classList.toggle('on', role === 'engineer')
   $('role-label').textContent = `${role === 'client' ? '客戶' : '音效師'} ${CTX.annotator_id}`
+  renderProgress(0, 0)
 }
 
 function ensureState() {
@@ -253,14 +254,82 @@ function updateDelta(dimKey) {
 }
 
 function renderFooter() {
-  $('foot').innerHTML = ''
+  const foot = $('foot')
+  foot.innerHTML = ''
+  CTX.audio_ids.forEach((audioId) => {
+    const meta = refMeta(audioId)
+    const card = document.createElement('div')
+    card.className = 'fcard'
+    card.innerHTML = `
+      <div class="ft"><span class="refdot" style="background:${meta.color}">${meta.letter}</span>${meta.name} · 標籤 / 規格</div>
+      <div class="grp">想額外加的元素</div>
+      <div class="style-tags"></div>
+      <div class="grp">規格</div>
+      <div class="spec-line loop-options"></div>
+      <div class="spec-line length-options"></div>
+    `
+
+    const styleBox = card.querySelector('.style-tags')
+    styleTags.forEach((tag) => {
+      styleBox.appendChild(makeChip(tag, tag, spec[audioId].style_tags.includes(tag), (chip) => {
+        chip.classList.toggle('on')
+        if (chip.classList.contains('on')) {
+          spec[audioId].style_tags.push(tag)
+        } else {
+          spec[audioId].style_tags = spec[audioId].style_tags.filter((value) => value !== tag)
+        }
+      }))
+    })
+
+    renderSingleSelect(card.querySelector('.loop-options'), [
+      ['無縫循環', 'loop'],
+      ['一次性', 'one_shot']
+    ], spec[audioId].loop, (value) => {
+      spec[audioId].loop = value
+    })
+    renderSingleSelect(card.querySelector('.length-options'), [
+      ['~15s', 15],
+      ['~30s', 30],
+      ['~60s', 60]
+    ], spec[audioId].loop_length, (value) => {
+      spec[audioId].loop_length = value
+    })
+
+    foot.appendChild(card)
+  })
+}
+
+function makeChip(label, value, selected, onClick) {
+  const chip = document.createElement('button')
+  chip.type = 'button'
+  chip.className = selected ? 'chip on' : 'chip'
+  chip.dataset.value = value
+  chip.textContent = label
+  chip.addEventListener('click', () => onClick(chip, value))
+  return chip
+}
+
+function renderSingleSelect(box, options, selectedValue, onPick) {
+  options.forEach(([label, value]) => {
+    const chip = makeChip(label, value, selectedValue === value, () => {
+      box.querySelectorAll('.chip').forEach((item) => item.classList.remove('on'))
+      chip.classList.add('on')
+      onPick(value)
+    })
+    box.appendChild(chip)
+  })
+}
+
+function renderProgress(ownDone, otherDone) {
+  if (!$('progress')) return
+  const roleLabel = CTX.annotator_role === 'client' ? '客戶' : '音效師'
+  $('progress').innerHTML = `本關進度　<b>${ownDone} / ${CTX.audio_ids.length} 首已標</b>（你 · ${roleLabel}）　·　對方：<b>${otherDone} / ${CTX.audio_ids.length}</b>`
 }
 
 function renderChrome() {
   $('level-label').textContent = CTX.level_label
   $('session-label').textContent = CTX.session_id
   $('compare-link').href = `/static/alignment-compare.html?session_id=${encodeURIComponent(CTX.session_id)}&level_id=${encodeURIComponent(CTX.level_id)}`
-  $('progress').innerHTML = `本關進度　<b>0 / ${CTX.audio_ids.length} 首已標</b>（你 · ${CTX.annotator_role === 'client' ? '客戶' : '音效師'}）　·　對方：<b>0 / ${CTX.audio_ids.length}</b>`
   setRole(CTX.annotator_role)
 }
 
