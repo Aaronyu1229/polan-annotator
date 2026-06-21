@@ -25,6 +25,7 @@ from src.alignment_compare import (
     PairResult,
     Reading,
     ReadingSet,
+    compare_pair,
     compute_variance,
     group_into_sets,
     pair_comparison,
@@ -90,6 +91,16 @@ class VarianceRequest(BaseModel):
     version: int = 0
     reading_type: str
     audio_ids: list[str]
+
+
+class ConvergenceRequest(BaseModel):
+    session_id: str
+    level_id: str = ""
+    annotator_id: str
+    annotator_role: str
+    goal_audio_id: str          # 主 ref（取其 reading_type=target）
+    deliverable_audio_id: str   # 新曲
+    versions: list[int]
 
 
 class SpecPayload(BaseModel):
@@ -337,6 +348,46 @@ def compare_variance_endpoint(
         if s is not None:
             sets.append(s)
     return {"spread": compute_variance(sets), "n": len(sets)}
+
+
+@router.post("/compare/convergence")
+def compare_convergence_endpoint(
+    req: ConvergenceRequest,
+    access: AlignmentAccess = Depends(resolve_alignment_access),
+    db: Session = Depends(get_alignment_session),
+) -> dict:
+    """比對②：主 ref 的 target 當目標，逐版算新曲 deliverable perceived 的差距。
+
+    刻意繞過『一次只變一軸』守門 —— goal↔deliverable 本就是跨軸的目標比對。
+    """
+    if access.session_id is not None:
+        req.session_id = access.session_id
+    goal_idt = Identity(
+        session_id=req.session_id, level_id=req.level_id,
+        annotator_id=req.annotator_id, annotator_role=req.annotator_role,
+        audio_id=req.goal_audio_id, audio_role="ref", version=0,
+        reading_type="target",
+    )
+    goal = _load_set(db, goal_idt)
+    if goal is None:
+        raise HTTPException(404, f"查無主 ref 的 target：{req.goal_audio_id}")
+    out_versions: list[dict] = []
+    for v in req.versions:
+        ver_idt = Identity(
+            session_id=req.session_id, level_id=req.level_id,
+            annotator_id=req.annotator_id, annotator_role=req.annotator_role,
+            audio_id=req.deliverable_audio_id, audio_role="deliverable", version=v,
+            reading_type="perceived",
+        )
+        ver = _load_set(db, ver_idt)
+        if ver is None:
+            continue
+        out_versions.append({
+            "version": v,
+            "values": ver.values,
+            "diffs": compare_pair(goal, ver),  # per-dim abs diff，不套守門
+        })
+    return {"goal": goal.values, "versions": out_versions}
 
 
 @router.get("/dimensions")
