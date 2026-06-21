@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>四組比對 · BGM 對齊</title>
+  <style>
+    :root{
+      --ink:#1b1f27; --paper:#f4f2ec; --panel:#fff; --hair:#e6e1d6; --muted:#7b7466; --line:#d8d3c8;
+      --refA:#3f6f8f; --refB:#dc7a18; --refC:#5b8f3f; --refD:#8f3f6f;
+      --ok:#2f8f5b; --okbg:#e3f3ea; --mid:#b07d12; --midbg:#f7eccb; --hot:#c4571a; --hotbg:#fbe6da;
+      --eng:#5b4b8a; --cli:#1f6f6a;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system,system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.4;padding:22px;-webkit-font-smoothing:antialiased}
+    .wrap{max-width:980px;margin:0 auto}
+    mono,.mono{font-family:ui-monospace,Menlo,monospace}
+
+    .top{border-bottom:2px solid var(--ink);padding-bottom:11px;margin-bottom:14px}
+    .top h1{font-size:21px;font-weight:800}
+    .crumbs{font-size:11.5px;color:var(--muted);margin-top:3px}
+    .crumbs b{color:var(--ink)}
+
+    .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;cursor:pointer;font-family:inherit;text-align:left;min-width:150px}
+    .tab .tn{font-size:13px;font-weight:700;color:var(--ink)}
+    .tab .tc{font-size:10.5px;color:var(--muted);margin-top:2px}
+    .tab.on{border-color:var(--ink);background:var(--ink)}
+    .tab.on .tn{color:#fff}
+    .tab.on .tc{color:#cfcabd}
+
+    .panel{display:none}
+    .panel.on{display:block}
+
+    .setup{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#faf8f3;border:1px solid var(--hair);border-radius:8px;padding:11px 15px;margin-bottom:12px;font-size:12px}
+    .setup .seg{display:flex;align-items:center;gap:7px}
+    .setup .lbl{color:var(--muted);font-size:11px}
+    .pill{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 10px;font-size:11.5px}
+    .pill.lock{color:var(--muted);background:#f0ede6}
+    .pill.A{border-color:var(--refA);color:var(--refA);font-weight:700}
+    .pill.B{border-color:var(--refB);color:var(--refB);font-weight:700}
+    .pill.C{border-color:var(--refC);color:var(--refC);font-weight:700}
+    .pill.D{border-color:var(--refD);color:var(--refD);font-weight:700}
+    .pill.eng{border-color:var(--eng);color:var(--eng);font-weight:700}
+    .pill.cli{border-color:var(--cli);color:var(--cli);font-weight:700}
+    .vs{color:var(--muted);font-weight:700}
+    .hint{margin-left:auto;font-size:10.5px;color:var(--muted)}
+
+    table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+    th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--hair);font-size:13px}
+    th{background:#faf8f3;font-size:11px;color:var(--muted);font-weight:700}
+    tr:last-child td{border-bottom:none}
+    .dimn{font-weight:700}
+    .num{font-family:ui-monospace,monospace;font-weight:700}
+    td.center,th.center{text-align:center}
+    .badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:14px;white-space:nowrap}
+    .b-ok{background:var(--okbg);color:var(--ok)}
+    .b-mid{background:var(--midbg);color:var(--mid)}
+    .b-hot{background:var(--hotbg);color:var(--hot)}
+    .row-hot{background:#fffaf3}
+
+    .mtrack{position:relative;height:5px;border-radius:3px;background:linear-gradient(90deg,#cdd6dd,#e6e2da 50%,#f3d9b6);min-width:120px}
+    .dot{position:absolute;top:50%;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+    .dot.A{background:var(--refA)}
+    .dot.B{background:var(--refB)}
+    .dot.C{background:var(--refC)}
+    .dot.D{background:var(--refD)}
+    .dot.eng{background:var(--eng)}
+    .dot.cli{background:var(--cli)}
+    .dot.t{background:#fff}
+    .dot.t.cli{border-color:var(--cli);border-width:2.5px}
+
+    .arrow{font-weight:800;font-size:15px}
+    .up{color:var(--ok)}
+    .down{color:var(--hot)}
+    .eq{color:var(--muted)}
+
+    .read{margin-top:12px;background:#eef3f6;border:1px solid #cfdee6;border-radius:8px;padding:12px 16px;font-size:12px;color:#365462;line-height:1.6}
+    .read b{color:var(--ink)}
+    .read.warm{background:#fbeede;border-color:#ecd3ad;color:#6b4a18}
+
+    .conv{font-family:ui-monospace,monospace;font-size:11px}
+    .empty{background:#fff;border:1px solid var(--hair);border-radius:8px;padding:18px 16px;font-size:12px;color:var(--muted)}
+    .error{background:#fff5ef;border-color:#efc6b5;color:var(--hot)}
+    .refpick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+    .refpick button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 10px;font-size:11.5px;font-family:inherit;color:var(--ink);cursor:pointer}
+    .refpick button.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:700}
+
+    @media (max-width: 760px) {
+      body{padding:14px}
+      .tab{min-width:calc(50% - 3px)}
+      table{display:block;overflow-x:auto}
+      .hint{margin-left:0}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>四組比對</h1>
+      <div class="crumbs">
+        session <b id="session-label">-</b>
+        &nbsp;·&nbsp; 關卡 <b id="level-label">-</b>
+        &nbsp;·&nbsp; 維度 <b id="dimension-count">-</b>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" type="button" data-tab="1"><div class="tn">① 音效師 vs 客戶</div><div class="tc">開案前 · 給音效師 · 對齊認知</div></button>
+      <button class="tab" type="button" data-tab="4"><div class="tn">④ 聽到 vs 預期</div><div class="tc">開案前 · 跟客戶討論 · 看方向</div></button>
+      <button class="tab" type="button" data-tab="3"><div class="tn">③ 同關卡多 ref</div><div class="tc">開案前 · 聚焦方向</div></button>
+      <button class="tab" type="button" data-tab="2"><div class="tn">② 第一版 vs 第二版</div><div class="tc">開案後 · 客戶標 · 看收斂</div></button>
+    </div>
+
+    <div class="panel on" id="p1"></div>
+    <div class="panel" id="p4"></div>
+    <div class="panel" id="p3"></div>
+    <div class="panel" id="p2"></div>
+  </div>
+
+  <script src="/static/alignment-compare.js"></script>
+</body>
+</html>
