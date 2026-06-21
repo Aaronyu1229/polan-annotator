@@ -18,7 +18,7 @@ let dimensions = []
 let sets = []
 let currentTab = '1'
 const renderedTabs = new Set()
-const selectedRefs = { 4: '' }
+const selectedRefs = { 4: '', 2: '' }
 
 const $ = (id) => document.getElementById(id)
 
@@ -41,6 +41,9 @@ function discoverContext() {
   const roles = []
   const refs = []
   const versions = []
+  const clientIds = []
+  const clientIdsWithTarget = []
+  const clientIdsWithDeliverable = []
   let deliverable = ''
   let clientId = qs.get('annotator_id') || ''
   let engineerId = ''
@@ -52,14 +55,18 @@ function discoverContext() {
       deliverable = deliverable || set.audio_id
       uniqPush(versions, set.version)
     }
-    if (set.annotator_role === 'client') clientId = clientId || set.annotator_id
+    if (set.annotator_role === 'client') {
+      uniqPush(clientIds, set.annotator_id)
+      if (set.reading_type === 'target') uniqPush(clientIdsWithTarget, set.annotator_id)
+      if (set.audio_role === 'deliverable') uniqPush(clientIdsWithDeliverable, set.annotator_id)
+    }
     if (set.annotator_role === 'engineer') engineerId = engineerId || set.annotator_id
   })
 
   CTX.roles = roles
   CTX.refs = refs
-  CTX.clientId = clientId
-  CTX.engineerId = engineerId || clientId
+  CTX.clientId = clientId || clientIdsWithDeliverable[0] || clientIdsWithTarget[0] || clientIds[0] || ''
+  CTX.engineerId = engineerId || CTX.clientId
   CTX.deliverable = deliverable
   CTX.versions = versions.filter((version) => Number.isFinite(version) && version > 0).sort(compareNumber)
 }
@@ -104,8 +111,10 @@ function deltaBadge(delta, mode) {
 }
 
 function findSet(role, audioId, readingType, version, audioRole) {
+  const annotatorId = role === 'client' ? CTX.clientId : CTX.engineerId
   return sets.find((set) =>
     set.annotator_role === role &&
+    (!annotatorId || set.annotator_id === annotatorId) &&
     set.audio_id === audioId &&
     set.audio_role === audioRole &&
     set.version === version &&
@@ -180,8 +189,8 @@ async function renderTab(tab) {
   try {
     if (tab === '1') await renderTab1(panel)
     if (tab === '4') await renderTab4(panel)
-    if (tab === '3') panel.innerHTML = empty('同關卡多 ref 將於 Task 3 完成')
-    if (tab === '2') panel.innerHTML = empty('第一版 vs 第二版將於 Task 3 完成')
+    if (tab === '3') await renderTab3(panel)
+    if (tab === '2') await renderTab2(panel)
     renderedTabs.add(tab)
   } catch (err) {
     panel.innerHTML = empty(`載入失敗：${err.message}`, true)
@@ -263,10 +272,18 @@ async function renderTab1(panel) {
 
 function directionText(dim, diff) {
   if (Math.abs(diff) < 0.005) return { arrow: '=', klass: 'eq', text: '保持' }
-  if (diff > 0 && dim.key === 'emotional_warmth') return { arrow: '↑', klass: 'up', text: '更烈一點' }
-  if (diff < 0 && dim.key === 'emotional_warmth') return { arrow: '↓', klass: 'down', text: '更柔一點' }
-  if (diff > 0) return { arrow: '↑', klass: 'up', text: '更正向' }
-  return { arrow: '↓', klass: 'down', text: '更弱化' }
+  const up = { arrow: '↑', klass: 'up' }
+  const down = { arrow: '↓', klass: 'down' }
+  if (dim.key === 'emotional_warmth') {
+    return diff > 0 ? { ...up, text: '更烈一點' } : { ...down, text: '更柔一點' }
+  }
+  if (dim.key === 'tension_direction') {
+    return diff > 0 ? { ...up, text: '更強化' } : { ...down, text: '更弱化' }
+  }
+  if (dim.key === 'world_immersion') {
+    return diff > 0 ? { ...up, text: '更濃' } : { ...down, text: '更淡' }
+  }
+  return diff > 0 ? { ...up, text: '更正向' } : { ...down, text: '更負向' }
 }
 
 async function renderTab4(panel) {
@@ -334,6 +351,159 @@ function bindRefPicker(panel, tab) {
       renderTab(String(tab))
     })
   })
+}
+
+async function renderTab3(panel) {
+  if (!CTX.refs.length) {
+    panel.innerHTML = empty('此關卡尚無 ref reading')
+    return
+  }
+
+  const variance = await postJson('/api/alignment/compare/variance', {
+    session_id: CTX.session_id,
+    level_id: CTX.level_id,
+    annotator_id: CTX.clientId,
+    annotator_role: 'client',
+    audio_role: 'ref',
+    version: 0,
+    reading_type: 'perceived',
+    audio_ids: CTX.refs
+  })
+
+  const valueHeads = CTX.refs.map((audioId) => `<th class="center" style="width:90px">${refLabel(audioId)}</th>`).join('')
+  const rows = dimensions.map((dim) => {
+    const values = CTX.refs.map((audioId) => valueOf('client', audioId, 'perceived', 0, dim.key))
+    const spread = variance.spread[dim.key] || 0
+    const badge = deltaBadge(spread, 'variance')
+    return `
+      <tr class="${badge.klass === 'hot' ? 'row-hot' : ''}">
+        <td class="dimn">${dim.display_name}</td>
+        <td>${trackDots(values.map((value, index) => ({ klass: refClasses[index] || 'A', value })))}</td>
+        ${values.map((value) => `<td class="center num">${formatValue(value)}</td>`).join('')}
+        <td class="center num">${formatDelta(spread)}</td>
+        <td class="center"><span class="badge b-${badge.klass}">${badge.label}</span></td>
+      </tr>
+    `
+  }).join('')
+
+  const hotLines = []
+  const lockedLines = []
+  dimensions.forEach((dim) => {
+    const values = CTX.refs.map((audioId) => ({
+      audioId,
+      value: valueOf('client', audioId, 'perceived', 0, dim.key)
+    })).filter((item) => typeof item.value === 'number')
+    if (!values.length) return
+    const spread = variance.spread[dim.key] || 0
+    if (spread >= 0.2) {
+      const low = values.reduce((best, item) => item.value < best.value ? item : best, values[0])
+      const high = values.reduce((best, item) => item.value > best.value ? item : best, values[0])
+      hotLines.push(`${dim.display_name}兩首給相反方向（${refLabel(low.audioId)} ${formatValue(low.value)}／${refLabel(high.audioId)} ${formatValue(high.value)}）＝客戶還沒定，開案要問的一題`)
+    } else if (spread < 0.1) {
+      lockedLines.push(`${dim.display_name}必做保留`)
+    }
+  })
+
+  const reading = [
+    ...hotLines,
+    lockedLines.length ? lockedLines.join('、') : ''
+  ].filter(Boolean).join('；')
+
+  panel.innerHTML = setupHtml(
+    '<span class="pill cli">客戶</span><span class="pill lock">perceived</span>',
+    CTX.refs.map((audioId, index) => `<span class="pill ${refClasses[index] || 'A'}">${refLabel(audioId)}</span>`).join('<span class="vs">↔</span>'),
+    '這裡看「分歧度」不是差距：穩＝鎖定，分歧＝自由'
+  ) + `
+    <table>
+      <tr><th style="width:150px">維度</th><th>A / B 落點</th>${valueHeads}<th class="center" style="width:80px">分歧</th><th class="center" style="width:130px">判讀</th></tr>
+      ${rows}
+    </table>
+    <div class="read warm"><b>聚焦結論：</b>${reading || '目前沒有足夠分歧資料可判讀。'}</div>
+  `
+}
+
+async function renderTab2(panel) {
+  const ref = selectedRefs[2] || CTX.refs[0]
+  selectedRefs[2] = ref
+  if (!ref) {
+    panel.innerHTML = empty('此關卡尚無主 ref 可作為目標')
+    return
+  }
+  if (!CTX.deliverable || !CTX.versions.length) {
+    panel.innerHTML = refPicker(2, ref) + empty('尚無新曲版本，開案後客戶標 deliverable 才有資料')
+    bindRefPicker(panel, 2)
+    return
+  }
+
+  const convergence = await postJson('/api/alignment/compare/convergence', {
+    session_id: CTX.session_id,
+    level_id: CTX.level_id,
+    annotator_id: CTX.clientId,
+    annotator_role: 'client',
+    goal_audio_id: ref,
+    deliverable_audio_id: CTX.deliverable,
+    versions: CTX.versions
+  })
+
+  const version1 = convergence.versions[0]
+  const version2 = convergence.versions[1]
+  if (!version1 && !version2) {
+    panel.innerHTML = refPicker(2, ref) + empty('尚無新曲版本，開案後客戶標 deliverable 才有資料')
+    bindRefPicker(panel, 2)
+    return
+  }
+
+  const rows = dimensions.map((dim) => {
+    const goal = convergence.goal[dim.key]
+    const v1 = version1 ? version1.values[dim.key] : undefined
+    const d1 = version1 ? version1.diffs[dim.key] : undefined
+    const v2 = version2 ? version2.values[dim.key] : undefined
+    const d2 = version2 ? version2.diffs[dim.key] : undefined
+    const lastDelta = typeof d2 === 'number' ? d2 : d1
+    const firstDelta = typeof d1 === 'number' ? d1 : d2
+    const ok = typeof lastDelta === 'number' && lastDelta < 0.1
+    const conv = `${formatDelta(firstDelta)}→${formatDelta(lastDelta)} ${ok ? '✓' : '✗'}`
+    return `
+      <tr class="${ok ? '' : 'row-hot'}">
+        <td class="dimn">${dim.display_name}</td>
+        <td class="center num">${formatValue(goal)}</td>
+        <td class="center num">${formatValue(v1)}</td>
+        <td class="center num">${formatDelta(d1)}</td>
+        <td class="center num">${formatValue(v2)}</td>
+        <td class="center num">${formatDelta(d2)}</td>
+        <td class="center conv b-${ok ? 'ok' : 'hot'} badge">${conv}</td>
+      </tr>
+    `
+  }).join('')
+
+  const lastVersion = version2 || version1
+  const nextVersion = lastVersion.version + 1
+  const openDims = dimensions.filter((dim) => (lastVersion.diffs[dim.key] || 0) >= 0.1)
+  let reading = '其餘已達標別再動'
+  if (openDims.length) {
+    const dim = openDims.reduce((best, item) => {
+      const bestDelta = lastVersion.diffs[best.key] || 0
+      const itemDelta = lastVersion.diffs[item.key] || 0
+      return itemDelta > bestDelta ? item : best
+    }, openDims[0])
+    const goal = convergence.goal[dim.key]
+    const current = lastVersion.values[dim.key]
+    const dir = directionText(dim, goal - current)
+    reading = `v${nextVersion} 唯一指令＝把 ${dim.display_name} 做${dir.text}；其餘已達標別再動`
+  }
+
+  panel.innerHTML = refPicker(2, ref) + setupHtml(
+    `<span class="pill cli">客戶標</span><span class="pill lock">${CTX.deliverable}</span>`,
+    '<span class="pill lock">v1</span><span class="vs">→</span><span class="pill lock">v2</span><span class="lbl">（對目標）</span>',
+    '每維 Δ 一版一版縮小＝改對方向'
+  ) + `
+    <table>
+      <tr><th style="width:150px">維度</th><th class="center" style="width:80px">目標</th><th class="center" style="width:70px">v1</th><th class="center" style="width:90px">v1 Δ</th><th class="center" style="width:70px">v2</th><th class="center" style="width:90px">v2 Δ</th><th class="center" style="width:90px">收斂</th></tr>
+      ${rows}
+    </table>
+    <div class="read warm"><b>${reading}</b></div>
+  `
+  bindRefPicker(panel, 2)
 }
 
 async function init() {
