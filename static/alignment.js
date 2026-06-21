@@ -51,6 +51,16 @@ function formatValue(value) {
   return `.${Math.round(value * 100).toString().padStart(2, '0')}`
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function deltaBadge(delta) {
+  if (delta < 0.1) return { label: '鎖定 · 保留', klass: 'lock' }
+  if (delta < 0.2) return { label: '偏鎖定', klass: 'lock' }
+  return { label: '需確認', klass: 'check' }
+}
+
 function setRole(role) {
   CTX.annotator_role = role
   document.body.className = role
@@ -162,6 +172,16 @@ function renderGrid() {
       targetTag.style.color = meta.color
       targetTag.textContent = `→${formatValue(value.target)}`
       track.appendChild(targetTag)
+
+      makeDraggable(handle, track, (nextValue) => {
+        state[audioId][dim.key].perceived = nextValue
+        updateMarker(audioId, dim.key, 'perceived', nextValue)
+        updateDelta(dim.key)
+      })
+      makeDraggable(ring, track, (nextValue) => {
+        state[audioId][dim.key].target = nextValue
+        updateMarker(audioId, dim.key, 'target', nextValue)
+      })
     })
 
     const delta = document.createElement('div')
@@ -174,7 +194,62 @@ function renderGrid() {
     row.appendChild(trackCell)
     row.appendChild(delta)
     grid.appendChild(row)
+    updateDelta(dim.key)
   })
+}
+
+function makeDraggable(el, track, onChange) {
+  el.addEventListener('pointerdown', (event) => {
+    event.preventDefault()
+    el.classList.add('dragging')
+    el.setPointerCapture(event.pointerId)
+
+    const move = (moveEvent) => {
+      const rect = track.getBoundingClientRect()
+      const nextValue = clamp((moveEvent.clientX - rect.left) / rect.width, 0, 1)
+      el.style.left = `${nextValue * 100}%`
+      onChange(nextValue)
+    }
+
+    const up = () => {
+      el.classList.remove('dragging')
+      el.removeEventListener('pointermove', move)
+      el.removeEventListener('pointerup', up)
+      el.removeEventListener('pointercancel', up)
+    }
+
+    el.addEventListener('pointermove', move)
+    el.addEventListener('pointerup', up)
+    el.addEventListener('pointercancel', up)
+    move(event)
+  })
+}
+
+function updateMarker(audioId, dimKey, kind, value) {
+  const sameMarker = (el) => el.dataset.audioId === audioId && el.dataset.dim === dimKey && el.dataset.kind === kind
+  const marker = [...document.querySelectorAll('.handle,.ring')].find(sameMarker)
+  const tag = [...document.querySelectorAll('.vtag')].find(sameMarker)
+  if (marker) marker.style.left = `${value * 100}%`
+  if (tag) {
+    tag.style.left = `${value * 100}%`
+    tag.textContent = kind === 'target' ? `→${formatValue(value)}` : formatValue(value)
+  }
+}
+
+function updateDelta(dimKey) {
+  const values = CTX.audio_ids.map((audioId) => state[audioId][dimKey].perceived)
+  const spread = values.length ? Math.max(...values) - Math.min(...values) : 0
+  const badge = deltaBadge(spread)
+  const row = document.querySelector(`.row[data-dim="${dimKey}"]`)
+  const delta = document.querySelector(`.delta[data-dim="${dimKey}"]`)
+  if (!row || !delta) return
+
+  row.classList.toggle('hot', badge.klass === 'check')
+  row.classList.toggle('check', badge.klass === 'check')
+  row.classList.toggle('lock', badge.klass === 'lock')
+  delta.className = `delta ${badge.klass}`
+  delta.querySelector('.dv').textContent = spread.toFixed(2)
+  delta.querySelector('.badge').textContent = badge.label
 }
 
 function renderFooter() {
