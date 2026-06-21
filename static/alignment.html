@@ -2,71 +2,152 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BGM 對齊 — Pōlán Annotator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多 Ref 校準格 · BGM 對齊標註</title>
   <style>
-    /* 沿用標註頁滑桿視覺：light-base、橙色 thumb。target 滑桿用藍色 thumb 區分。 */
-    input[type="range"].polan-slider {
-      -webkit-appearance: none; appearance: none;
-      width: 100%; height: 6px; background: #cbd5e1; border-radius: 3px; outline: none;
+    :root{
+      --ink:#1b1f27; --paper:#f4f2ec; --panel:#ffffff; --hair:#e6e1d6;
+      --muted:#7b7466; --line:#d8d3c8;
+      --refA:#3f6f8f;
+      --refB:#dc7a18;
+      --refC:#5b8f3f;
+      --refD:#8f3f6f;
+      --lock:#2f8f5b;
+      --check:#c4571a;
+      --warn-bg:#fbeede;
     }
-    input[type="range"].polan-slider::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none;
-      width: 18px; height: 18px; background: #f59e0b; border-radius: 50%;
-      cursor: pointer; border: 2px solid #f8fafc;
-    }
-    input[type="range"].polan-slider.target-slider::-webkit-slider-thumb { background: #3b82f6; }
-    input[type="range"].polan-slider::-moz-range-thumb {
-      width: 18px; height: 18px; background: #f59e0b; border-radius: 50%;
-      cursor: pointer; border: 2px solid #f8fafc;
-    }
-    input[type="range"].polan-slider.target-slider::-moz-range-thumb { background: #3b82f6; }
-    .chip {
-      user-select: none; cursor: pointer;
-      border: 1px solid #cbd5e1; border-radius: 9999px;
-      padding: 4px 12px; font-size: 14px;
-    }
-    .chip[data-on="1"] { background: #f59e0b; color: #fff; border-color: #f59e0b; }
-    @media (prefers-color-scheme: dark) {
-      input[type="range"].polan-slider { background: #334155; }
-      body { background: #0f172a; color: #e2e8f0; }
-      .card { background: #1e293b; border-color: #334155; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system,system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.4;padding:22px;-webkit-font-smoothing:antialiased}
+    .wrap{max-width:1080px;margin:0 auto}
+
+    .top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:14px}
+    .top h1{font-size:21px;font-weight:800;letter-spacing:.3px}
+    .crumbs{font-size:11.5px;color:var(--muted);margin-top:3px}
+    .crumbs b{color:var(--ink)}
+    .roletog{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+    .roletog button{border:none;background:#fff;padding:7px 13px;cursor:pointer;color:var(--muted);font-family:inherit}
+    .roletog button.on{background:var(--ink);color:#fff;font-weight:700}
+
+    .refbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+    .reflabel{font-size:11px;color:var(--muted);margin-right:2px}
+    .refchip{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px 5px 6px;font-size:12.5px}
+    .refdot{width:18px;height:18px;border-radius:50%;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .refchip .play{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--ink);text-decoration:none}
+    .refchip .dur{color:var(--muted);font-size:11px}
+
+    .legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin:8px 0 14px;align-items:center;flex-wrap:wrap}
+    .lg{display:flex;align-items:center;gap:6px}
+    .h-filled{width:13px;height:13px;border-radius:50%;border:2px solid var(--refA);background:var(--refA)}
+    .h-ring{width:13px;height:13px;border-radius:50%;border:2px solid var(--refA);background:#fff}
+
+    .banner{margin:0 0 12px;padding:10px 13px;border-radius:8px;font-size:12px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+    .banner.ok{border-color:#b9dfc8;background:#eef8f2;color:var(--lock)}
+    .banner.err{border-color:#efc6b5;background:#fff5ef;color:var(--check)}
+    .hidden{display:none}
+
+    .grid{background:var(--panel);border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+    .ghead{display:grid;grid-template-columns:230px 1fr 132px;background:#faf8f3;border-bottom:1px solid var(--hair);font-size:11px;color:var(--muted);font-weight:700}
+    .ghead>div{padding:9px 14px}
+    .ghead .axis{display:flex;justify-content:space-between}
+    .row{display:grid;grid-template-columns:230px 1fr 132px;border-bottom:1px solid var(--hair)}
+    .row:last-child{border-bottom:none}
+
+    .dim{padding:14px;border-right:1px solid var(--hair)}
+    .dim .nm{font-size:14.5px;font-weight:700}
+    .dim .q{font-size:11px;color:var(--muted);margin-top:2px}
+    .dim .ends{display:flex;justify-content:space-between;font-size:9.5px;color:var(--muted);margin-top:7px;gap:8px}
+
+    .track-cell{padding:20px 18px 14px;border-right:1px solid var(--hair);display:flex;align-items:center}
+    .track{position:relative;width:100%;height:6px;border-radius:3px;background:linear-gradient(90deg,#cdd6dd,#e6e2da 50%,#f3d9b6)}
+    .gl{position:absolute;top:-4px;width:1px;height:14px;background:rgba(27,31,39,.12)}
+    .handle{position:absolute;top:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+    .ring{position:absolute;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:#fff;cursor:grab}
+    .vtag{position:absolute;top:18px;transform:translateX(-50%);font-size:10px;font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap}
+
+    .delta{padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+    .delta .dv{font-family:ui-monospace,monospace;font-size:17px;font-weight:800}
+    .delta .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+    .lock .dv{color:var(--lock)} .lock .badge{background:#e3f3ea;color:var(--lock)}
+    .check .dv{color:var(--check)} .check .badge{background:var(--warn-bg);color:var(--check)}
+    .row.hot{background:#fffaf3}
+
+    .foot{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .fcard{background:var(--panel);border:1px solid var(--hair);border-radius:8px;padding:13px 15px}
+    .fcard .ft{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;margin-bottom:9px}
+    .grp{font-size:10.5px;color:var(--muted);margin:8px 0 5px;font-weight:700}
+    .chip{display:inline-block;border:1px solid var(--line);border-radius:14px;padding:3px 9px;margin:0 4px 4px 0;font-size:11px;background:#fcfbf8;cursor:pointer}
+    .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+    .spec-line{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
+
+    .newgoal{margin-top:12px;background:#eef3f6;border:1px solid #cfdee6;border-radius:8px;padding:11px 15px;font-size:11.5px;color:#365462}
+    .newgoal b{color:var(--ink)}
+
+    .savebar{position:sticky;bottom:0;margin-top:16px;display:flex;gap:10px;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--hair);border-radius:8px;padding:12px 16px}
+    .progress{font-size:12px;color:var(--muted)}
+    .progress b{color:var(--ink)}
+    .btns{display:flex;gap:10px}
+    .btn{border:none;border-radius:7px;padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+    .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+    .btn.primary{background:var(--refB);color:#fff;text-decoration:none;display:inline-block}
+
+    .note{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+    body.engineer .targetonly{display:none}
+
+    @media (max-width: 760px) {
+      body{padding:14px}
+      .top{align-items:flex-start;flex-direction:column}
+      .grid{overflow-x:auto}
+      .ghead,.row{min-width:760px}
+      .foot{grid-template-columns:1fr}
+      .savebar{align-items:flex-start;flex-direction:column}
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="max-w-2xl mx-auto px-4 py-6">
-    <header class="mb-4">
-      <h1 class="text-xl font-bold">BGM 對齊標註</h1>
-      <p id="context-line" class="text-sm text-slate-500 mt-1"></p>
-    </header>
-
-    <!-- 試聽（audio_id 對應主庫 AudioFile.id 時可播；骨架階段沒有則隱藏） -->
-    <audio id="player" controls class="w-full mb-4 hidden"></audio>
-
-    <div id="banner" class="hidden mb-4 px-3 py-2 rounded text-sm"></div>
-
-    <!-- 感受維度（4 條，每條雙值） -->
-    <section id="dimensions" class="space-y-4"></section>
-
-    <!-- 規格區（與感受滑桿視覺分開） -->
-    <section class="card border rounded-lg p-4 mt-6 bg-white">
-      <h2 class="font-semibold mb-3">規格區</h2>
-      <div class="mb-4">
-        <div class="text-sm mb-2">循環方式</div>
-        <div id="loop-chips" class="flex gap-2"></div>
-      </div>
+<body class="client">
+  <div class="wrap">
+    <div class="top">
       <div>
-        <div class="text-sm mb-2">長度</div>
-        <div id="loop-length-chips" class="flex gap-2"></div>
+        <h1>多 Ref 校準格 · BGM 對齊標註</h1>
+        <div class="crumbs">
+          關卡 <b id="level-label">-</b>
+          &nbsp;·&nbsp; session <b id="session-label">-</b>
+          &nbsp;·&nbsp; 標註者 <b id="role-label">-</b>
+        </div>
       </div>
-    </section>
+      <div class="roletog">
+        <button id="role-client" type="button">客戶</button>
+        <button id="role-engineer" type="button">音效師</button>
+      </div>
+    </div>
 
-    <button id="submit-btn"
-      class="w-full mt-6 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg">
-      儲存對齊標註
-    </button>
+    <div id="banner" class="banner hidden"></div>
+
+    <div id="refbar" class="refbar"></div>
+
+    <div class="legend">
+      <span class="lg"><span class="h-filled"></span>現在的感覺 (perceived)</span>
+      <span class="lg targetonly"><span class="h-ring"></span>希望調整成 (target)</span>
+      <span class="lg" style="margin-left:auto">右欄 Δ＝你聽這幾首的差距：小＝鎖定/保留，大＝需確認/可自由發揮</span>
+    </div>
+
+    <div id="grid" class="grid"></div>
+    <div id="foot" class="foot"></div>
+
+    <div class="newgoal targetonly">
+      <b>＊ 新曲目標提示：</b>target 掛在每首 ref 上；比對②會用主 ref 選擇器指定以哪首 ref 的 target 當新曲目標。
+    </div>
+
+    <div id="savebar" class="savebar">
+      <span id="progress" class="progress">本關進度載入中</span>
+      <div class="btns">
+        <button id="save-btn" type="button" class="btn ghost">儲存</button>
+        <a id="compare-link" class="btn primary" href="#">查看四組比對 →</a>
+      </div>
+    </div>
+
+    <div class="note">
+      核心：<b>維度當列、ref 當欄、共用同一條 0–1 軸</b>。右欄 Δ 即時告訴你哪幾維鎖定（保留）、哪幾維需確認（自由發揮）。
+    </div>
   </div>
 
   <script src="/static/alignment.js"></script>

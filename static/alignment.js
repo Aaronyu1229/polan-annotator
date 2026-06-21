@@ -1,27 +1,32 @@
-// BGM 對齊標註頁前端骨架。
-// 載入 BGM 維度 view + 風格白名單 → 渲染每維雙值滑桿（perceived 現在感覺 / target 希望調整成）
-// → 規格區（loop / loop_length）→ submit 串 POST /readings ×2（perceived+target）+ POST /spec。
-// 沿用既有慣例：vanilla、無分號、polan-slider、chip toggle、繁中文案、無多餘動畫。
-
-// ========== context ==========
-// client：由 /context 回傳鎖定值。engineer：沿用 query string。
 const qs = new URLSearchParams(window.location.search)
+const palette = ['#3f6f8f', '#dc7a18', '#5b8f3f', '#8f3f6f']
+const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+
 const CTX = {
   session_id: qs.get('session_id') || 's1',
+  level_id: qs.get('level_id') || '',
+  level_label: qs.get('level_label') || qs.get('level_id') || '未命名關卡',
   annotator_id: qs.get('annotator_id') || 'guest',
   annotator_role: qs.get('annotator_role') || 'client',
-  alignment_audio_id: qs.get('audio_id') || '',
-  audio_role: qs.get('audio_role') || 'ref',
-  version: parseInt(qs.get('version') || '0', 10),
+  audio_ids: parseAudioIds(qs.get('audio_ids') || qs.get('audio_id') || ''),
+  deliverable_id: qs.get('deliverable_id') || ''
 }
+
+const state = {}
+const spec = {}
+let dimensions = []
+let styleTags = []
 
 const $ = (id) => document.getElementById(id)
 
-function showBanner(msg, ok) {
-  const el = $('banner')
-  el.textContent = msg
-  el.className = `mb-4 px-3 py-2 rounded text-sm ${ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`
-  el.classList.remove('hidden')
+function parseAudioIds(value) {
+  return value.split(',').map((id) => id.trim()).filter(Boolean)
+}
+
+function showBanner(message, type) {
+  const banner = $('banner')
+  banner.textContent = message
+  banner.className = `banner ${type === 'ok' ? 'ok' : 'err'}`
 }
 
 async function fetchJson(url, opts) {
@@ -31,178 +36,199 @@ async function fetchJson(url, opts) {
   return body
 }
 
-// ========== 渲染感受維度（雙值滑桿） ==========
-// state[dim] = { perceived: 0.5, target: 0.5 }
-const state = {}
-let STYLE_TAGS = []  // world_immersion 下方的多選風格（白名單）
-let LOOP = null
-let LOOP_LENGTH = null
-
-function sliderRow(dim, kind, label) {
-  // kind: 'perceived' | 'target'
-  const wrap = document.createElement('div')
-  wrap.className = 'mt-2'
-  const head = document.createElement('div')
-  head.className = 'flex justify-between text-xs text-slate-500'
-  const valSpan = document.createElement('span')
-  valSpan.textContent = '0.50'
-  head.innerHTML = `<span>${label}</span>`
-  head.appendChild(valSpan)
-  const slider = document.createElement('input')
-  slider.type = 'range'
-  slider.min = '0'; slider.max = '1'; slider.step = '0.01'; slider.value = '0.5'
-  slider.className = `polan-slider ${kind === 'target' ? 'target-slider' : ''}`
-  slider.addEventListener('input', () => {
-    const v = parseFloat(slider.value)
-    state[dim][kind] = v
-    valSpan.textContent = v.toFixed(2)
-  })
-  wrap.appendChild(head)
-  wrap.appendChild(slider)
-  return wrap
-}
-
-function dimensionCard(dim) {
-  state[dim.key] = { perceived: 0.5, target: 0.5 }
-  const card = document.createElement('div')
-  card.className = 'card border rounded-lg p-4 bg-white'
-  card.innerHTML = `
-    <div class="font-semibold">${dim.display_name}</div>
-    <div class="text-sm text-slate-600 mt-1">${dim.client_question || ''}</div>
-    <div class="grid grid-cols-3 gap-1 text-xs text-slate-400 mt-2">
-      <span>低：${dim.low_anchor}</span>
-      <span class="text-center">中：${dim.mid_anchor || ''}</span>
-      <span class="text-right">高：${dim.high_anchor}</span>
-    </div>`
-  card.appendChild(sliderRow(dim.key, 'perceived', '現在的感覺'))
-  card.appendChild(sliderRow(dim.key, 'target', '希望調整成'))
-
-  // world_immersion 下方掛風格標籤（額外調味，不進數值比對）
-  if (dim.key === 'world_immersion') {
-    const tagWrap = document.createElement('div')
-    tagWrap.className = 'mt-3'
-    tagWrap.innerHTML = '<div class="text-sm mb-2">想額外加的元素（可多選）</div>'
-    const tagBox = document.createElement('div')
-    tagBox.className = 'flex flex-wrap gap-2'
-    tagBox.id = 'style-chips'
-    tagWrap.appendChild(tagBox)
-    card.appendChild(tagWrap)
-  }
-  return card
-}
-
-// ========== chip 工具（toggle / single-select） ==========
-function makeChip(label, value, onToggle) {
-  const chip = document.createElement('span')
-  chip.className = 'chip'
-  chip.textContent = label
-  chip.dataset.on = '0'
-  chip.dataset.value = value
-  chip.addEventListener('click', () => onToggle(chip))
-  return chip
-}
-
-function renderStyleChips() {
-  const box = $('style-chips')
-  if (!box) return
-  STYLE_TAGS.forEach((tag) => {
-    box.appendChild(makeChip(tag, tag, (chip) => {
-      chip.dataset.on = chip.dataset.on === '1' ? '0' : '1'
-    }))
-  })
-}
-
-function renderSingleSelect(boxId, options, onPick) {
-  const box = $(boxId)
-  options.forEach(([label, value]) => {
-    box.appendChild(makeChip(label, value, (chip) => {
-      // single-select：先清同組
-      box.querySelectorAll('.chip').forEach((c) => { c.dataset.on = '0' })
-      chip.dataset.on = '1'
-      onPick(value)
-    }))
-  })
-}
-
-function collectStyleTags() {
-  const box = $('style-chips')
-  if (!box) return []
-  return [...box.querySelectorAll('.chip[data-on="1"]')].map((c) => c.dataset.value)
-}
-
-// ========== submit ==========
-async function submit() {
-  const perceived = {}
-  const target = {}
-  Object.keys(state).forEach((dim) => {
-    perceived[dim] = state[dim].perceived
-    target[dim] = state[dim].target
-  })
-  const base = {
-    session_id: CTX.session_id, annotator_id: CTX.annotator_id,
-    annotator_role: CTX.annotator_role, audio_id: CTX.alignment_audio_id,
-    audio_role: CTX.audio_role, version: CTX.version,
-  }
-  try {
-    await fetchJson('/api/alignment/readings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...base, reading_type: 'perceived', values: perceived }),
-    })
-    await fetchJson('/api/alignment/readings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...base, reading_type: 'target', values: target }),
-    })
-    await fetchJson('/api/alignment/spec', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...base, loop: LOOP, loop_length: LOOP_LENGTH, style_tags: collectStyleTags() }),
-    })
-    showBanner('已儲存對齊標註（perceived + target + 規格）', true)
-  } catch (err) {
-    showBanner(`儲存失敗：${err.message}`, false)
+function refMeta(audioId) {
+  const index = CTX.audio_ids.indexOf(audioId)
+  return {
+    id: audioId,
+    index,
+    letter: letters[index] || '?',
+    color: palette[index % palette.length],
+    name: audioId
   }
 }
 
-// ========== init ==========
-async function init() {
+function formatValue(value) {
+  return `.${Math.round(value * 100).toString().padStart(2, '0')}`
+}
+
+function setRole(role) {
+  CTX.annotator_role = role
+  document.body.className = role
+  $('role-client').classList.toggle('on', role === 'client')
+  $('role-engineer').classList.toggle('on', role === 'engineer')
+  $('role-label').textContent = `${role === 'client' ? '客戶' : '音效師'} ${CTX.annotator_id}`
+}
+
+function ensureState() {
+  CTX.audio_ids.forEach((audioId) => {
+    state[audioId] = state[audioId] || {}
+    spec[audioId] = spec[audioId] || { style_tags: [], loop: null, loop_length: null }
+    dimensions.forEach((dim) => {
+      state[audioId][dim.key] = state[audioId][dim.key] || { perceived: 0.5, target: 0.5 }
+    })
+  })
+}
+
+function renderRefbar() {
+  const refbar = $('refbar')
+  refbar.innerHTML = '<span class="reflabel">本關 ref：</span>'
+  CTX.audio_ids.forEach((audioId) => {
+    const meta = refMeta(audioId)
+    const chip = document.createElement('div')
+    chip.className = 'refchip'
+    chip.innerHTML = `
+      <span class="refdot" style="background:${meta.color}">${meta.letter}</span>
+      <span>${meta.name}</span>
+      <a class="play" href="/api/alignment/audio/${encodeURIComponent(audioId)}/stream" target="_blank" rel="noopener">▶</a>
+      <span class="dur">ref</span>
+    `
+    refbar.appendChild(chip)
+  })
+}
+
+function renderGrid() {
+  const grid = $('grid')
+  grid.innerHTML = `
+    <div class="ghead">
+      <div>維度</div>
+      <div class="axis"><span>0.0 低</span><span>0.5</span><span>1.0 高</span></div>
+      <div style="text-align:center">兩首 Δ（A↔B）</div>
+    </div>
+  `
+
+  dimensions.forEach((dim) => {
+    const row = document.createElement('div')
+    row.className = 'row lock'
+    row.dataset.dim = dim.key
+
+    const dimCell = document.createElement('div')
+    dimCell.className = 'dim'
+    dimCell.innerHTML = `
+      <div class="nm">${dim.display_name}</div>
+      <div class="q">${dim.client_question || ''}</div>
+      <div class="ends"><span>${dim.low_anchor || '低'}</span><span>${dim.high_anchor || '高'}</span></div>
+    `
+
+    const trackCell = document.createElement('div')
+    trackCell.className = 'track-cell'
+    const track = document.createElement('div')
+    track.className = 'track'
+    track.innerHTML = `
+      <span class="gl" style="left:25%"></span>
+      <span class="gl" style="left:50%"></span>
+      <span class="gl" style="left:75%"></span>
+    `
+
+    CTX.audio_ids.forEach((audioId, index) => {
+      const meta = refMeta(audioId)
+      const value = state[audioId][dim.key]
+      const handle = document.createElement('span')
+      handle.className = 'handle'
+      handle.dataset.audioId = audioId
+      handle.dataset.dim = dim.key
+      handle.dataset.kind = 'perceived'
+      handle.style.left = `${value.perceived * 100}%`
+      handle.style.background = meta.color
+      handle.textContent = meta.letter
+      track.appendChild(handle)
+
+      const perceivedTag = document.createElement('span')
+      perceivedTag.className = 'vtag'
+      perceivedTag.dataset.audioId = audioId
+      perceivedTag.dataset.dim = dim.key
+      perceivedTag.dataset.kind = 'perceived'
+      perceivedTag.style.left = `${value.perceived * 100}%`
+      perceivedTag.style.top = index % 2 === 0 ? '18px' : '-22px'
+      perceivedTag.style.color = meta.color
+      perceivedTag.textContent = formatValue(value.perceived)
+      track.appendChild(perceivedTag)
+
+      const ring = document.createElement('span')
+      ring.className = 'ring targetonly'
+      ring.dataset.audioId = audioId
+      ring.dataset.dim = dim.key
+      ring.dataset.kind = 'target'
+      ring.style.left = `${value.target * 100}%`
+      ring.style.border = `2.5px solid ${meta.color}`
+      track.appendChild(ring)
+
+      const targetTag = document.createElement('span')
+      targetTag.className = 'vtag targetonly'
+      targetTag.dataset.audioId = audioId
+      targetTag.dataset.dim = dim.key
+      targetTag.dataset.kind = 'target'
+      targetTag.style.left = `${value.target * 100}%`
+      targetTag.style.top = index % 2 === 0 ? '-22px' : '18px'
+      targetTag.style.color = meta.color
+      targetTag.textContent = `→${formatValue(value.target)}`
+      track.appendChild(targetTag)
+    })
+
+    const delta = document.createElement('div')
+    delta.className = 'delta lock'
+    delta.dataset.dim = dim.key
+    delta.innerHTML = '<span class="dv">0.00</span><span class="badge">鎖定 · 保留</span>'
+
+    trackCell.appendChild(track)
+    row.appendChild(dimCell)
+    row.appendChild(trackCell)
+    row.appendChild(delta)
+    grid.appendChild(row)
+  })
+}
+
+function renderFooter() {
+  $('foot').innerHTML = ''
+}
+
+function renderChrome() {
+  $('level-label').textContent = CTX.level_label
+  $('session-label').textContent = CTX.session_id
+  $('compare-link').href = `/static/alignment-compare.html?session_id=${encodeURIComponent(CTX.session_id)}&level_id=${encodeURIComponent(CTX.level_id)}`
+  $('progress').innerHTML = `本關進度　<b>0 / ${CTX.audio_ids.length} 首已標</b>（你 · ${CTX.annotator_role === 'client' ? '客戶' : '音效師'}）　·　對方：<b>0 / ${CTX.audio_ids.length}</b>`
+  setRole(CTX.annotator_role)
+}
+
+async function loadContext() {
   try {
     const ctx = await fetchJson('/api/alignment/context')
     if (ctx.role === 'client') {
       CTX.session_id = ctx.session_id
       CTX.annotator_id = ctx.annotator_id
       CTX.annotator_role = 'client'
-      CTX.alignment_audio_id = ctx.alignment_audio_id
+      CTX.audio_ids = ctx.alignment_audio_id ? [ctx.alignment_audio_id] : CTX.audio_ids
     }
   } catch (err) {
-    showBanner(`無法載入存取資訊：${err.message}`, false)
-    return
+    if (!CTX.audio_ids.length) {
+      showBanner(`無法載入存取資訊：${err.message}`, 'err')
+    }
   }
+}
 
-  $('context-line').textContent =
-    `session ${CTX.session_id} ・ ${CTX.annotator_role} ${CTX.annotator_id} ・ ${CTX.audio_role} v${CTX.version}` +
-    (CTX.alignment_audio_id ? ` ・ ${CTX.alignment_audio_id}` : '（未指定音檔）')
-
-  if (CTX.alignment_audio_id) {
-    const player = $('player')
-    player.src = `/api/alignment/audio/${encodeURIComponent(CTX.alignment_audio_id)}/stream`
-    player.classList.remove('hidden')
+async function init() {
+  await loadContext()
+  if (!CTX.audio_ids.length) {
+    CTX.audio_ids = ['refA']
   }
 
   try {
     const [dimsRes, styleRes] = await Promise.all([
       fetchJson('/api/alignment/dimensions'),
-      fetchJson('/api/alignment/style-options'),
+      fetchJson('/api/alignment/style-options')
     ])
-    STYLE_TAGS = styleRes.style_tags
-    const section = $('dimensions')
-    dimsRes.dimensions.forEach((dim) => section.appendChild(dimensionCard(dim)))
-    renderStyleChips()
-    renderSingleSelect('loop-chips', [['無縫循環', 'loop'], ['一次性', 'one_shot']], (v) => { LOOP = v })
-    renderSingleSelect('loop-length-chips', [['~15s', 15], ['~30s', 30], ['~60s', 60]], (v) => { LOOP_LENGTH = v })
+    dimensions = dimsRes.dimensions || []
+    styleTags = styleRes.style_tags || []
+    ensureState()
+    renderChrome()
+    renderRefbar()
+    renderGrid()
+    renderFooter()
   } catch (err) {
-    showBanner(`載入失敗：${err.message}`, false)
+    showBanner(`載入失敗：${err.message}`, 'err')
   }
-
-  $('submit-btn').addEventListener('click', submit)
 }
+
+$('role-client').addEventListener('click', () => setRole('client'))
+$('role-engineer').addEventListener('click', () => setRole('engineer'))
 
 init()
