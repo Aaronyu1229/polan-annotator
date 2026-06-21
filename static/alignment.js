@@ -16,6 +16,7 @@ const state = {}
 const spec = {}
 let dimensions = []
 let styleTags = []
+let progressByRole = { client: 0, engineer: 0 }
 
 const $ = (id) => document.getElementById(id)
 
@@ -67,7 +68,7 @@ function setRole(role) {
   $('role-client').classList.toggle('on', role === 'client')
   $('role-engineer').classList.toggle('on', role === 'engineer')
   $('role-label').textContent = `${role === 'client' ? '客戶' : '音效師'} ${CTX.annotator_id}`
-  renderProgress(0, 0)
+  renderProgress()
 }
 
 function ensureState() {
@@ -320,10 +321,11 @@ function renderSingleSelect(box, options, selectedValue, onPick) {
   })
 }
 
-function renderProgress(ownDone, otherDone) {
+function renderProgress() {
   if (!$('progress')) return
   const roleLabel = CTX.annotator_role === 'client' ? '客戶' : '音效師'
-  $('progress').innerHTML = `本關進度　<b>${ownDone} / ${CTX.audio_ids.length} 首已標</b>（你 · ${roleLabel}）　·　對方：<b>${otherDone} / ${CTX.audio_ids.length}</b>`
+  const otherRole = CTX.annotator_role === 'client' ? 'engineer' : 'client'
+  $('progress').innerHTML = `本關進度　<b>${progressByRole[CTX.annotator_role] || 0} / ${CTX.audio_ids.length} 首已標</b>（你 · ${roleLabel}）　·　對方：<b>${progressByRole[otherRole] || 0} / ${CTX.audio_ids.length}</b>`
 }
 
 function renderChrome() {
@@ -349,6 +351,95 @@ async function loadContext() {
   }
 }
 
+function collectValues(audioId, kind) {
+  const values = {}
+  dimensions.forEach((dim) => {
+    values[dim.key] = state[audioId][dim.key][kind]
+  })
+  return values
+}
+
+async function saveAll() {
+  const saveButton = $('save-btn')
+  saveButton.disabled = true
+  saveButton.textContent = '儲存中'
+
+  try {
+    for (const audioId of CTX.audio_ids) {
+      const base = {
+        session_id: CTX.session_id,
+        level_id: CTX.level_id,
+        annotator_id: CTX.annotator_id,
+        annotator_role: CTX.annotator_role,
+        audio_id: audioId,
+        audio_role: 'ref',
+        version: 0
+      }
+
+      await fetchJson('/api/alignment/readings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...base, reading_type: 'perceived', values: collectValues(audioId, 'perceived') })
+      })
+
+      if (CTX.annotator_role === 'client') {
+        await fetchJson('/api/alignment/readings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...base, reading_type: 'target', values: collectValues(audioId, 'target') })
+        })
+      }
+
+      await fetchJson('/api/alignment/spec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...base,
+          loop: spec[audioId].loop,
+          loop_length: spec[audioId].loop_length,
+          style_tags: spec[audioId].style_tags
+        })
+      })
+    }
+
+    showBanner('已儲存', 'ok')
+    await loadProgress()
+  } catch (err) {
+    showBanner(`儲存失敗：${err.message}`, 'err')
+  } finally {
+    saveButton.disabled = false
+    saveButton.textContent = '儲存'
+  }
+}
+
+async function loadProgress() {
+  try {
+    const params = new URLSearchParams({ session_id: CTX.session_id, level_id: CTX.level_id })
+    const res = await fetchJson(`/api/alignment/readings?${params.toString()}`)
+    const byRole = { client: new Set(), engineer: new Set() }
+    const sets = res.sets || []
+    sets.forEach((set) => {
+      if (
+        set.audio_role === 'ref' &&
+        set.reading_type === 'perceived' &&
+        set.version === 0 &&
+        CTX.audio_ids.includes(set.audio_id) &&
+        byRole[set.annotator_role]
+      ) {
+        byRole[set.annotator_role].add(set.audio_id)
+      }
+    })
+    progressByRole = {
+      client: byRole.client.size,
+      engineer: byRole.engineer.size
+    }
+    renderProgress()
+  } catch (err) {
+    showBanner(`無法載入進度：${err.message}`, 'err')
+    renderProgress()
+  }
+}
+
 async function init() {
   await loadContext()
   if (!CTX.audio_ids.length) {
@@ -367,6 +458,7 @@ async function init() {
     renderRefbar()
     renderGrid()
     renderFooter()
+    await loadProgress()
   } catch (err) {
     showBanner(`載入失敗：${err.message}`, 'err')
   }
@@ -374,5 +466,6 @@ async function init() {
 
 $('role-client').addEventListener('click', () => setRole('client'))
 $('role-engineer').addEventListener('click', () => setRole('engineer'))
+$('save-btn').addEventListener('click', saveAll)
 
 init()
