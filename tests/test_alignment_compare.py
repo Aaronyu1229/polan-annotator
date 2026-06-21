@@ -94,6 +94,20 @@ def test_identical_identity_has_no_differing_axis():
     assert differing_axes(_ident(), _ident()) == []
 
 
+def _r(level_id, audio_id, dim, val):
+    return Reading(
+        session_id="s1", annotator_id="amber", annotator_role="client",
+        audio_id=audio_id, audio_role="ref", version=0,
+        dimension=dim, value=val, reading_type="perceived", level_id=level_id,
+    )
+
+
+def test_differing_axes_flags_level_mismatch():
+    a = group_into_sets([_r("L1", "refA", "valence", 0.9)])[0]
+    b = group_into_sets([_r("L2", "refA", "valence", 0.9)])[0]
+    assert "level" in differing_axes(a.identity, b.identity)
+
+
 # ── compare_pair (差距) ────────────────────────────────────────────────────
 def test_compare_pair_per_dimension_abs_diff():
     a = ReadingSet(_ident(), {"valence": 0.9, "emotional_warmth": 0.25})
